@@ -1,0 +1,175 @@
+<resources>
+    <string name="app_name">ToBeVPN TV</string>
+    <string name="splash_tagline">твоё будущее приватно</string>
+
+    <!-- Common -->
+    <string name="back">Назад</string>
+    <string name="refresh">Обновить</string>
+
+    <!-- Connection states -->
+    <string name="state_disconnected">Отключено</string>
+    <string name="state_connecting">Подключение…</string>
+    <string name="state_connected">Подключено</string>
+    <string name="vpn_error_limit_exhausted">Лимит бесплатного трафика исчерпан. Войдите через Telegram, чтобы продолжить.</string>
+    <string name="vpn_error_tun_failed">Не удалось создать VPN-интерфейс</string>
+    <string name="vpn_notification_action_disconnect">Отключить</string>
+
+    <!-- Servers -->
+    <string name="server_select">Выберите сервер</string>
+    <string name="servers_load_error">Ошибка загрузки</string>
+    <string name="servers_empty">Нет доступных серверов</string>
+
+    <!-- Main screen -->
+    <string name="speed_test_title">Тест скорости</string>
+    <string name="speed_test_subtitle">Проверить скорость интернета</string>
+    <string name="subscription">Подписка</string>
+    <string name="sign_in_required_hint">Войдите через QR-код, чтобы продолжить</string>
+    <string name="current_session">Текущая сессия</string>
+    <string name="traffic">Трафик</string>
+
+    <!-- Plans -->
+    <string name="plan_admin">Админ</string>
+    <string name="plan_standard">Стандарт</string>
+    <string name="plan_expired">Истёк</string>
+    <string name="plan_free">Бесплатный</string>
+    <string name="plan_until">до %1$s</string>
+    <string name="plan_active_until">Активна до %1$s</string>
+    <string name="plan_unlimited_access">Безлимитный доступ</string>
+    <string name="plan_renew">Продлите подписку</string>
+    <string name="plan_limited_traffic">Ограниченный трафик</string>
+    <string name="plan_quota_month">150 ГБ / месяц</string>
+    <string name="plan_conditions_loading">Условия тарифа загружаются</string>
+    <string name="plan_traffic_month_fmt">%1$d ГБ / месяц</string>
+    <string name="plan_devices_fmt">до %1$d устройств</string>
+    <string name="plan_unlimited_traffic">Безлимитный трафик</string>
+    <string name="devices_label">устройств</string>
+    <string name="per_month_short">в месяц</string>
+    <string name="unit_gb">ГБ</string>
+    <string name="subscription_qr_unavailable">QR-код пока недоступен, попробуйте позже</string>
+    <string name="current_plan">Текущий тариф</string>
+    <string name="payment_via_telegram">Оплата через Telegram</string>
+    <string name="price_rub">%1$s\u20BD</string>
+    <string name="price_usd">$%1$s</string>
+    <string name="price_stars">%1$s Stars</string>
+    <string name="plan_day">1 день</string>
+    <string name="plan_week">7 дней</string>
+    <string name="plan_month">1 месяц</string>
+    <string name="plan_3month">3 месяца</string>
+    <string name="plan_year">1 год</string>
+    <string name="subscription_buy_in_telegram">Купить в Telegram</string>
+    <string name="subscription_renew_in_telegram">Продлить в Telegram</string>
+    <string name="subscription_qr_hint">Отсканируйте телефоном, чтобы открыть Telegram и продолжить покупку.</string>
+    <string name="subscription_sync_hint">Тариф обновится автоматически после оплаты.</string>
+    <string name="subscription_change_plan">Выбрать другой тариф</string>
+    <string name="subscription_loading_plans">Загружаем условия и цены тарифов…</string>
+    <string name="subscription_no_plans">Сейчас нет доступных тарифов</string>
+
+    <!-- Main screen extra -->
+    <string name="downloaded">Загружено</string>
+    <string name="time">Время</string>
+    <string name="renew_in_bot">Продлите подписку в Telegram</string>
+
+    <!-- Auth screen -->
+    <string name="auth_waiting">Ожидаем авторизацию…</string>
+    <string name="auth_error_server">Не удалось связаться с сервером. Проверьте подключение.</string>
+
+    <!-- Settings -->
+    <string name="settings">Настройки</string>
+    <string name="account">Аккаунт</string>
+    <string name="not_authorized">Не авторизован</string>
+    <string name="telegram_id">Telegram ID</string>
+    <string name="plan">Тариф</string>
+    <string name="expires">Действует до</string>
+    <string name="logout">Выйти</string>
+    <string name="about">О приложении</string>
+    <string name="version">Версия</string>
+    <string name="xray">XRay</string>
+
+    <!-- Stats -->
+    <string name="stats_title">Статистика</string>
+    <string name="stats_total_used">Всего использовано</string>
+    <string name="stats_period_day">День</string>
+    <string name="stats_period_week">Неделя</string>
+    <string name="stats_period_month">Месяц</string>
+    <string name="stats_today_by_hour">Сегодня по часам</string>
+    <string name="stats_week_by_day">Эта неделя по дням</string>
+    <string name="stats_month_by_week">Этот месяц по неделям</string>
+    <string name="stats_no_data">Нет данных за этот период</string>
+    <string name="stats_week_short">Нед %1$d</string>
+    <plurals name="stats_sessions_short">
+        <item quantity="one">%1$d сессия</item>
+        <item quantity="few">%1$d сессии</item>
+        <item quantity="many">%1$d сессий</item>
+        <item quantity="other">%1$d сессии</item>
+    </plurals>
+    <string name="stats_context_authenticated">VPN-сессии</string>
+    <string name="stats_metric_sessions">Сессии</string>
+    <string name="stats_metric_time">Время</string>
+    <string name="stats_metric_avg">Ср / сессия</string>
+
+    <!-- Speed test -->
+    <string name="speed_press_start">Нажмите «Начать»</string>
+    <string name="speed_measuring_ping">Измерение пинга…</string>
+    <string name="speed_downloading">Загрузка…</string>
+    <string name="speed_done">Тест завершён</string>
+    <string name="speed_ping">Пинг</string>
+    <string name="speed_unit_ms">мс</string>
+    <string name="speed_download">Загрузка</string>
+    <string name="speed_unit_mbps">Мбит/с</string>
+    <string name="speed_start_test">Начать тест</string>
+    <string name="speed_stop">Остановить</string>
+    <string name="speed_no_connection">Нет соединения</string>
+    <string name="speed_measure_failed">Не удалось измерить скорость</string>
+
+    <!-- Pairing -->
+    <string name="pairing_title">Вход в ToBeVPN</string>
+    <string name="pairing_instruction">Откройте ToBeVPN на телефоне → Настройки → Подключенные устройства и отсканируйте QR-код,\nили просто сканируйте его камерой телефона.</string>
+    <string name="pairing_loading">Готовим ссылку для входа через Telegram…</string>
+    <string name="pairing_waiting">Сканируйте QR-код и подтвердите вход в Telegram…</string>
+    <string name="pairing_done">Готово!</string>
+    <string name="error_generic">Ошибка</string>
+    <string name="retry">Попробовать снова</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_subtitle">Быстрый и безопасный VPN на базе XRay</string>
+    <string name="onboarding_feature_pairing">Привяжите TV к аккаунту ToBeVPN через QR-код</string>
+    <string name="onboarding_feature_devices">Управляйте TV и другими устройствами с телефона</string>
+    <string name="onboarding_feature_telegram">Подписка и список серверов синхронизируются автоматически</string>
+    <string name="onboarding_feature_stars">Оплачивайте через Telegram и продолжайте смотреть на TV</string>
+    <string name="onboarding_start">Начать</string>
+    <string name="onboarding_consent">Нажимая «Начать», вы соглашаетесь с Политикой конфиденциальности</string>
+
+    <!-- Privacy -->
+    <string name="privacy_policy">Политика конфиденциальности</string>
+
+    <!-- Country names -->
+    <string name="country_NL">Нидерланды</string>
+    <string name="country_DE">Германия</string>
+    <string name="country_US">США</string>
+    <string name="country_GB">Великобритания</string>
+    <string name="country_FI">Финляндия</string>
+    <string name="country_SE">Швеция</string>
+    <string name="country_FR">Франция</string>
+    <string name="country_JP">Япония</string>
+    <string name="country_SG">Сингапур</string>
+    <string name="country_CA">Канада</string>
+    <string name="country_AU">Австралия</string>
+    <string name="country_RU">Россия</string>
+    <string name="country_TR">Турция</string>
+
+    <!-- In-app updater -->
+    <string name="update_banner_title">Доступна новая версия %1$s</string>
+    <string name="update_banner_download">Скачать</string>
+    <string name="update_banner_later">Позже</string>
+    <string name="update_banner_downloading_title">Загружаем %1$s…</string>
+    <string name="update_banner_cancel">Отменить</string>
+    <string name="update_banner_ready_title">Версия %1$s готова к установке</string>
+    <string name="update_banner_ready_description">Нажмите «Установить», чтобы применить обновление.</string>
+    <string name="update_banner_install">Установить</string>
+    <string name="update_banner_failed_title">Не удалось обновить</string>
+    <string name="update_banner_retry">Повторить</string>
+    <!-- Settings → О приложении → строка "Проверить обновления" -->
+    <string name="update_check_button">Проверить</string>
+    <string name="update_check_uptodate">Установлена последняя версия (%1$s)</string>
+    <string name="update_available_short">Доступна: %1$s</string>
+</resources>

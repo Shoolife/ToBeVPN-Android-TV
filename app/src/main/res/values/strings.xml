@@ -1,0 +1,174 @@
+<resources>
+    <string name="app_name">ToBeVPN TV</string>
+    <string name="splash_tagline">your future is private</string>
+
+    <!-- Common -->
+    <string name="back">Back</string>
+    <string name="refresh">Refresh</string>
+
+    <!-- Connection states -->
+    <string name="state_disconnected">Disconnected</string>
+    <string name="state_connecting">Connecting…</string>
+    <string name="state_connected">Connected</string>
+    <string name="vpn_error_limit_exhausted">Free traffic limit reached. Sign in via Telegram to continue.</string>
+    <string name="vpn_error_tun_failed">Could not create VPN interface</string>
+    <string name="vpn_notification_action_disconnect">Disconnect</string>
+
+    <!-- Servers -->
+    <string name="server_select">Select a server</string>
+    <string name="servers_load_error">Failed to load</string>
+    <string name="servers_empty">No servers available</string>
+
+    <!-- Main screen -->
+    <string name="speed_test_title">Speed test</string>
+    <string name="speed_test_subtitle">Check your internet speed</string>
+    <string name="subscription">Subscription</string>
+    <string name="sign_in_required_hint">Sign in with the QR code to continue</string>
+    <string name="current_session">Current session</string>
+    <string name="traffic">Traffic</string>
+
+    <!-- Plans -->
+    <string name="plan_admin">Admin</string>
+    <string name="plan_standard">Standard</string>
+    <string name="plan_expired">Expired</string>
+    <string name="plan_free">Free</string>
+    <string name="plan_until">until %1$s</string>
+    <string name="plan_active_until">Active until %1$s</string>
+    <string name="plan_quota_month">150 GB / month</string>
+    <string name="plan_conditions_loading">Plan conditions are loading</string>
+    <string name="plan_traffic_month_fmt">%1$d GB / month</string>
+    <string name="plan_devices_fmt">up to %1$d devices</string>
+    <string name="plan_unlimited_traffic">Unlimited traffic</string>
+    <string name="devices_label">devices</string>
+    <string name="per_month_short">per month</string>
+    <string name="unit_gb">GB</string>
+    <string name="subscription_qr_unavailable">QR code is not available, try again later</string>
+    <string name="plan_unlimited_access">Unlimited access</string>
+    <string name="plan_renew">Renew subscription</string>
+    <string name="plan_limited_traffic">Limited traffic</string>
+    <string name="current_plan">Current plan</string>
+    <string name="payment_via_telegram">Payment via Telegram</string>
+    <string name="price_rub">%1$s\u20BD</string>
+    <string name="price_usd">$%1$s</string>
+    <string name="price_stars">%1$s ⭐</string>
+    <string name="plan_day">1 day</string>
+    <string name="plan_week">7 days</string>
+    <string name="plan_month">1 month</string>
+    <string name="plan_3month">3 months</string>
+    <string name="plan_year">1 year</string>
+    <string name="subscription_buy_in_telegram">Buy in Telegram</string>
+    <string name="subscription_renew_in_telegram">Renew in Telegram</string>
+    <string name="subscription_qr_hint">Scan with your phone to open Telegram and continue the purchase.</string>
+    <string name="subscription_sync_hint">The plan updates automatically after payment.</string>
+    <string name="subscription_change_plan">Choose another plan</string>
+    <string name="subscription_loading_plans">Loading plan conditions and pricing…</string>
+    <string name="subscription_no_plans">No plans available right now</string>
+
+    <!-- Main screen extra -->
+    <string name="downloaded">Downloaded</string>
+    <string name="time">Time</string>
+    <string name="renew_in_bot">Renew the subscription in Telegram</string>
+
+    <!-- Auth screen -->
+    <string name="auth_waiting">Waiting for authorization…</string>
+    <string name="auth_error_server">Could not reach the server. Check your connection.</string>
+
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="account">Account</string>
+    <string name="not_authorized">Not signed in</string>
+    <string name="telegram_id">Telegram ID</string>
+    <string name="plan">Plan</string>
+    <string name="expires">Expires</string>
+    <string name="logout">Sign out</string>
+    <string name="about">About</string>
+    <string name="version">Version</string>
+    <string name="xray">XRay</string>
+
+    <!-- Stats -->
+    <string name="stats_title">Statistics</string>
+    <string name="stats_total_used">Total used</string>
+    <string name="stats_period_day">Day</string>
+    <string name="stats_period_week">Week</string>
+    <string name="stats_period_month">Month</string>
+    <string name="stats_today_by_hour">Today by hour</string>
+    <string name="stats_week_by_day">This week by day</string>
+    <string name="stats_month_by_week">This month by week</string>
+    <string name="stats_no_data">No data for this period</string>
+    <string name="stats_week_short">Wk %1$d</string>
+    <plurals name="stats_sessions_short">
+        <item quantity="one">%1$d sess.</item>
+        <item quantity="other">%1$d sess.</item>
+    </plurals>
+    <string name="stats_context_authenticated">VPN sessions</string>
+    <string name="stats_metric_sessions">Sessions</string>
+    <string name="stats_metric_time">Time</string>
+    <string name="stats_metric_avg">Avg / session</string>
+
+    <!-- Speed test -->
+    <string name="speed_press_start">Press "Start"</string>
+    <string name="speed_measuring_ping">Measuring ping…</string>
+    <string name="speed_downloading">Downloading…</string>
+    <string name="speed_done">Test complete</string>
+    <string name="speed_ping">Ping</string>
+    <string name="speed_unit_ms">ms</string>
+    <string name="speed_download">Download</string>
+    <string name="speed_unit_mbps">Mbps</string>
+    <string name="speed_start_test">Start test</string>
+    <string name="speed_stop">Stop</string>
+    <string name="speed_no_connection">No connection</string>
+    <string name="speed_measure_failed">Speed measurement failed</string>
+
+    <!-- Pairing -->
+    <string name="pairing_title">Sign in to ToBeVPN</string>
+    <string name="pairing_instruction">Open ToBeVPN on your phone → Settings → Linked devices and scan the QR code,\nor scan it with your phone camera.</string>
+    <string name="pairing_loading">Generating Telegram sign-in link…</string>
+    <string name="pairing_waiting">Scan the QR code and confirm sign-in in Telegram…</string>
+    <string name="pairing_done">Done!</string>
+    <string name="error_generic">Error</string>
+    <string name="retry">Try again</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_subtitle">Fast and secure VPN powered by XRay</string>
+    <string name="onboarding_feature_pairing">Link this TV to your ToBeVPN account by QR code</string>
+    <string name="onboarding_feature_devices">Manage linked TVs and other devices from your phone</string>
+    <string name="onboarding_feature_telegram">Subscription and servers sync automatically</string>
+    <string name="onboarding_feature_stars">Pay via Telegram and continue watching on TV</string>
+    <string name="onboarding_start">Start</string>
+    <string name="onboarding_consent">By tapping Start you agree to the Privacy Policy</string>
+
+    <!-- Privacy -->
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="privacy_policy_url" translatable="false">shoolife.github.io/tobevpn-legal</string>
+
+    <!-- Country names -->
+    <string name="country_NL">Netherlands</string>
+    <string name="country_DE">Germany</string>
+    <string name="country_US">USA</string>
+    <string name="country_GB">United Kingdom</string>
+    <string name="country_FI">Finland</string>
+    <string name="country_SE">Sweden</string>
+    <string name="country_FR">France</string>
+    <string name="country_JP">Japan</string>
+    <string name="country_SG">Singapore</string>
+    <string name="country_CA">Canada</string>
+    <string name="country_AU">Australia</string>
+    <string name="country_RU">Russia</string>
+    <string name="country_TR">Turkey</string>
+
+    <!-- In-app updater -->
+    <string name="update_banner_title">New version %1$s available</string>
+    <string name="update_banner_download">Download</string>
+    <string name="update_banner_later">Later</string>
+    <string name="update_banner_downloading_title">Downloading %1$s…</string>
+    <string name="update_banner_cancel">Cancel</string>
+    <string name="update_banner_ready_title">Update %1$s ready</string>
+    <string name="update_banner_ready_description">Press Install to apply the new version.</string>
+    <string name="update_banner_install">Install</string>
+    <string name="update_banner_failed_title">Update failed</string>
+    <string name="update_banner_retry">Retry</string>
+    <!-- Settings → About → "Check for updates" row -->
+    <string name="update_check_button">Check</string>
+    <string name="update_check_uptodate">Latest version installed (%1$s)</string>
+    <string name="update_available_short">Available: %1$s</string>
+</resources>

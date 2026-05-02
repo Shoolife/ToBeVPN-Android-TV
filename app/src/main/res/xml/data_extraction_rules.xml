@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="tobevpn_tv.db" />
+        <exclude domain="database" path="tobevpn_tv.db-shm" />
+        <exclude domain="database" path="tobevpn_tv.db-wal" />
+        <exclude domain="file" path="datastore/" />
+        <exclude domain="sharedpref" path="tobevpn_db_prefs.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="tobevpn_tv.db" />
+        <exclude domain="database" path="tobevpn_tv.db-shm" />
+        <exclude domain="database" path="tobevpn_tv.db-wal" />
+        <exclude domain="file" path="datastore/" />
+        <exclude domain="sharedpref" path="tobevpn_db_prefs.xml" />
+    </device-transfer>
+</data-extraction-rules>
