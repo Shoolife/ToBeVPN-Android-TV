@@ -108,9 +108,15 @@ android {
     // in-app updater on the device picks the matching split via
     // Build.SUPPORTED_ABIS, so an old armv7 Mi Box pulls the small
     // armeabi-v7a APK, not the full bundle.
+    //
+    // Splits are toggled off when building the App Bundle: AAB carries every
+    // architecture inside one .aab and Google's bundletool re-splits per
+    // device. CI runs APK and AAB in separate gradle invocations, passing
+    // -PdisableAbiSplits for the AAB (Google issuetracker #402800800).
+    val splitsDisabled = providers.gradleProperty("disableAbiSplits").isPresent
     splits {
         abi {
-            isEnable = true
+            isEnable = !splitsDisabled
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = true

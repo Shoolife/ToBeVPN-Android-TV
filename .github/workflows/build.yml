@@ -13,6 +13,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
+        with:
+          # libv2ray.aar (~53 MB) is stored via Git LFS to stay under
+          # GitHub's 100 MB hard limit. Without lfs: true the checkout
+          # gets a tiny pointer file instead of the real binary and the
+          # build fails with `zip END header not found`.
+          lfs: true
 
       - uses: actions/setup-java@v5
         with:
@@ -52,14 +58,19 @@ jobs:
           keystore.keyPassword=${SIGNING_KEY_PASSWORD}
           EOF
 
-      - name: Build release APK + AAB
-        # BOT_API_URL is read by app/build.gradle.kts as a buildConfigField.
-        # The fallback in gradle is a hard error, so this CI run fails loudly
-        # if the secret is missing — far better than silently shipping a build
-        # that points at example.invalid.
+      - name: Build release APK splits
+        # APK splits and AAB can't be built in one gradle invocation
+        # (Google issuetracker #402800800). Build them separately.
         env:
           BOT_API_URL: ${{ secrets.BOT_API_URL }}
-        run: ./gradlew assembleRelease bundleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Build release AAB (no splits)
+        # AAB ships every ABI inside one bundle; -PdisableAbiSplits flips
+        # splits.abi.isEnable to false for this run.
+        env:
+          BOT_API_URL: ${{ secrets.BOT_API_URL }}
+        run: ./gradlew bundleRelease -PdisableAbiSplits --no-daemon
 
       - name: Locate and rename artifacts
         # splits {} produces one APK per ABI plus a universal fallback. Rename
