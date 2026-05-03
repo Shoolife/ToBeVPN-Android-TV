@@ -31,7 +31,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.tobevpn.tv.R
 
 /**
@@ -40,14 +39,14 @@ import com.tobevpn.tv.R
  * focusable and responds to D-pad enter/center.
  */
 @Composable
-fun SettingsUpdateCheckRow(viewModel: UpdateViewModel = hiltViewModel()) {
+fun SettingsUpdateCheckRow(viewModel: UpdateViewModel = rememberAppUpdateViewModel()) {
     val state by viewModel.state.collectAsState()
     val inFlight by viewModel.manualCheckInFlight.collectAsState()
     val versionName = remember { com.tobevpn.tv.BuildConfig.VERSION_NAME }
 
     val statusText = when (val s = state) {
         is UpdateUiState.Available ->
-            stringResource(R.string.update_available_short, s.info.versionName)
+            stringResource(R.string.update_available_short, versionName, s.info.versionName)
         is UpdateUiState.Downloading,
         is UpdateUiState.ReadyToInstall,
         is UpdateUiState.Failed,

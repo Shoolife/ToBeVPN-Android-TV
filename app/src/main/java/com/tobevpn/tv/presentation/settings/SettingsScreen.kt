@@ -218,16 +218,12 @@ fun SettingsScreen(
                             style = tightStyle,
                         )
                         Spacer(modifier = Modifier.height(gap))
-                        // Hardcoded "1.0 TV" used to drift from the actual
-                        // release tag and confuse support tickets — now we
-                        // pull from build.gradle.kts.
-                        InfoRow(
-                            stringResource(R.string.version),
-                            com.tobevpn.tv.BuildConfig.VERSION_NAME,
-                            bodySize = bodySize,
-                            rowPadV = rowPadV,
-                            tightStyle = tightStyle,
-                        )
+                        // Version + "Check for updates" merged into a single
+                        // row to stop duplicating the current version (the
+                        // separate InfoRow plus an "Up-to-date 1.0.0" status
+                        // line repeated the same number twice in this card).
+                        com.tobevpn.tv.update.SettingsUpdateCheckRow()
+                        Spacer(modifier = Modifier.height(gap))
                         InfoRow(stringResource(R.string.xray), viewModel.xrayVersion, bodySize = bodySize, rowPadV = rowPadV, tightStyle = tightStyle)
                         InfoRow(
                             label = stringResource(R.string.privacy_policy),
@@ -236,8 +232,6 @@ fun SettingsScreen(
                             rowPadV = rowPadV,
                             tightStyle = tightStyle,
                         )
-                        Spacer(modifier = Modifier.height(gap))
-                        com.tobevpn.tv.update.SettingsUpdateCheckRow()
                     }
                 }
             }

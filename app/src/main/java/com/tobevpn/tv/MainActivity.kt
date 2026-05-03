@@ -21,6 +21,8 @@ import com.tobevpn.tv.presentation.navigation.AppNavHost
 import dagger.Lazy
 import com.tobevpn.tv.presentation.splash.SplashScreen
 import com.tobevpn.tv.presentation.theme.ToBeVPNTvTheme
+import com.tobevpn.tv.update.UpdateBannerCheck
+import com.tobevpn.tv.update.UpdateBannerHost
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -91,6 +93,12 @@ class MainActivity : ComponentActivity() {
                                 startAuthenticated = startAuthenticated == true,
                             )
                         }
+                        // Updater overlay. UpdateBannerCheck triggers the
+                        // automatic 7-day GitHub probe; UpdateBannerHost
+                        // renders the modal dialog when state != Idle.
+                        // Mounted at activity level so it covers any route.
+                        UpdateBannerCheck()
+                        UpdateBannerHost(modifier = Modifier.alpha(mainAlpha))
                     }
                 }
 

@@ -203,10 +203,9 @@ fun MainScreen(
 
                 Spacer(modifier = Modifier.height(leftGap2))
 
-                // In-app updater banner — shows only when GitHub Releases has
-                // a newer version. Hidden by default.
-                com.tobevpn.tv.update.UpdateBannerCheck()
-                com.tobevpn.tv.update.UpdateBannerHost()
+                // The updater dialog now lives at MainActivity level — it
+                // overlays every NavHost route as a modal, scrim-backed
+                // window instead of an inline card on Home.
 
                 Spacer(modifier = Modifier.height(leftGap2))
 
