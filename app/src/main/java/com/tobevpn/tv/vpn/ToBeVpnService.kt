@@ -10,6 +10,8 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.VpnService
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import com.tobevpn.tv.MainActivity
 import com.tobevpn.tv.R
@@ -22,6 +24,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import libv2ray.CoreCallbackHandler
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -33,9 +36,14 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
     private var vpnInterface: ParcelFileDescriptor? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    @Volatile
+    private var cleanedUp = false
+    @Volatile
+    private var activeConnectionGeneration = -1
 
     override fun onCreate() {
         super.onCreate()
+        activeInstance.set(this)
         XRayCore.init(this)
         XRayCore.createController(this)
     }
@@ -45,16 +53,33 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
             ACTION_START -> {
                 val config = intent.getStringExtra(EXTRA_SERVER_CONFIG) ?: return START_NOT_STICKY
                 val generation = intent.getIntExtra(EXTRA_GENERATION, -1)
+                if (!connectionManager.mayServiceStart(generation)) return START_NOT_STICKY
+                cleanedUp = false
+                activeConnectionGeneration = generation
                 startVpn(config, generation)
             }
             ACTION_STOP -> {
-                cleanupVpn()
+                // From manager — state already handled, just clean up resources
+                val forceStop = intent.getBooleanExtra(EXTRA_FORCE_STOP, false)
+                val stopBeforeGeneration = intent.getIntExtra(
+                    EXTRA_STOP_BEFORE_GENERATION,
+                    Int.MAX_VALUE,
+                )
+                if (forceStop || activeConnectionGeneration < stopBeforeGeneration) {
+                    cleanupVpn()
+                    // cleanup can already have run through cleanupActiveInstance().
+                    // Stop this later ACTION_STOP start request as well; otherwise
+                    // Android keeps the VpnService registered after its TUN is gone.
+                    stopSelf(startId)
+                }
             }
             ACTION_DISCONNECT -> {
+                cleanupVpn()
+                // From notification button — route through manager for proper state handling.
                 connectionManager.stopVpn()
             }
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun startVpn(configJson: String, generation: Int) {
@@ -67,12 +92,24 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
                         ConnectionState.Error(getString(R.string.vpn_error_tun_failed)),
                         generation,
                     )
-                    cleanupVpn()
+                    cleanupVpn(expectedGeneration = generation)
                     return@launch
                 }
-                vpnInterface = fd
 
-                XRayCore.startLoop(configJson, fd.fd)
+                // If disconnect was requested while TUN was being created, bail out
+                if (cleanedUp || generation != activeConnectionGeneration) {
+                    fd.close()
+                    return@launch
+                }
+
+                vpnInterface = fd
+                val loopGeneration = XRayCore.startLoop(configJson, fd.fd)
+                if (cleanedUp || generation != activeConnectionGeneration) {
+                    XRayCore.stopLoop(loopGeneration)
+                    if (vpnInterface === fd) vpnInterface = null
+                    fd.close()
+                    return@launch
+                }
 
                 connectionManager.updateState(ConnectionState.Connected, generation)
                 updateNotification(getString(R.string.state_connected))
@@ -80,17 +117,19 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                // Surface a localized message — `e.message` is usually English
+                // and ends up in the connection error UI on user devices.
                 connectionManager.updateState(
-                    ConnectionState.Error(e.message ?: getString(R.string.error_generic)),
+                    ConnectionState.Error(getString(R.string.error_generic)),
                     generation,
                 )
-                cleanupVpn()
+                cleanupVpn(expectedGeneration = generation)
             }
         }
     }
 
     private fun setupTunInterface(): ParcelFileDescriptor? {
-        return Builder()
+        val builder = Builder()
             .setSession("ToBeVPN")
             .setMtu(1500)
             .addAddress("10.10.14.1", 30)
@@ -101,18 +140,54 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
             .addDnsServer("8.8.8.8")
             .addDnsServer("2606:4700:4700::1111")
             .addDnsServer("2001:4860:4860::8888")
-            .addDisallowedApplication(packageName)
-            .establish()
+        // Exclude our own process so VPN traffic doesn't recurse through the
+        // tunnel. TV has no per-app split tunneling.
+        try {
+            builder.addDisallowedApplication(packageName)
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+        }
+        return builder.establish()
     }
 
-    private fun cleanupVpn() {
+    /**
+     * Cleans up VPN resources without touching connection state.
+     * State transitions are handled exclusively by VpnConnectionManager.
+     *
+     * Close the application-owned TUN descriptor before native cleanup so
+     * traffic cannot continue after the UI changes to disconnected. The
+     * native core then releases its Android TUN registration in stopLoop(),
+     * which removes the system VPN indicator. Do not establish a temporary
+     * replacement TUN here: Android reports it as another network transition.
+     *
+     * A stale ACTION_STOP is filtered by generation before this method is
+     * called, so cleanup can force the started service down immediately.
+     */
+    private fun cleanupVpn(expectedGeneration: Int? = null) {
+        if (expectedGeneration != null && expectedGeneration != activeConnectionGeneration) return
+        if (cleanedUp) return
+        cleanedUp = true
+        activeConnectionGeneration = -1
+        val loopGenerationToStop = XRayCore.currentLoopGeneration
         unregisterNetworkCallback()
+        // Stop routing before completing native teardown.
         vpnInterface?.close()
         vpnInterface = null
-        serviceScope.launch {
-            XRayCore.stopLoop()
-        }
+        // Drop our foreground notification; Android removes its VPN key when
+        // native TUN teardown completes below.
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) { }
+        try {
+            getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
+        } catch (_: Exception) { }
+        // Release the current service start request immediately. A later
+        // ACTION_STOP request is stopped in onStartCommand as well.
         stopSelf()
+        // Keep native shutdown off the main thread.
+        Thread {
+            XRayCore.stopLoop(loopGenerationToStop)
+            stopSelf()
+        }.start()
     }
 
     private fun registerNetworkCallback() {
@@ -125,6 +200,7 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 setUnderlyingNetworks(arrayOf(network))
+                connectionManager.requestTunnelHealthCheck()
             }
             override fun onLost(network: Network) {
                 setUnderlyingNetworks(null)
@@ -153,6 +229,7 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        // Notification button routes through manager (ACTION_DISCONNECT, not ACTION_STOP)
         val disconnectIntent = PendingIntent.getService(
             this, 1,
             Intent(this, ToBeVpnService::class.java).apply { action = ACTION_DISCONNECT },
@@ -160,9 +237,7 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         )
 
         val stopAction = Notification.Action.Builder(
-            null,
-            getString(R.string.vpn_notification_action_disconnect),
-            disconnectIntent,
+            null, getString(R.string.vpn_notification_action_disconnect), disconnectIntent,
         ).build()
 
         return Notification.Builder(this, CHANNEL_ID)
@@ -191,12 +266,19 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
     }
 
     override fun onDestroy() {
+        activeInstance.compareAndSet(this, null)
+        val hadActiveSession = !cleanedUp && (vpnInterface != null || XRayCore.isRunning)
+        if (hadActiveSession) {
+            cleanupVpn()
+            connectionManager.handleServiceDestroyed()
+        }
         unregisterNetworkCallback()
         serviceScope.cancel()
         super.onDestroy()
     }
 
     override fun onRevoke() {
+        // System revoked VPN — clean up resources immediately, let manager handle state
         cleanupVpn()
         connectionManager.stopVpn()
     }
@@ -212,7 +294,22 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         const val ACTION_DISCONNECT = "com.tobevpn.tv.DISCONNECT"
         const val EXTRA_SERVER_CONFIG = "server_config"
         const val EXTRA_GENERATION = "connection_generation"
+        const val EXTRA_STOP_BEFORE_GENERATION = "stop_before_generation"
+        const val EXTRA_FORCE_STOP = "force_stop"
         private const val CHANNEL_ID = "tobevpn_tv_channel"
         private const val NOTIFICATION_ID = 1
+        private val activeInstance = AtomicReference<ToBeVpnService?>()
+
+        fun cleanupActiveInstance(): Boolean {
+            val service = activeInstance.get() ?: return false
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                service.cleanupVpn()
+            } else {
+                Handler(Looper.getMainLooper()).postAtFrontOfQueue {
+                    service.cleanupVpn()
+                }
+            }
+            return true
+        }
     }
 }

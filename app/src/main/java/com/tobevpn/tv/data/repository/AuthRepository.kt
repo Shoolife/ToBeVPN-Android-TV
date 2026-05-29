@@ -3,6 +3,7 @@ package com.tobevpn.tv.data.repository
 import android.content.Context
 import android.os.Build
 import com.tobevpn.tv.data.device.DeviceIdProvider
+import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.local.SessionStore
 import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.local.entity.SessionEntity
@@ -17,6 +18,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -35,7 +38,49 @@ class AuthRepository @Inject constructor(
     private val usageRepository: UsageRepository,
     private val subscriptionPinger: SubscriptionPinger,
     private val deviceIdProvider: DeviceIdProvider,
+    private val prefsDataStore: PrefsDataStore,
 ) {
+    /** Observe the subscription-usage block flag for the current session's shortUuid. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun observeSubscriptionUsageBlocked(): Flow<Boolean> {
+        return sessionDao.observeSession()
+            .map { it?.shortUuid }
+            .distinctUntilChanged()
+            .flatMapLatest { shortUuid ->
+                if (shortUuid.isNullOrBlank()) {
+                    kotlinx.coroutines.flow.flowOf(false)
+                } else {
+                    prefsDataStore.observeSubscriptionUsageBlocked(shortUuid)
+                }
+            }
+    }
+
+    /** Observe the forced-update flag. */
+    fun observeUpdateRequired(): Flow<Boolean> = prefsDataStore.observeUpdateRequired()
+
+    /**
+     * HWID-marker ping used by the connect path so the panel registers the
+     * device on every VPN start and we learn the current block / update state.
+     * Returns true if usage is blocked. The subscription URL is resolved via
+     * the panel JSON endpoint (TV doesn't cache it in the session row).
+     */
+    suspend fun pingHwidOnly(): Boolean {
+        val session = sessionDao.getSession() ?: return false
+        val shortUuid = session.shortUuid ?: return false
+        val wasBlocked = runCatching {
+            prefsDataStore.isSubscriptionUsageBlocked(shortUuid)
+        }.getOrDefault(false)
+        return try {
+            val subInfo = botApi.getSubscriptionInfo(shortUuid).response
+            val url = subInfo.subscriptionUrl ?: return wasBlocked
+            val result = subscriptionPinger.ping(url) ?: return wasBlocked
+            prefsDataStore.setSubscriptionUsageBlocked(shortUuid, result.isUsageBlocked)
+            prefsDataStore.setUpdateRequired(result.isUpdateRequired)
+            result.isUsageBlocked
+        } catch (_: Exception) {
+            wasBlocked
+        }
+    }
     data class PlanLimitsInfo(
         val trafficLimitBytes: Long,
         val deviceLimit: Int,
@@ -333,8 +378,13 @@ class AuthRepository @Inject constructor(
             if (!subInfo.isFound || subInfo.user == null) return
 
             // Direct hit on the panel's public sub URL with HWID headers — only
-            // request Remnawave actually parses for HWID device tracking.
-            subscriptionPinger.ping(panelUser?.subscriptionUrl ?: subInfo.subscriptionUrl)
+            // request Remnawave actually parses for HWID device tracking. The
+            // response also carries the block (is-hack) / forced-update flags.
+            val pingResult = subscriptionPinger.ping(panelUser?.subscriptionUrl ?: subInfo.subscriptionUrl)
+            if (pingResult != null) {
+                prefsDataStore.setSubscriptionUsageBlocked(shortUuid, pingResult.isUsageBlocked)
+                prefsDataStore.setUpdateRequired(pingResult.isUpdateRequired)
+            }
 
             val sub = subInfo.user
             val isActive = sub.isActive && sub.userStatus == "ACTIVE"

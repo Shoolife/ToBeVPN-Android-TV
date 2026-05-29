@@ -9,8 +9,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,6 +29,8 @@ class PrefsDataStore @Inject constructor(
         val USD_RATE = doublePreferencesKey("usd_rate")
         val USD_RATE_TIMESTAMP = longPreferencesKey("usd_rate_timestamp")
         val DEVICE_ID_V2 = booleanPreferencesKey("device_id_v2")
+        val BLOCKED_SUBSCRIPTION_OWNER = stringPreferencesKey("blocked_subscription_owner")
+        val UPDATE_REQUIRED = booleanPreferencesKey("update_required")
     }
 
     val deviceId: Flow<String?> = context.dataStore.data.map { it[Keys.DEVICE_ID] }
@@ -63,5 +67,49 @@ class PrefsDataStore @Inject constructor(
 
     suspend fun markDeviceIdV2() {
         context.dataStore.edit { it[Keys.DEVICE_ID_V2] = true }
+    }
+
+    // --- Subscription usage block (is-hack) ---
+    // The flag is bound to the owning shortUuid (hashed) so a stale block
+    // from a previous account can't carry over to a new one.
+    suspend fun setSubscriptionUsageBlocked(shortUuid: String, blocked: Boolean) {
+        val owner = cacheOwnerHash(shortUuid)
+        context.dataStore.edit {
+            if (blocked) {
+                it[Keys.BLOCKED_SUBSCRIPTION_OWNER] = owner
+            } else if (it[Keys.BLOCKED_SUBSCRIPTION_OWNER] == owner) {
+                it.remove(Keys.BLOCKED_SUBSCRIPTION_OWNER)
+            }
+        }
+    }
+
+    suspend fun isSubscriptionUsageBlocked(shortUuid: String): Boolean {
+        return context.dataStore.data.first()[Keys.BLOCKED_SUBSCRIPTION_OWNER] == cacheOwnerHash(shortUuid)
+    }
+
+    fun observeSubscriptionUsageBlocked(shortUuid: String): Flow<Boolean> {
+        val owner = cacheOwnerHash(shortUuid)
+        return context.dataStore.data
+            .map { it[Keys.BLOCKED_SUBSCRIPTION_OWNER] == owner }
+            .distinctUntilChanged()
+    }
+
+    // --- Forced update (update-required) ---
+    suspend fun setUpdateRequired(required: Boolean) {
+        context.dataStore.edit {
+            if (required) it[Keys.UPDATE_REQUIRED] = true
+            else it.remove(Keys.UPDATE_REQUIRED)
+        }
+    }
+
+    fun observeUpdateRequired(): Flow<Boolean> {
+        return context.dataStore.data
+            .map { it[Keys.UPDATE_REQUIRED] == true }
+            .distinctUntilChanged()
+    }
+
+    private fun cacheOwnerHash(value: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
     }
 }

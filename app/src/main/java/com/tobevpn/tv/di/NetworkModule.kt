@@ -5,6 +5,7 @@ import com.tobevpn.tv.data.remote.AuthHeaderInterceptor
 import com.tobevpn.tv.data.remote.BootstrapApi
 import com.tobevpn.tv.data.remote.BotApi
 import com.tobevpn.tv.data.remote.CurrencyApi
+import com.tobevpn.tv.data.remote.FallbackInterceptor
 import com.tobevpn.tv.data.remote.GithubReleasesApi
 import com.tobevpn.tv.data.remote.TokenAuthenticator
 import dagger.Module
@@ -65,6 +66,7 @@ object NetworkModule {
     @Singleton
     fun provideBootstrapApi(): BootstrapApi {
         val client = OkHttpClient.Builder()
+            .addInterceptor(FallbackInterceptor())
             .addInterceptor(userAgentInterceptor)
             .addInterceptor(loggingInterceptor)
             .build()
@@ -84,6 +86,7 @@ object NetworkModule {
         authenticator: TokenAuthenticator,
     ): BotApi {
         val client = OkHttpClient.Builder()
+            .addInterceptor(FallbackInterceptor())
             .addInterceptor(userAgentInterceptor)
             .addInterceptor(authInterceptor)
             .authenticator(authenticator)

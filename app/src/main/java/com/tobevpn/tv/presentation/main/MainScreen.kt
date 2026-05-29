@@ -37,10 +37,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
@@ -101,6 +103,9 @@ fun MainScreen(
     val usageInfo by viewModel.usageInfo.collectAsStateWithLifecycle()
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val currentServer by viewModel.currentServer.collectAsStateWithLifecycle()
+    val subscriptionUsageBlocked by viewModel.subscriptionUsageBlocked.collectAsStateWithLifecycle()
+    val updateRequired by viewModel.updateRequired.collectAsStateWithLifecycle()
+    var showBlockedDialog by remember { mutableStateOf(false) }
     val activity = LocalActivity.current
 
     // Re-sync on every resume (e.g. after payment in Telegram)
@@ -118,16 +123,20 @@ fun MainScreen(
     }
 
     val onConnectClick: () -> Unit = {
-        val currentActivity = activity
-        if (currentActivity != null) {
-            val vpnIntent = viewModel.getVpnPermissionIntent(currentActivity)
-            if (vpnIntent != null) {
-                vpnPermissionLauncher.launch(vpnIntent)
+        if (subscriptionUsageBlocked) {
+            showBlockedDialog = true
+        } else {
+            val currentActivity = activity
+            if (currentActivity != null) {
+                val vpnIntent = viewModel.getVpnPermissionIntent(currentActivity)
+                if (vpnIntent != null) {
+                    vpnPermissionLauncher.launch(vpnIntent)
+                } else {
+                    viewModel.toggleConnection()
+                }
             } else {
                 viewModel.toggleConnection()
             }
-        } else {
-            viewModel.toggleConnection()
         }
     }
 
@@ -336,6 +345,91 @@ fun MainScreen(
         }
     }
     }
+
+    if (showBlockedDialog) {
+        BlockedDialog(onDismiss = { showBlockedDialog = false })
+    }
+
+    if (updateRequired) {
+        UpdateRequiredDialog(
+            onUpdate = {
+                runCatching {
+                    activity?.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://github.com/Shoolife/ToBeVPN-Android-TV/releases/latest"),
+                        )
+                    )
+                }
+            },
+            onQuit = { activity?.finishAffinity() },
+        )
+    }
+}
+
+@Composable
+private fun BlockedDialog(onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val link = stringResource(R.string.block_appeal_link)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.error_usage_blocked),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        text = {
+            Text(
+                text = stringResource(R.string.block_appeal_message),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onDismiss()
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) }
+            }) {
+                Text(stringResource(R.string.block_appeal_button))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        },
+    )
+}
+
+@Composable
+private fun UpdateRequiredDialog(onUpdate: () -> Unit, onQuit: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = {},
+        title = {
+            Text(
+                text = stringResource(R.string.update_required_title),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        text = {
+            Text(
+                text = stringResource(R.string.update_required_message),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onUpdate) { Text(stringResource(R.string.update_required_button)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onQuit) { Text(stringResource(R.string.update_required_quit)) }
+        },
+        properties = androidx.compose.ui.window.DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+        ),
+    )
 }
 
 @Composable

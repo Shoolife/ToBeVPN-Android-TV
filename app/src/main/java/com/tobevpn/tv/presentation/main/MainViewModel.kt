@@ -56,6 +56,12 @@ class MainViewModel @Inject constructor(
     val authState: StateFlow<AuthState> = authRepository.observeAuthState()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AuthState.Unauthenticated)
 
+    val subscriptionUsageBlocked: StateFlow<Boolean> = authRepository.observeSubscriptionUsageBlocked()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val updateRequired: StateFlow<Boolean> = authRepository.observeUpdateRequired()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     private var initialized = false
     private var lastSyncTime = 0L
 
@@ -63,9 +69,20 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.getOrCreateDeviceId()
             authRepository.syncSubscription()
+            // Force a block-state check on startup so a banned device can't
+            // connect before the first throttled sync lands.
+            runCatching { authRepository.pingHwidOnly() }
             vpnRepository.refreshServers()
             lastSyncTime = System.currentTimeMillis()
             initialized = true
+        }
+        // Periodic block re-check (every 30s) so a ban applied mid-session is
+        // picked up without requiring the user to background the app.
+        viewModelScope.launch {
+            while (true) {
+                delay(30_000)
+                runCatching { authRepository.pingHwidOnly() }
+            }
         }
         viewModelScope.launch {
             var lastServerId: String? = null
@@ -114,6 +131,9 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             when (connectionState.value) {
                 is ConnectionState.Disconnected, is ConnectionState.Error -> {
+                    // Refuse to start a tunnel for a blocked subscription.
+                    // The UI shows the block dialog reactively off the flag.
+                    if (subscriptionUsageBlocked.value) return@launch
                     val server = currentServer.value ?: return@launch
                     connectionManager.startVpn(server)
                 }
@@ -133,6 +153,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val isConnected = connectionState.value is ConnectionState.Connected
             authRepository.syncSubscription(overwriteUsage = !isConnected)
+            runCatching { authRepository.pingHwidOnly() }
             vpnRepository.refreshServers()
         }
     }

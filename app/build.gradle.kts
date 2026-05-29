@@ -13,6 +13,25 @@ val localProperties = Properties().apply {
     if (file.exists()) load(file.inputStream())
 }
 
+val releaseBuildRequested = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true)
+}
+
+fun requireConfiguredReleaseFallback(name: String, value: String) {
+    val normalized = value.trim()
+    val looksLikePlaceholder = normalized.isBlank() ||
+        normalized.contains("<") ||
+        normalized.contains("your-", ignoreCase = true) ||
+        normalized.contains("example.", ignoreCase = true) ||
+        normalized.contains(".invalid", ignoreCase = true)
+    if (releaseBuildRequested && looksLikePlaceholder) {
+        throw GradleException(
+            "$name must be configured with an operator endpoint for release builds. " +
+                "Do not build a production APK with a blank or placeholder network endpoint."
+        )
+    }
+}
+
 android {
     namespace = "com.tobevpn.tv"
     compileSdk {
@@ -29,8 +48,8 @@ android {
         applicationId = "com.tobevpn.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1001
-        versionName = "1.0.1"
+        versionCode = 1002
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -48,6 +67,22 @@ android {
                 "or the BOT_API_URL environment variable / Actions secret."
             )
         buildConfigField("String", "BOT_API_BASE_URL", "\"$botApiUrl\"")
+
+        // Release builds require operator-provided fallback endpoints. Debug
+        // builds may omit them; environment values take precedence so CI cannot
+        // accidentally inherit a developer placeholder from local.properties.
+        val fallbackBotDomain = System.getenv("FALLBACK_BOT_DOMAIN")
+            ?.takeIf { it.isNotBlank() }
+            ?: localProperties.getProperty("fallback.bot.domain")
+            ?: ""
+        val fallbackSubsDomain = System.getenv("FALLBACK_SUBS_DOMAIN")
+            ?.takeIf { it.isNotBlank() }
+            ?: localProperties.getProperty("fallback.subs.domain")
+            ?: ""
+        requireConfiguredReleaseFallback("FALLBACK_BOT_DOMAIN", fallbackBotDomain)
+        requireConfiguredReleaseFallback("FALLBACK_SUBS_DOMAIN", fallbackSubsDomain)
+        buildConfigField("String", "FALLBACK_BOT_DOMAIN", "\"$fallbackBotDomain\"")
+        buildConfigField("String", "FALLBACK_SUBS_DOMAIN", "\"$fallbackSubsDomain\"")
     }
 
     // Release signing is opt-in — credentials live in local.properties (gitignored).

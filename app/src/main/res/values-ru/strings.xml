@@ -172,4 +172,16 @@
     <string name="update_check_button">Проверить</string>
     <string name="update_check_uptodate">Версия %1$s</string>
     <string name="update_available_short">Версия %1$s · доступна v%2$s</string>
+
+    <!-- Блокировка подписки / принудительное обновление -->
+    <string name="error_subscription_expired">Подписка истекла. Продлите, чтобы подключиться.</string>
+    <string name="error_tunnel_unhealthy">VPN подключился, но трафик через сервер не проходит. Попробуйте другой сервер.</string>
+    <string name="error_usage_blocked">Доступ заблокирован из-за нарушения правил использования</string>
+    <string name="block_appeal_message">Если вы ничего не нарушали, напишите нам</string>
+    <string name="block_appeal_link">https://t.me/meow_meow_vpn?direct</string>
+    <string name="block_appeal_button">Написать в поддержку</string>
+    <string name="update_required_title">Требуется обновление</string>
+    <string name="update_required_message">Для продолжения работы необходимо обновить приложение</string>
+    <string name="update_required_button">Обновить</string>
+    <string name="update_required_quit">Выйти</string>
 </resources>
