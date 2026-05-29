@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" alt="ToBeVPN TV" width="160" height="160" />
+<img src="play_assets/play_icon_512_transparent.png" alt="ToBeVPN TV" width="160" height="160" />
 
 # ToBeVPN for Android TV
 
