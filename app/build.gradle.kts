@@ -128,8 +128,9 @@ android {
                 // arm64-v8a covers modern Android TV (Nvidia Shield, Mi Box,
                 // Chromecast with Google TV, current Hisense/TCL). x86_64 covers
                 // emulators and Chromebook ATV containers. armeabi-v7a is kept
-                // for older 32-bit Android TVs (some Sony/Philips/legacy Mi Box).
-                abiFilters += listOf("arm64-v8a", "x86_64", "armeabi-v7a")
+                // for older 32-bit Android TVs (some Sony/Philips/legacy Mi Box);
+                // x86 for rare 32-bit Intel ATV boxes / x86 emulator images.
+                abiFilters += listOf("arm64-v8a", "x86_64", "armeabi-v7a", "x86")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -153,7 +154,7 @@ android {
         abi {
             isEnable = !splitsDisabled
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            include("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
             isUniversalApk = true
         }
     }
@@ -188,6 +189,7 @@ dependencies {
 
     // Core
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)
 

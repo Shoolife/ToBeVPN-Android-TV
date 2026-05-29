@@ -3,6 +3,7 @@ package com.tobevpn.tv.presentation.speedtest
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,6 +71,7 @@ fun SpeedTestScreen(
     viewModel: SpeedTestViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val viaVpn by viewModel.viaVpn.collectAsStateWithLifecycle()
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
@@ -112,7 +114,10 @@ fun SpeedTestScreen(
                 .fillMaxSize()
                 .padding(screenPad),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 var backFocused by remember { mutableStateOf(false) }
                 CompositionLocalProvider(
                     LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
@@ -143,6 +148,8 @@ fun SpeedTestScreen(
                     color = headerColor,
                     style = tightStyle,
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                VpnRouteBadge(viaVpn = viaVpn, scale = scale, tightStyle = tightStyle)
             }
 
             BoxWithConstraints(
@@ -221,6 +228,7 @@ fun SpeedTestScreen(
 
                         Spacer(modifier = Modifier.height((40 * scale).dp))
 
+                        var startBtnFocused by remember { mutableStateOf(false) }
                         CompositionLocalProvider(
                             LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
                         ) {
@@ -234,7 +242,15 @@ fun SpeedTestScreen(
                                 },
                                 modifier = Modifier
                                     .width(buttonWidth)
-                                    .defaultMinSize(minWidth = 1.dp, minHeight = buttonMinHeight),
+                                    .defaultMinSize(minWidth = 1.dp, minHeight = buttonMinHeight)
+                                    .then(
+                                        if (startBtnFocused) {
+                                            Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
+                                    .onFocusChanged { startBtnFocused = it.isFocused },
                                 shape = RoundedCornerShape(cardCorner),
                                 contentPadding = PaddingValues(
                                     horizontal = buttonPadH,
@@ -257,6 +273,32 @@ fun SpeedTestScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VpnRouteBadge(
+    viaVpn: Boolean,
+    scale: Float,
+    tightStyle: TextStyle,
+) {
+    val bg = if (viaVpn) VpnGreen.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant
+    val border = if (viaVpn) VpnGreen.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+    val content = if (viaVpn) VpnGreen else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier = Modifier
+            .border((1.5f * scale).dp, border, RoundedCornerShape(percent = 50))
+            .background(bg, RoundedCornerShape(percent = 50))
+            .padding(horizontal = (14 * scale).dp, vertical = (6 * scale).dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(if (viaVpn) R.string.speed_via_vpn else R.string.speed_direct),
+            fontSize = (14 * scale).sp,
+            fontWeight = FontWeight.SemiBold,
+            color = content,
+            style = tightStyle,
+        )
     }
 }
 

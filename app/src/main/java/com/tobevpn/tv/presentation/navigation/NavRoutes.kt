@@ -12,6 +12,9 @@ object ServerListRoute
 object SettingsRoute
 
 @Serializable
+object DevicesRoute
+
+@Serializable
 object StatsRoute
 
 @Serializable

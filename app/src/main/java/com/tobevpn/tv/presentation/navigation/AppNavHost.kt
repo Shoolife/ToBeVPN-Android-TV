@@ -1,7 +1,6 @@
 package com.tobevpn.tv.presentation.navigation
 
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,6 +17,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.tobevpn.tv.domain.model.AuthState
+import com.tobevpn.tv.presentation.devices.DevicesScreen
 import com.tobevpn.tv.presentation.main.MainScreen
 import com.tobevpn.tv.presentation.onboarding.OnboardingScreen
 import com.tobevpn.tv.presentation.pairing.PairingScreen
@@ -67,14 +67,34 @@ fun AppNavHost(
         else -> PairingRoute
     }
 
+    val navAnim = tween<Float>(durationMillis = 320)
+    val slideAnim = tween<androidx.compose.ui.unit.IntOffset>(durationMillis = 320)
     NavHost(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier,
-        enterTransition = { EnterTransition.None },
-        exitTransition = { ExitTransition.None },
-        popEnterTransition = { EnterTransition.None },
-        popExitTransition = { ExitTransition.None },
+        // Smooth slide + fade between screens (forward slides toward Start,
+        // back navigation slides toward End), matching the phone client.
+        enterTransition = {
+            fadeIn(navAnim) + slideIntoContainer(
+                AnimatedContentTransitionScope.SlideDirection.Start, slideAnim,
+            )
+        },
+        exitTransition = {
+            fadeOut(navAnim) + slideOutOfContainer(
+                AnimatedContentTransitionScope.SlideDirection.Start, slideAnim,
+            )
+        },
+        popEnterTransition = {
+            fadeIn(navAnim) + slideIntoContainer(
+                AnimatedContentTransitionScope.SlideDirection.End, slideAnim,
+            )
+        },
+        popExitTransition = {
+            fadeOut(navAnim) + slideOutOfContainer(
+                AnimatedContentTransitionScope.SlideDirection.End, slideAnim,
+            )
+        },
     ) {
         composable<OnboardingRoute> {
             OnboardingScreen(
@@ -130,6 +150,12 @@ fun AppNavHost(
         }
         composable<SettingsRoute> {
             SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToDevices = { navController.navigate(DevicesRoute) },
+            )
+        }
+        composable<DevicesRoute> {
+            DevicesScreen(
                 onBack = { navController.popBackStack() },
             )
         }

@@ -18,6 +18,8 @@
     <string name="server_select">Выберите сервер</string>
     <string name="servers_load_error">Ошибка загрузки</string>
     <string name="servers_empty">Нет доступных серверов</string>
+    <string name="server_offline">offline</string>
+    <string name="server_unavailable">Недоступен</string>
 
     <!-- Main screen -->
     <string name="speed_test_title">Тест скорости</string>
@@ -84,6 +86,31 @@
     <string name="about">О приложении</string>
     <string name="version">Версия</string>
     <string name="xray">XRay</string>
+    <string name="language">Язык</string>
+    <string name="language_english">Английский</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_restart_title">Требуется перезапуск</string>
+    <string name="language_restart_message">Для применения нового языка необходимо перезапустить приложение.</string>
+    <string name="language_restart_button">Перезапустить</string>
+    <string name="cancel">Отмена</string>
+
+    <!-- Подключённые устройства -->
+    <string name="devices_title">Устройства</string>
+    <string name="devices_manage">Управление</string>
+    <string name="devices_manage_hint">Просмотр и отвязка подключённых устройств</string>
+    <string name="devices_count">устройств подключено</string>
+    <string name="devices_this_device">Это устройство</string>
+    <string name="devices_other_devices">Другие устройства</string>
+    <string name="devices_empty">Других устройств нет</string>
+    <string name="devices_disconnect">Отвязать</string>
+    <string name="devices_current_badge">Текущее</string>
+    <string name="devices_type_tv">ТВ</string>
+    <string name="devices_type_desktop">Компьютер</string>
+    <string name="devices_type_phone">Телефон</string>
+    <string name="devices_unknown">Неизвестное устройство</string>
+    <string name="devices_load_error">Не удалось загрузить устройства</string>
+    <string name="error_devices_disconnect">Не удалось отвязать устройство</string>
+    <string name="error_auth_required">Войдите, чтобы управлять устройствами</string>
 
     <!-- Stats -->
     <string name="stats_title">Статистика</string>
@@ -118,12 +145,14 @@
     <string name="speed_unit_mbps">Мбит/с</string>
     <string name="speed_start_test">Начать тест</string>
     <string name="speed_stop">Остановить</string>
+    <string name="speed_via_vpn">Через VPN</string>
+    <string name="speed_direct">Напрямую</string>
     <string name="speed_no_connection">Нет соединения</string>
     <string name="speed_measure_failed">Не удалось измерить скорость</string>
 
     <!-- Pairing -->
     <string name="pairing_title">Вход в ToBeVPN</string>
-    <string name="pairing_instruction">Откройте ToBeVPN на телефоне → Настройки → Подключенные устройства и отсканируйте QR-код,\nили просто сканируйте его камерой телефона.</string>
+    <string name="pairing_instruction">Отсканируйте QR-код камерой телефона или сканером QR в приложении ToBeVPN.</string>
     <string name="pairing_loading">Готовим ссылку для входа через Telegram…</string>
     <string name="pairing_waiting">Сканируйте QR-код и подтвердите вход в Telegram…</string>
     <string name="pairing_done">Готово!</string>
@@ -178,6 +207,7 @@
     <string name="error_tunnel_unhealthy">VPN подключился, но трафик через сервер не проходит. Попробуйте другой сервер.</string>
     <string name="error_usage_blocked">Доступ заблокирован из-за нарушения правил использования</string>
     <string name="block_appeal_message">Если вы ничего не нарушали, напишите нам</string>
+    <string name="block_appeal_scan_hint">Отсканируйте QR-код телефоном, чтобы написать в поддержку</string>
     <string name="block_appeal_link">https://t.me/meow_meow_vpn?direct</string>
     <string name="block_appeal_button">Написать в поддержку</string>
     <string name="update_required_title">Требуется обновление</string>

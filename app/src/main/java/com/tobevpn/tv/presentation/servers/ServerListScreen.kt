@@ -151,11 +151,11 @@ fun ServerListScreen(
                             )
                             .onFocusChanged { refreshFocused = it.isFocused },
                     ) {
-                        Icon(
-                            Icons.Default.Refresh,
+                        com.tobevpn.tv.presentation.components.SpinningRefreshIcon(
+                            spinning = isLoading,
                             contentDescription = stringResource(R.string.refresh),
-                            modifier = Modifier.size(headerIconSize),
                             tint = headerColor,
+                            size = headerIconSize,
                         )
                     }
                 }
@@ -165,8 +165,13 @@ fun ServerListScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
-                    isLoading && servers.isEmpty() -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    // Match the desktop client: while (re)loading, the list is
+                    // replaced by a centered accent spinner — not only on first load.
+                    isLoading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = com.tobevpn.tv.presentation.theme.VpnGreen,
+                        )
                     }
                     error != null && servers.isEmpty() -> {
                         Text(
@@ -286,7 +291,22 @@ private fun ServerItem(
                     )
                 }
             }
-            if (server.ping > 0) {
+            // Ping, unreachable or offline — same precedence as the phone client.
+            if (!server.isOnline) {
+                Text(
+                    text = stringResource(R.string.server_offline),
+                    fontSize = labelSize,
+                    color = VpnRed,
+                    style = tightStyle,
+                )
+            } else if (server.ping < 0) {
+                Text(
+                    text = stringResource(R.string.server_unavailable),
+                    fontSize = labelSize,
+                    color = VpnRed,
+                    style = tightStyle,
+                )
+            } else if (server.ping > 0) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "${server.ping}",

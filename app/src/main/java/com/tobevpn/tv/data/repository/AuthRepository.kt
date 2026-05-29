@@ -12,6 +12,7 @@ import com.tobevpn.tv.data.remote.BotApi
 import com.tobevpn.tv.data.remote.SubscriptionPinger
 import com.tobevpn.tv.data.remote.dto.AuthRequestDto
 import com.tobevpn.tv.data.remote.dto.DeviceRegisterRequestDto
+import com.tobevpn.tv.data.remote.dto.DeviceUnlinkRequestDto
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -436,8 +437,11 @@ class AuthRepository @Inject constructor(
         if (sessionDao.getSession() == null) return
 
         if (unlinkRemote) {
+            // Pass the explicit device_id so the backend unlinks *this* device
+            // and it disappears from the user's device list (the no-body call
+            // left the TV linked, mirroring the phone client's behaviour).
             try {
-                botApi.unlinkDevice()
+                botApi.unlinkDevice(DeviceUnlinkRequestDto(deviceId = getOrCreateDeviceId()))
             } catch (_: Exception) {
             }
             try {

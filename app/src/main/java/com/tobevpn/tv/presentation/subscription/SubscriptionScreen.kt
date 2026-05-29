@@ -82,7 +82,6 @@ import com.tobevpn.tv.R
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
-import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
@@ -399,7 +398,7 @@ fun SubscriptionScreen(
                                         text = selectedPlan.priceDisplay,
                                         fontSize = priceSize,
                                         fontWeight = FontWeight.Bold,
-                                        color = VpnBlue,
+                                        color = VpnGreen,
                                         style = tightStyle,
                                     )
                                     Spacer(modifier = Modifier.height((6 * scale).dp))
@@ -844,7 +843,7 @@ private fun PlanOptionCard(
     val shape = RoundedCornerShape(corner)
     val borderColor = when {
         isFocused -> Color.White
-        selected -> VpnBlue
+        selected -> VpnGreen
         else -> Color.Transparent
     }
 
@@ -868,7 +867,7 @@ private fun PlanOptionCard(
         shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
-                VpnBlue.copy(alpha = 0.18f)
+                VpnGreen.copy(alpha = 0.18f)
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
             },
@@ -901,7 +900,7 @@ private fun PlanOptionCard(
                 text = plan.priceDisplay,
                 fontSize = titleSize,
                 fontWeight = FontWeight.Bold,
-                color = VpnBlue,
+                color = VpnGreen,
                 style = tightStyle,
             )
         }
@@ -1045,7 +1044,7 @@ private fun currentPlanUi(authState: AuthState): CurrentPlanUi {
                 UserPlan.ADMIN -> CurrentPlanUi(
                     title = stringResource(R.string.plan_admin),
                     subtitle = stringResource(R.string.plan_unlimited_access),
-                    accentColor = VpnBlue,
+                    accentColor = VpnGreen,
                 )
                 UserPlan.EXPIRED -> CurrentPlanUi(
                     title = stringResource(R.string.plan_expired),

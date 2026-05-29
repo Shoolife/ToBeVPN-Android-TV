@@ -5,7 +5,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
 private val TvDarkColorScheme = darkColorScheme(
-    primary = VpnBlue,
+    primary = VpnGreen,
     secondary = PurpleGrey80,
     tertiary = Pink80,
     background = TvDarkBg,
@@ -14,7 +14,7 @@ private val TvDarkColorScheme = darkColorScheme(
     onPrimary = androidx.compose.ui.graphics.Color.White,
     onBackground = androidx.compose.ui.graphics.Color.White,
     onSurface = androidx.compose.ui.graphics.Color.White,
-    onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFB0BEC5),
+    onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFB0B0B5),
     primaryContainer = TvCardBg,
     onPrimaryContainer = androidx.compose.ui.graphics.Color.White,
 )

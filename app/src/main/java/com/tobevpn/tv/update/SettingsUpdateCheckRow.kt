@@ -39,7 +39,10 @@ import com.tobevpn.tv.R
  * focusable and responds to D-pad enter/center.
  */
 @Composable
-fun SettingsUpdateCheckRow(viewModel: UpdateViewModel = rememberAppUpdateViewModel()) {
+fun SettingsUpdateCheckRow(
+    fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    viewModel: UpdateViewModel = rememberAppUpdateViewModel(),
+) {
     val state by viewModel.state.collectAsState()
     val inFlight by viewModel.manualCheckInFlight.collectAsState()
     val versionName = remember { com.tobevpn.tv.BuildConfig.VERSION_NAME }
@@ -63,6 +66,7 @@ fun SettingsUpdateCheckRow(viewModel: UpdateViewModel = rememberAppUpdateViewMod
     ) {
         Text(
             text = statusText,
+            fontSize = fontSize,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             modifier = Modifier.weight(1f),
@@ -96,6 +100,7 @@ fun SettingsUpdateCheckRow(viewModel: UpdateViewModel = rememberAppUpdateViewMod
             }
             Text(
                 text = stringResource(R.string.update_check_button),
+                fontSize = fontSize,
                 fontWeight = FontWeight.SemiBold,
             )
         }

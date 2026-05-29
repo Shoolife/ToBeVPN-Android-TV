@@ -5,6 +5,7 @@ import com.tobevpn.tv.data.remote.dto.AuthRequestDto
 import com.tobevpn.tv.data.remote.dto.AuthRequestResponseDto
 import com.tobevpn.tv.data.remote.dto.AuthStatusDto
 import com.tobevpn.tv.data.remote.dto.DeviceRegisterRequestDto
+import com.tobevpn.tv.data.remote.dto.DeviceUnlinkRequestDto
 import com.tobevpn.tv.data.remote.dto.LinkedDevicesDto
 import com.tobevpn.tv.data.remote.dto.PanelNodeDto
 import com.tobevpn.tv.data.remote.dto.PanelResponse
@@ -31,6 +32,12 @@ interface BotApi {
 
     @POST("api/device/unlink")
     suspend fun unlinkDevice(): ApiResponse<Unit>
+
+    /** Unlinks another device by id (used by the device manager screen). */
+    @POST("api/device/unlink")
+    suspend fun unlinkDevice(
+        @Body request: DeviceUnlinkRequestDto,
+    ): ApiResponse<Unit>
 
     @POST("api/device/logout")
     suspend fun logoutDevice(): ApiResponse<Unit>

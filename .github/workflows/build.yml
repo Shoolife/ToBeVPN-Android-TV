@@ -67,6 +67,8 @@ jobs:
         # (Google issuetracker #402800800). Build them separately.
         env:
           BOT_API_URL: ${{ secrets.BOT_API_URL }}
+          FALLBACK_BOT_DOMAIN: ${{ secrets.FALLBACK_BOT_DOMAIN }}
+          FALLBACK_SUBS_DOMAIN: ${{ secrets.FALLBACK_SUBS_DOMAIN }}
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Build release AAB (no splits)
@@ -74,6 +76,8 @@ jobs:
         # splits.abi.isEnable to false for this run.
         env:
           BOT_API_URL: ${{ secrets.BOT_API_URL }}
+          FALLBACK_BOT_DOMAIN: ${{ secrets.FALLBACK_BOT_DOMAIN }}
+          FALLBACK_SUBS_DOMAIN: ${{ secrets.FALLBACK_SUBS_DOMAIN }}
         run: ./gradlew bundleRelease -PdisableAbiSplits --no-daemon
 
       - name: Locate and rename artifacts

@@ -70,6 +70,10 @@ data class LinkedDevicesDto(
     val devices: List<LinkedDeviceDto>,
 )
 
+data class DeviceUnlinkRequestDto(
+    @SerializedName("device_id") val deviceId: String,
+)
+
 // Servers
 data class ServerDto(
     val id: String,

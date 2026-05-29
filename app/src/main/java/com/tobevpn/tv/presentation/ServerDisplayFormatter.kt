@@ -79,17 +79,42 @@ private fun countryCodeFromServerName(serverName: String): String? {
     return null
 }
 
+@Suppress("UNUSED_PARAMETER")
 fun serverDisplayName(name: String, countryCode: String): String {
     val trimmedName = name.trim()
     if (trimmedName.isEmpty()) return name
 
     val prefix = parseLeadingPrefix(trimmedName)
-    val countryFlag = countryFlagOrNull(countryCode)
-    if (countryFlag != null && prefix.flag != null && prefix.flag != countryFlag) return trimmedName
-
-    val cleanedName = trimmedName.substring(prefix.endIndex).trimStart()
+    // Strip the leading flag/decoration prefix and any flag emoji left in the
+    // remainder. A cascade server like "🇳🇱 Нидерланды 11" should display as
+    // "Нидерланды 11" — the flag belongs in the left-hand icon, not the name.
+    val cleanedName = trimDecorativeEdges(removeFlagEmojis(trimmedName.substring(prefix.endIndex)))
     return cleanedName.ifEmpty { trimmedName }
 }
+
+private fun removeFlagEmojis(text: String): String {
+    val output = StringBuilder(text.length)
+    var index = 0
+    while (index < text.length) {
+        val codePoint = text.codePointAt(index)
+        val nextIndex = index + Character.charCount(codePoint)
+        if (isRegionalIndicator(codePoint) && nextIndex < text.length) {
+            val nextCodePoint = text.codePointAt(nextIndex)
+            if (isRegionalIndicator(nextCodePoint)) {
+                index = nextIndex + Character.charCount(nextCodePoint)
+                continue
+            }
+        }
+        output.appendCodePoint(codePoint)
+        index = nextIndex
+    }
+    return output.toString()
+}
+
+private fun trimDecorativeEdges(text: String): String =
+    text.trim()
+        .trim { it == '-' || it == '|' || it == '/' || it == '\\' || it == ':' }
+        .trim()
 
 @Composable
 fun serverCountryNameForUi(countryCode: String, serverName: String): String {

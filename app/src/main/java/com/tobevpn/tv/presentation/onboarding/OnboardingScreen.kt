@@ -61,7 +61,6 @@ fun OnboardingScreen(
         val subtitleSize = (18 * leftScale).sp
         val featureSize = (20 * scale).sp
         val buttonTextSize = (20 * scale).sp
-        val consentSize = (12 * scale).sp
         val btnPadH = (24 * scale).dp
         val btnPadV = (8 * scale).dp
 
@@ -146,21 +145,6 @@ fun OnboardingScreen(
                         fontSize = buttonTextSize,
                     )
                 }
-
-                Spacer(modifier = Modifier.height(gap))
-
-                Text(
-                    text = stringResource(R.string.onboarding_consent),
-                    fontSize = consentSize,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = tightStyle,
-                )
-                Text(
-                    text = stringResource(R.string.privacy_policy_url),
-                    fontSize = consentSize,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = tightStyle,
-                )
             }
         }
     }

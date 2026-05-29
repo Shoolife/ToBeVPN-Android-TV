@@ -299,7 +299,7 @@ fun MainScreen(
                     val auth = authState as AuthState.Authenticated
                     val (planLabel, planColor) = when (auth.plan) {
                         UserPlan.PAID -> stringResource(R.string.plan_standard) to VpnGreen
-                        UserPlan.ADMIN -> stringResource(R.string.plan_admin) to VpnBlue
+                        UserPlan.ADMIN -> stringResource(R.string.plan_admin) to VpnGreen
                         UserPlan.EXPIRED -> stringResource(R.string.plan_expired) to VpnRed
                         UserPlan.FREE_TRIAL -> stringResource(R.string.plan_free) to VpnOrange
                     }
@@ -369,8 +369,10 @@ fun MainScreen(
 
 @Composable
 private fun BlockedDialog(onDismiss: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val link = stringResource(R.string.block_appeal_link)
+    // "Contact support" opens a second dialog with a large, easy-to-scan QR
+    // code — on TV there is no browser/Telegram to open the link directly.
+    var showQr by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -388,14 +390,58 @@ private fun BlockedDialog(onDismiss: () -> Unit) {
             )
         },
         confirmButton = {
-            TextButton(onClick = {
-                onDismiss()
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) }
-            }) {
+            TextButton(onClick = { showQr = true }) {
                 Text(stringResource(R.string.block_appeal_button))
             }
         },
         dismissButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        },
+    )
+
+    if (showQr) {
+        SupportQrDialog(onDismiss = { showQr = false })
+    }
+}
+
+@Composable
+private fun SupportQrDialog(onDismiss: () -> Unit) {
+    val link = stringResource(R.string.block_appeal_link)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.block_appeal_button),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .size(320.dp)
+                        .background(Color.White, RoundedCornerShape(16.dp))
+                        .padding(16.dp),
+                ) {
+                    com.tobevpn.tv.presentation.components.QrCode(
+                        data = link,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.block_appeal_scan_hint),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
             TextButton(onClick = onDismiss) { Text("OK") }
         },
     )

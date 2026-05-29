@@ -18,6 +18,8 @@
     <string name="server_select">Select a server</string>
     <string name="servers_load_error">Failed to load</string>
     <string name="servers_empty">No servers available</string>
+    <string name="server_offline">Offline</string>
+    <string name="server_unavailable">Unavailable</string>
 
     <!-- Main screen -->
     <string name="speed_test_title">Speed test</string>
@@ -84,6 +86,31 @@
     <string name="about">About</string>
     <string name="version">Version</string>
     <string name="xray">XRay</string>
+    <string name="language">Language</string>
+    <string name="language_english">English</string>
+    <string name="language_russian">Russian</string>
+    <string name="language_restart_title">Restart required</string>
+    <string name="language_restart_message">The app must be restarted to apply the new language.</string>
+    <string name="language_restart_button">Restart</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Linked devices -->
+    <string name="devices_title">Devices</string>
+    <string name="devices_manage">Manage</string>
+    <string name="devices_manage_hint">View and disconnect linked devices</string>
+    <string name="devices_count">linked devices</string>
+    <string name="devices_this_device">This device</string>
+    <string name="devices_other_devices">Other devices</string>
+    <string name="devices_empty">No other devices linked</string>
+    <string name="devices_disconnect">Disconnect</string>
+    <string name="devices_current_badge">Current</string>
+    <string name="devices_type_tv">TV</string>
+    <string name="devices_type_desktop">Desktop</string>
+    <string name="devices_type_phone">Phone</string>
+    <string name="devices_unknown">Unknown device</string>
+    <string name="devices_load_error">Could not load devices</string>
+    <string name="error_devices_disconnect">Could not disconnect the device</string>
+    <string name="error_auth_required">Sign in to manage devices</string>
 
     <!-- Stats -->
     <string name="stats_title">Statistics</string>
@@ -116,12 +143,14 @@
     <string name="speed_unit_mbps">Mbps</string>
     <string name="speed_start_test">Start test</string>
     <string name="speed_stop">Stop</string>
+    <string name="speed_via_vpn">Via VPN</string>
+    <string name="speed_direct">Direct</string>
     <string name="speed_no_connection">No connection</string>
     <string name="speed_measure_failed">Speed measurement failed</string>
 
     <!-- Pairing -->
     <string name="pairing_title">Sign in to ToBeVPN</string>
-    <string name="pairing_instruction">Open ToBeVPN on your phone → Settings → Linked devices and scan the QR code,\nor scan it with your phone camera.</string>
+    <string name="pairing_instruction">Scan the QR code with your phone camera, or with the QR scanner in the ToBeVPN app.</string>
     <string name="pairing_loading">Generating Telegram sign-in link…</string>
     <string name="pairing_waiting">Scan the QR code and confirm sign-in in Telegram…</string>
     <string name="pairing_done">Done!</string>
@@ -177,6 +206,7 @@
     <string name="error_tunnel_unhealthy">VPN connected, but traffic is not passing through the server. Try another server.</string>
     <string name="error_usage_blocked">Access blocked due to a violation of the usage rules</string>
     <string name="block_appeal_message">If you haven\'t violated anything, contact us</string>
+    <string name="block_appeal_scan_hint">Scan the QR code with your phone to contact support</string>
     <string name="block_appeal_link">https://t.me/meow_meow_vpn?direct</string>
     <string name="block_appeal_button">Contact support</string>
     <string name="update_required_title">Update required</string>

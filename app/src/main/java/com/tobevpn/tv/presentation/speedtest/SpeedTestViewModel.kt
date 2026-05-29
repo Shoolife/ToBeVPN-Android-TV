@@ -5,17 +5,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.annotation.StringRes
 import com.tobevpn.tv.R
+import com.tobevpn.tv.domain.model.ConnectionState
+import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -34,20 +41,39 @@ enum class SpeedTestPhase {
 }
 
 @HiltViewModel
-class SpeedTestViewModel @Inject constructor() : ViewModel() {
+class SpeedTestViewModel @Inject constructor(
+    private val connectionManager: VpnConnectionManager,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(SpeedTestState())
     val state: StateFlow<SpeedTestState> = _state.asStateFlow()
+
+    /**
+     * Whether the next test runs through the VPN tunnel. When connected, the
+     * app itself is excluded from the TUN, so to measure tunnel speed we route
+     * the test through xray's local SOCKS5 inbound (127.0.0.1:10808).
+     */
+    val viaVpn: StateFlow<Boolean> = connectionManager.connectionState
+        .map { it is ConnectionState.Connected }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private var testJob: Job? = null
     private var activeCall: Call? = null
     private val cancelled = AtomicBoolean(false)
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .build()
+    private fun buildClient(throughVpn: Boolean): OkHttpClient {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .followRedirects(true)
+        if (throughVpn) {
+            builder.proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", 10808)))
+        }
+        return builder.build()
+    }
+
+    @Volatile
+    private var client = buildClient(false)
 
     private val downloadFiles = listOf(
         "https://repo1.maven.org/maven2/com/ibm/icu/icu4j/74.2/icu4j-74.2.jar",
@@ -59,8 +85,10 @@ class SpeedTestViewModel @Inject constructor() : ViewModel() {
     fun startTest() {
         cancelActiveWork()
         cancelled.set(false)
+        // Pick the route for this run: through the tunnel when VPN is up.
+        client = buildClient(throughVpn = viaVpn.value)
         testJob = viewModelScope.launch {
-            Log.d(TAG, "Speed test started")
+            Log.d(TAG, "Speed test started (viaVpn=${viaVpn.value})")
             _state.value = SpeedTestState(phase = SpeedTestPhase.Ping)
 
             val ping = measurePing()

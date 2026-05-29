@@ -15,7 +15,8 @@ val VpnRed = Color(0xFFF44336)
 val VpnBlue = Color(0xFF2196F3)
 val VpnOrange = Color(0xFFFF9800)
 
-val TvDarkBg = Color(0xFF0D1B2A)
-val TvSurface = Color(0xFF1B2838)
-val TvSurfaceVariant = Color(0xFF253545)
-val TvCardBg = Color(0xFF1E3044)
+// Neutral dark palette to match the phone client (no navy/blue cast).
+val TvDarkBg = Color(0xFF101012)
+val TvSurface = Color(0xFF1A1A1C)
+val TvSurfaceVariant = Color(0xFF242426)
+val TvCardBg = Color(0xFF1E1E20)
