@@ -81,7 +81,7 @@ ToBeVPN TV — нативный клиент к VPN-сети для телеви
 ## Связанные репозитории
 
 - **Android-клиент:** [ToBeVPN-Android](https://github.com/Shoolife/ToBeVPN-Android) — нативный клиент для телефонов
-- **Desktop-клиент:** [ToBeVPN-Desktop](https://github.com/Shoolife/ToBeVPN-Desktop) — Linux / Windows / macOS
+- **Desktop-клиент:** [ToBeVPN-Desktop](https://github.com/Shoolife/ToBeVPN-Desktop) — Linux / Windows
 
 ## Roadmap
 
