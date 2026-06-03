@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.repository.AuthRepository
+import com.tobevpn.tv.data.repository.DevicePairingPollResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -14,9 +15,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class PairingMode {
+    OWN_ACCOUNT,
+    OTHER_DEVICE,
+}
+
 sealed interface PairingUiState {
     data object Loading : PairingUiState
-    data class WaitingForScan(val qrData: String) : PairingUiState
+    data class WaitingForScan(val qrData: String, val code: String? = null) : PairingUiState
     data object Authenticating : PairingUiState
     data object Success : PairingUiState
     data class Error(val message: String? = null, @param:StringRes val messageRes: Int = R.string.error_generic) : PairingUiState
@@ -38,6 +44,9 @@ class PairingViewModel @Inject constructor(
     private val _state = MutableStateFlow<PairingUiState>(PairingUiState.Loading)
     val state: StateFlow<PairingUiState> = _state.asStateFlow()
 
+    private val _mode = MutableStateFlow(PairingMode.OWN_ACCOUNT)
+    val mode: StateFlow<PairingMode> = _mode.asStateFlow()
+
     private var pollJob: Job? = null
     private var consecutiveExpirations = 0
 
@@ -49,21 +58,13 @@ class PairingViewModel @Inject constructor(
         pollJob?.cancel()
         consecutiveExpirations = 0
         _state.value = PairingUiState.Loading
-        viewModelScope.launch {
-            authRepository.requestTelegramAuth()
-                .onSuccess { authToken ->
-                    _state.value = PairingUiState.WaitingForScan(
-                        TelegramLinks.buildWebStartLink(authToken)
-                    )
-                    startPolling(authToken)
-                }
-                .onFailure { e ->
-                    _state.value = PairingUiState.Error(
-                        message = e.message,
-                        messageRes = R.string.auth_error_server,
-                    )
-                }
-        }
+        requestCurrentModeCode()
+    }
+
+    fun selectMode(mode: PairingMode) {
+        if (_mode.value == mode) return
+        _mode.value = mode
+        requestCode()
     }
 
     private fun rotateCode() {
@@ -72,13 +73,24 @@ class PairingViewModel @Inject constructor(
         // the user-initiated path and resets the counter.
         pollJob?.cancel()
         _state.value = PairingUiState.Loading
+        requestCurrentModeCode()
+    }
+
+    private fun requestCurrentModeCode() {
+        when (_mode.value) {
+            PairingMode.OWN_ACCOUNT -> requestOwnAccountCode()
+            PairingMode.OTHER_DEVICE -> requestDevicePairingCode()
+        }
+    }
+
+    private fun requestOwnAccountCode() {
         viewModelScope.launch {
             authRepository.requestTelegramAuth()
                 .onSuccess { authToken ->
                     _state.value = PairingUiState.WaitingForScan(
-                        TelegramLinks.buildWebStartLink(authToken)
+                        qrData = TelegramLinks.buildWebStartLink(authToken),
                     )
-                    startPolling(authToken)
+                    startTelegramPolling(authToken)
                 }
                 .onFailure { e ->
                     _state.value = PairingUiState.Error(
@@ -89,7 +101,30 @@ class PairingViewModel @Inject constructor(
         }
     }
 
-    private fun startPolling(authToken: String) {
+    private fun requestDevicePairingCode() {
+        viewModelScope.launch {
+            authRepository.requestDevicePairing()
+                .onSuccess { pairing ->
+                    _state.value = PairingUiState.WaitingForScan(
+                        qrData = createPairingDeepLink(pairing.code),
+                        code = pairing.code,
+                    )
+                    startPolling(pairing.code)
+                }
+                .onFailure { e ->
+                    _state.value = PairingUiState.Error(
+                        message = e.message,
+                        messageRes = R.string.auth_error_server,
+                    )
+                }
+        }
+    }
+
+    private fun createPairingDeepLink(code: String): String {
+        return "tobevpn://pair?code=$code"
+    }
+
+    private fun startTelegramPolling(authToken: String) {
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
             repeat(MAX_POLL_ATTEMPTS) {
@@ -112,8 +147,59 @@ class PairingViewModel @Inject constructor(
                             return@launch
                         }
                         rotateCode()
-                        return@launch
+                    } else {
+                        _state.value = PairingUiState.Error(
+                            message = e.message,
+                            messageRes = R.string.auth_error_server,
+                        )
                     }
+                    return@launch
+                }
+            }
+            consecutiveExpirations++
+            if (consecutiveExpirations >= MAX_REQUEST_RETRIES) {
+                _state.value = PairingUiState.Error(
+                    messageRes = R.string.auth_error_server,
+                )
+                return@launch
+            }
+            rotateCode()
+        }
+    }
+
+    private fun startPolling(code: String) {
+        pollJob?.cancel()
+        pollJob = viewModelScope.launch {
+            repeat(MAX_POLL_ATTEMPTS) {
+                delay(POLL_INTERVAL_MS)
+                val result = authRepository.checkDevicePairingStatus(code)
+                result.onSuccess { status ->
+                    when (status) {
+                        DevicePairingPollResult.Completed -> {
+                            _state.value = PairingUiState.Authenticating
+                            _state.value = PairingUiState.Success
+                            return@launch
+                        }
+                        DevicePairingPollResult.Expired -> {
+                            consecutiveExpirations++
+                            if (consecutiveExpirations >= MAX_REQUEST_RETRIES) {
+                                _state.value = PairingUiState.Error(
+                                    messageRes = R.string.auth_error_server,
+                                )
+                                return@launch
+                            }
+                            rotateCode()
+                            return@launch
+                        }
+                        DevicePairingPollResult.Pending -> Unit
+                    }
+                }
+                result.onFailure { e ->
+                    _state.value = PairingUiState.Error(
+                        message = e.message,
+                        messageRes = R.string.auth_error_server,
+                    )
+                    return@launch
                 }
             }
             // Polling window finished without auth or explicit expiry — recycle once,

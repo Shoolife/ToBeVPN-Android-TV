@@ -2,6 +2,9 @@ package com.tobevpn.tv.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tobevpn.tv.data.local.AppDatabase
 import com.tobevpn.tv.data.local.DatabasePassphrase
 import com.tobevpn.tv.data.local.dao.ServerDao
@@ -34,8 +37,18 @@ object DatabaseModule {
             "tobevpn_tv.db",
         )
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
+            .addMigrations(MIGRATION_7_8)
             .fallbackToDestructiveMigration(dropAllTables = true)
+            // Usage is updated while the tunnel is active. Keep committed
+            // writes in the main DB instead of growing a separate WAL file.
+            .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
             .build()
+    }
+
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE session ADD COLUMN planDisplayName TEXT")
+        }
     }
 
     private fun ensureCipherCompatible(
@@ -54,10 +67,12 @@ object DatabaseModule {
                 null,
                 null,
             ).close()
-        } catch (_: Throwable) {
+        } catch (_: android.database.SQLException) {
             dbFile.delete()
             java.io.File("${dbFile.absolutePath}-shm").delete()
             java.io.File("${dbFile.absolutePath}-wal").delete()
+        } catch (_: Throwable) {
+            // Do not delete user data for transient JNI or file-lock errors.
         }
     }
 

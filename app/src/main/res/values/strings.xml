@@ -32,11 +32,12 @@
     <!-- Plans -->
     <string name="plan_admin">Admin</string>
     <string name="plan_standard">Standard</string>
+    <string name="plan_unknown_name">XXX</string>
     <string name="plan_expired">Expired</string>
     <string name="plan_free">Free</string>
     <string name="plan_until">until %1$s</string>
     <string name="plan_active_until">Active until %1$s</string>
-    <string name="plan_quota_month">150 GB / month</string>
+    <string name="plan_quota_month">XXX GB / month</string>
     <string name="plan_conditions_loading">Plan conditions are loading</string>
     <string name="plan_traffic_month_fmt">%1$d GB / month</string>
     <string name="plan_devices_fmt">up to %1$d devices</string>
@@ -99,6 +100,7 @@
     <string name="devices_manage">Manage</string>
     <string name="devices_manage_hint">View and disconnect linked devices</string>
     <string name="devices_count">linked devices</string>
+    <string name="devices_count_unlimited">linked devices · unlimited</string>
     <string name="devices_this_device">This device</string>
     <string name="devices_other_devices">Other devices</string>
     <string name="devices_empty">No other devices linked</string>
@@ -150,9 +152,18 @@
 
     <!-- Pairing -->
     <string name="pairing_title">Sign in to ToBeVPN</string>
-    <string name="pairing_instruction">Scan the QR code with your phone camera, or with the QR scanner in the ToBeVPN app.</string>
-    <string name="pairing_loading">Generating Telegram sign-in link…</string>
-    <string name="pairing_waiting">Scan the QR code and confirm sign-in in Telegram…</string>
+    <string name="pairing_instruction">Open this QR code with the camera on an authorized phone, scan it in Linked devices, or enter the code manually.</string>
+    <string name="pairing_instruction_own_account">Open this QR code on your phone to sign in to your own account.</string>
+    <string name="pairing_instruction_other_device">To use another account, the owner must confirm this QR or code on their phone in Settings, under Devices.</string>
+    <string name="pairing_mode_own_account">Own account</string>
+    <string name="pairing_mode_other_device">Another device</string>
+    <string name="pairing_loading">Preparing sign-in code…</string>
+    <string name="pairing_loading_own_account">Preparing own account sign-in…</string>
+    <string name="pairing_loading_other_device">Preparing sign-in code…</string>
+    <string name="pairing_waiting">Waiting for confirmation on an authorized device…</string>
+    <string name="pairing_waiting_own_account">Waiting for sign-in confirmation…</string>
+    <string name="pairing_waiting_other_device">Waiting for account owner confirmation…</string>
+    <string name="pairing_code_label">Sign-in code</string>
     <string name="pairing_done">Done!</string>
     <string name="error_generic">Error</string>
     <string name="retry">Try again</string>

@@ -50,6 +50,65 @@ data class AuthStatusDto(
     @SerializedName("panel_user_uuid") val panelUserUuid: String? = null,
 )
 
+data class TvPairCreateRequestDto(
+    @SerializedName("device_id") val deviceId: String? = null,
+)
+
+data class TvPairCreateResponseDto(
+    val code: String,
+    @SerializedName("expires_in") val expiresIn: Int,
+)
+
+data class TvPairStatusDto(
+    val status: String, // "pending" | "completed" | "expired" | "rejected"
+    @SerializedName("telegram_id") val telegramId: Long? = null,
+    @SerializedName("short_uuid") val shortUuid: String? = null,
+    @SerializedName("panel_user_uuid") val panelUserUuid: String? = null,
+)
+
+data class CurrentPlanDto(
+    @SerializedName("current_plan") val currentPlan: CurrentPlanSnapshotDto? = null,
+    @SerializedName("plan_snapshot") val planSnapshot: CurrentPlanSnapshotDto? = null,
+    val subscription: CurrentPlanSubscriptionDto? = null,
+    @SerializedName("plan_name") val planName: String? = null,
+    val name: String? = null,
+    val status: String? = null,
+    @SerializedName("expire_at") val expireAt: String? = null,
+    @SerializedName("expires_at") val expiresAt: String? = null,
+)
+
+data class CurrentPlanSnapshotDto(
+    val id: Long? = null,
+    val name: String? = null,
+    val type: String? = null,
+    @SerializedName("traffic_limit") val trafficLimit: Long? = null,
+    @SerializedName("traffic_limit_bytes") val trafficLimitBytes: Long? = null,
+    @SerializedName("device_limit") val deviceLimit: Int? = null,
+    val duration: Int? = null,
+    @SerializedName("duration_days") val durationDays: Int? = null,
+    val tag: String? = null,
+    @SerializedName("is_trial") val isTrial: Boolean? = null,
+    @SerializedName("traffic_limit_strategy") val trafficLimitStrategy: String? = null,
+)
+
+data class CurrentPlanSubscriptionDto(
+    @SerializedName("expire_at") val expireAt: String? = null,
+    @SerializedName("expires_at") val expiresAt: String? = null,
+    @SerializedName("expire_at_ts") val expireAtTs: Long? = null,
+    val status: String? = null,
+    @SerializedName("stored_status") val storedStatus: String? = null,
+    @SerializedName("is_active") val isActive: Boolean? = null,
+    @SerializedName("is_expired") val isExpired: Boolean? = null,
+    @SerializedName("is_unlimited") val isUnlimited: Boolean? = null,
+    @SerializedName("is_trial") val isTrial: Boolean? = null,
+    @SerializedName("traffic_limit") val trafficLimit: Long? = null,
+    @SerializedName("traffic_limit_bytes") val trafficLimitBytes: Long? = null,
+    @SerializedName("traffic_limit_strategy") val trafficLimitStrategy: String? = null,
+    @SerializedName("device_limit") val deviceLimit: Int? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("created_at_ts") val createdAtTs: Long? = null,
+)
+
 data class DeviceRegisterRequestDto(
     @SerializedName("device_name") val deviceName: String,
     @SerializedName("device_type") val deviceType: String,

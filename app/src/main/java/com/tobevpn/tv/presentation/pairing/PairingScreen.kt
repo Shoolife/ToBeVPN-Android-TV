@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -65,6 +66,7 @@ fun PairingScreen(
     viewModel: PairingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val mode by viewModel.mode.collectAsStateWithLifecycle()
 
     LaunchedEffect(state) {
         if (state is PairingUiState.Success) {
@@ -181,17 +183,59 @@ fun PairingScreen(
                 )
                 Spacer(modifier = Modifier.height(gap))
                 Text(
-                    text = stringResource(R.string.pairing_instruction),
+                    text = stringResource(
+                        if (mode == PairingMode.OWN_ACCOUNT) {
+                            R.string.pairing_instruction_own_account
+                        } else {
+                            R.string.pairing_instruction_other_device
+                        },
+                    ),
                     fontSize = instructionSize,
                     lineHeight = instructionSize * 1.5f,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 Spacer(modifier = Modifier.height(gap))
+                PairingModeSelector(
+                    mode = mode,
+                    fontSize = instructionSize,
+                    onOwnAccount = { viewModel.selectMode(PairingMode.OWN_ACCOUNT) },
+                    onOtherDevice = { viewModel.selectMode(PairingMode.OTHER_DEVICE) },
+                )
+
+                val pairingCode = (state as? PairingUiState.WaitingForScan)?.code
+                if (pairingCode != null) {
+                    Spacer(modifier = Modifier.height(gap))
+                    Text(
+                        text = stringResource(R.string.pairing_code_label),
+                        fontSize = instructionSize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = pairingCode,
+                        fontSize = statusSize,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(gap))
 
                 val status = when (val s = state) {
-                    is PairingUiState.Loading -> stringResource(R.string.pairing_loading)
-                    is PairingUiState.WaitingForScan -> stringResource(R.string.pairing_waiting)
+                    is PairingUiState.Loading -> stringResource(
+                        if (mode == PairingMode.OWN_ACCOUNT) {
+                            R.string.pairing_loading_own_account
+                        } else {
+                            R.string.pairing_loading_other_device
+                        },
+                    )
+                    is PairingUiState.WaitingForScan -> stringResource(
+                        if (mode == PairingMode.OWN_ACCOUNT) {
+                            R.string.pairing_waiting_own_account
+                        } else {
+                            R.string.pairing_waiting_other_device
+                        },
+                    )
                     is PairingUiState.Authenticating -> ""
                     is PairingUiState.Success -> ""
                     is PairingUiState.Error -> s.message ?: stringResource(s.messageRes)
@@ -237,6 +281,58 @@ fun PairingScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PairingModeSelector(
+    mode: PairingMode,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    onOwnAccount: () -> Unit,
+    onOtherDevice: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        PairingModeButton(
+            text = stringResource(R.string.pairing_mode_own_account),
+            selected = mode == PairingMode.OWN_ACCOUNT,
+            fontSize = fontSize,
+            onClick = onOwnAccount,
+        )
+        PairingModeButton(
+            text = stringResource(R.string.pairing_mode_other_device),
+            selected = mode == PairingMode.OTHER_DEVICE,
+            fontSize = fontSize,
+            onClick = onOtherDevice,
+        )
+    }
+}
+
+@Composable
+private fun PairingModeButton(
+    text: String,
+    selected: Boolean,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    onClick: () -> Unit,
+) {
+    if (selected) {
+        Button(
+            onClick = onClick,
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
+        ) {
+            Text(text = text, fontSize = fontSize, fontWeight = FontWeight.Bold)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.onBackground,
+            ),
+        ) {
+            Text(text = text, fontSize = fontSize, fontWeight = FontWeight.Bold)
         }
     }
 }

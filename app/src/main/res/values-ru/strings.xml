@@ -32,6 +32,7 @@
     <!-- Plans -->
     <string name="plan_admin">Админ</string>
     <string name="plan_standard">Стандарт</string>
+    <string name="plan_unknown_name">XXX</string>
     <string name="plan_expired">Истёк</string>
     <string name="plan_free">Бесплатный</string>
     <string name="plan_until">до %1$s</string>
@@ -39,7 +40,7 @@
     <string name="plan_unlimited_access">Безлимитный доступ</string>
     <string name="plan_renew">Продлите подписку</string>
     <string name="plan_limited_traffic">Ограниченный трафик</string>
-    <string name="plan_quota_month">150 ГБ / месяц</string>
+    <string name="plan_quota_month">XXX ГБ / месяц</string>
     <string name="plan_conditions_loading">Условия тарифа загружаются</string>
     <string name="plan_traffic_month_fmt">%1$d ГБ / месяц</string>
     <string name="plan_devices_fmt">до %1$d устройств</string>
@@ -99,6 +100,7 @@
     <string name="devices_manage">Управление</string>
     <string name="devices_manage_hint">Просмотр и отвязка подключённых устройств</string>
     <string name="devices_count">устройств подключено</string>
+    <string name="devices_count_unlimited">устройств подключено · без лимита</string>
     <string name="devices_this_device">Это устройство</string>
     <string name="devices_other_devices">Другие устройства</string>
     <string name="devices_empty">Других устройств нет</string>
@@ -152,9 +154,18 @@
 
     <!-- Pairing -->
     <string name="pairing_title">Вход в ToBeVPN</string>
-    <string name="pairing_instruction">Отсканируйте QR-код камерой телефона или сканером QR в приложении ToBeVPN.</string>
-    <string name="pairing_loading">Готовим ссылку для входа через Telegram…</string>
-    <string name="pairing_waiting">Сканируйте QR-код и подтвердите вход в Telegram…</string>
+    <string name="pairing_instruction">Откройте QR-код обычной камерой на авторизованном телефоне, отсканируйте его в разделе «Подключённые устройства» или введите код вручную.</string>
+    <string name="pairing_instruction_own_account">Откройте QR-код на своём телефоне, чтобы войти в свой аккаунт.</string>
+    <string name="pairing_instruction_other_device">Для доступа к чужому аккаунту владелец должен подтвердить QR или код на телефоне в настройках, в разделе устройств.</string>
+    <string name="pairing_mode_own_account">Свой аккаунт</string>
+    <string name="pairing_mode_other_device">Другое устройство</string>
+    <string name="pairing_loading">Готовим код для входа…</string>
+    <string name="pairing_loading_own_account">Готовим вход в свой аккаунт…</string>
+    <string name="pairing_loading_other_device">Готовим код для входа…</string>
+    <string name="pairing_waiting">Ожидаем подтверждения на авторизованном устройстве…</string>
+    <string name="pairing_waiting_own_account">Ожидаем подтверждения входа…</string>
+    <string name="pairing_waiting_other_device">Ожидаем подтверждения на устройстве владельца…</string>
+    <string name="pairing_code_label">Код входа</string>
     <string name="pairing_done">Готово!</string>
     <string name="error_generic">Ошибка</string>
     <string name="retry">Попробовать снова</string>

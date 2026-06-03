@@ -93,26 +93,6 @@ class BootstrapManager @Inject constructor(
         }
     }
 
-    /**
-     * Forces a server-side session re-sync even when the current access token is still valid.
-     * This is the source of truth for remote unlink / relink state.
-     */
-    suspend fun syncSessionState(): StoredTokens {
-        hydrateFromDb()
-        val snapshot = tokensRef.get()
-        return try {
-            if (snapshot?.refreshToken != null &&
-                snapshot.refreshExpiresAt > System.currentTimeMillis()
-            ) {
-                refreshNow()
-            } else {
-                bootstrap()
-            }
-        } catch (_: Exception) {
-            bootstrap()
-        }
-    }
-
     suspend fun bootstrap(): StoredTokens = mutex.withLock {
         val response = bootstrapApi.bootstrap(
             BootstrapRequestDto(

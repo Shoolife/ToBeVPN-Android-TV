@@ -4,6 +4,7 @@ import com.tobevpn.tv.data.remote.dto.ApiResponse
 import com.tobevpn.tv.data.remote.dto.AuthRequestDto
 import com.tobevpn.tv.data.remote.dto.AuthRequestResponseDto
 import com.tobevpn.tv.data.remote.dto.AuthStatusDto
+import com.tobevpn.tv.data.remote.dto.CurrentPlanDto
 import com.tobevpn.tv.data.remote.dto.DeviceRegisterRequestDto
 import com.tobevpn.tv.data.remote.dto.DeviceUnlinkRequestDto
 import com.tobevpn.tv.data.remote.dto.LinkedDevicesDto
@@ -12,6 +13,9 @@ import com.tobevpn.tv.data.remote.dto.PanelResponse
 import com.tobevpn.tv.data.remote.dto.PanelSubInfoDto
 import com.tobevpn.tv.data.remote.dto.PanelUserDto
 import com.tobevpn.tv.data.remote.dto.PurchasePlansDto
+import com.tobevpn.tv.data.remote.dto.TvPairCreateRequestDto
+import com.tobevpn.tv.data.remote.dto.TvPairCreateResponseDto
+import com.tobevpn.tv.data.remote.dto.TvPairStatusDto
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -45,6 +49,9 @@ interface BotApi {
     @GET("api/devices")
     suspend fun getDevices(): ApiResponse<LinkedDevicesDto>
 
+    @GET("api/subscription/current-plan")
+    suspend fun getCurrentPlan(): ApiResponse<CurrentPlanDto>
+
     @POST("api/auth/request")
     suspend fun requestAuth(
         @Body request: AuthRequestDto,
@@ -54,6 +61,16 @@ interface BotApi {
     suspend fun checkAuthStatus(
         @Query("token") authToken: String,
     ): ApiResponse<AuthStatusDto>
+
+    @POST("api/tv/pair/create")
+    suspend fun createTvPairing(
+        @Body request: TvPairCreateRequestDto = TvPairCreateRequestDto(),
+    ): ApiResponse<TvPairCreateResponseDto>
+
+    @GET("api/tv/pair/status")
+    suspend fun checkTvPairingStatus(
+        @Query("code") code: String,
+    ): ApiResponse<TvPairStatusDto>
 
     // Panel proxy endpoints (panel token stays server-side)
 

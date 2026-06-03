@@ -297,18 +297,22 @@ fun MainScreen(
                 }
                 is AuthState.Authenticated -> {
                     val auth = authState as AuthState.Authenticated
+                    val serverPlanName = auth.planDisplayName?.takeIf {
+                        it.isNotBlank() && auth.plan != UserPlan.EXPIRED
+                    }
                     val (planLabel, planColor) = when (auth.plan) {
-                        UserPlan.PAID -> stringResource(R.string.plan_standard) to VpnGreen
-                        UserPlan.ADMIN -> stringResource(R.string.plan_admin) to VpnGreen
+                        UserPlan.PAID -> (serverPlanName ?: stringResource(R.string.plan_unknown_name)) to VpnGreen
+                        UserPlan.ADMIN -> (serverPlanName ?: stringResource(R.string.plan_unknown_name)) to VpnGreen
                         UserPlan.EXPIRED -> stringResource(R.string.plan_expired) to VpnRed
-                        UserPlan.FREE_TRIAL -> stringResource(R.string.plan_free) to VpnOrange
+                        UserPlan.FREE_TRIAL -> (serverPlanName ?: stringResource(R.string.plan_free)) to VpnOrange
                     }
                     TvMenuCard(
                         icon = Icons.Default.Star,
                         title = "${stringResource(R.string.subscription)}: $planLabel",
                         subtitle = when (auth.plan) {
                             UserPlan.PAID -> auth.planExpiresAt?.let { stringResource(R.string.plan_until, formatDate(it)) } ?: ""
-                            UserPlan.ADMIN -> stringResource(R.string.plan_unlimited_access)
+                            UserPlan.ADMIN -> auth.planExpiresAt?.let { stringResource(R.string.plan_until, formatDate(it)) }
+                                ?: ""
                             UserPlan.EXPIRED -> stringResource(R.string.plan_renew)
                             UserPlan.FREE_TRIAL -> stringResource(R.string.plan_limited_traffic)
                         },

@@ -176,15 +176,18 @@ fun SettingsScreen(
                                     val auth = authState as AuthState.Authenticated
                                     InfoRow(stringResource(R.string.telegram_id), "${auth.telegramId}", bodySize = bodySize, rowPadV = rowPadV, tightStyle = tightStyle)
 
+                                    val serverPlanName = auth.planDisplayName?.takeIf {
+                                        it.isNotBlank() && auth.plan != UserPlan.EXPIRED
+                                    }
                                     val (planLabel, planColor) = when (auth.plan) {
-                                        UserPlan.PAID -> stringResource(R.string.plan_standard) to VpnGreen
-                                        UserPlan.ADMIN -> stringResource(R.string.plan_admin) to VpnGreen
+                                        UserPlan.PAID -> (serverPlanName ?: stringResource(R.string.plan_unknown_name)) to VpnGreen
+                                        UserPlan.ADMIN -> (serverPlanName ?: stringResource(R.string.plan_unknown_name)) to VpnGreen
                                         UserPlan.EXPIRED -> stringResource(R.string.plan_expired) to VpnRed
-                                        UserPlan.FREE_TRIAL -> stringResource(R.string.plan_free) to VpnOrange
+                                        UserPlan.FREE_TRIAL -> (serverPlanName ?: stringResource(R.string.plan_free)) to VpnOrange
                                     }
                                     InfoRow(stringResource(R.string.plan), planLabel, planColor, bodySize, rowPadV, tightStyle)
 
-                                    if (auth.plan == UserPlan.PAID && auth.planExpiresAt != null) {
+                                    if ((auth.plan == UserPlan.PAID || auth.plan == UserPlan.ADMIN) && auth.planExpiresAt != null) {
                                         InfoRow(stringResource(R.string.expires), formatDate(auth.planExpiresAt), bodySize = bodySize, rowPadV = rowPadV, tightStyle = tightStyle)
                                     }
                                     if (auth.plan == UserPlan.EXPIRED) {

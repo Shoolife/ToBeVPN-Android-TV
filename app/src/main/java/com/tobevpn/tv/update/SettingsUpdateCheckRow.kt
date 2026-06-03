@@ -1,5 +1,6 @@
 package com.tobevpn.tv.update
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -58,6 +60,8 @@ fun SettingsUpdateCheckRow(
     }
 
     var isFocused by remember { mutableStateOf(false) }
+    val buttonTextColor = MaterialTheme.colorScheme.onSurface
+    val buttonBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -76,6 +80,11 @@ fun SettingsUpdateCheckRow(
             onClick = { viewModel.forceCheck() },
             enabled = !inFlight,
             shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = buttonTextColor,
+                disabledContentColor = buttonTextColor.copy(alpha = 0.82f),
+            ),
+            border = BorderStroke(1.dp, buttonBorderColor),
             modifier = Modifier
                 .then(
                     if (isFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp))

@@ -990,7 +990,7 @@ private fun formatDurationPrice(
         isRussian -> prices["RUB"]?.amount?.let { formatRub(it) }
             ?: prices["USD"]?.amount?.let { formatUsd(it) }
             ?: prices["XTR"]?.amount?.let { formatStars(it) }
-            ?: "—"
+            ?: "XXX"
         else -> prices["USD"]?.amount?.let { formatUsd(it) }
             ?: prices["RUB"]?.amount?.let { rub ->
                 val rubValue = rub.toDoubleOrNull()
@@ -1001,7 +1001,7 @@ private fun formatDurationPrice(
                 }
             }
             ?: prices["XTR"]?.amount?.let { formatStars(it) }
-            ?: "—"
+            ?: "XXX"
     }
 }
 
@@ -1033,17 +1033,22 @@ private fun currentPlanUi(authState: AuthState): CurrentPlanUi {
             accentColor = VpnOrange,
         )
         is AuthState.Authenticated -> {
+            val serverPlanName = authState.planDisplayName?.takeIf {
+                it.isNotBlank() && authState.plan != UserPlan.EXPIRED
+            }
             when (authState.plan) {
                 UserPlan.PAID -> CurrentPlanUi(
-                    title = stringResource(R.string.plan_standard),
+                    title = serverPlanName ?: stringResource(R.string.plan_unknown_name),
                     subtitle = authState.planExpiresAt?.let {
                         stringResource(R.string.plan_active_until, formatDate(it))
                     } ?: "",
                     accentColor = VpnGreen,
                 )
                 UserPlan.ADMIN -> CurrentPlanUi(
-                    title = stringResource(R.string.plan_admin),
-                    subtitle = stringResource(R.string.plan_unlimited_access),
+                    title = serverPlanName ?: stringResource(R.string.plan_unknown_name),
+                    subtitle = authState.planExpiresAt?.let {
+                        stringResource(R.string.plan_active_until, formatDate(it))
+                    } ?: "",
                     accentColor = VpnGreen,
                 )
                 UserPlan.EXPIRED -> CurrentPlanUi(
@@ -1052,7 +1057,7 @@ private fun currentPlanUi(authState: AuthState): CurrentPlanUi {
                     accentColor = VpnRed,
                 )
                 UserPlan.FREE_TRIAL -> CurrentPlanUi(
-                    title = stringResource(R.string.plan_free),
+                    title = serverPlanName ?: stringResource(R.string.plan_free),
                     subtitle = stringResource(R.string.plan_limited_traffic),
                     accentColor = VpnOrange,
                 )

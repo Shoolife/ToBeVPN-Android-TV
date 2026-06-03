@@ -10,6 +10,7 @@ data class SessionEntity(
     val authState: String = "UNAUTHENTICATED",
     val telegramId: Long? = null,
     val userPlan: String = "FREE_TRIAL",
+    val planDisplayName: String? = null,
     val planExpiresAt: Long? = null,
     val shortUuid: String? = null,
     val panelUserUuid: String? = null,

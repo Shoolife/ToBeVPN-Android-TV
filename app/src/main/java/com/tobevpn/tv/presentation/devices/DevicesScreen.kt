@@ -161,7 +161,11 @@ fun DevicesScreen(
             // Counter N/max
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "${state.devices.size}/${state.maxDevices}",
+                    text = if (state.maxDevices == 0) {
+                        state.devices.size.toString()
+                    } else {
+                        "${state.devices.size}/${state.maxDevices}"
+                    },
                     fontSize = counterSize,
                     fontWeight = FontWeight.Bold,
                     color = VpnGreen,
@@ -169,7 +173,11 @@ fun DevicesScreen(
                 )
                 Spacer(modifier = Modifier.width(smallGap))
                 Text(
-                    text = stringResource(R.string.devices_count),
+                    text = if (state.maxDevices == 0) {
+                        stringResource(R.string.devices_count_unlimited)
+                    } else {
+                        stringResource(R.string.devices_count)
+                    },
                     fontSize = bodySize,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = (3 * scale).dp),
