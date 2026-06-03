@@ -284,9 +284,9 @@ private fun SectionTitle(text: String, fontSize: androidx.compose.ui.unit.TextUn
     )
 }
 
-private fun deviceIcon(type: String?): ImageVector = when (type?.lowercase()) {
-    "tv" -> Icons.Default.Tv
-    "desktop" -> Icons.Default.Computer
+private fun deviceIcon(device: LinkedDeviceDto): ImageVector = when (device.inferredKind()) {
+    DeviceKind.Tv -> Icons.Default.Tv
+    DeviceKind.Desktop -> Icons.Default.Computer
     else -> Icons.Default.Smartphone
 }
 
@@ -300,11 +300,69 @@ private fun LinkedDeviceDto.matchesDeviceAliases(aliases: Set<String>): Boolean 
     }
 }
 
+private enum class DeviceKind {
+    Phone,
+    Desktop,
+    Tv,
+}
+
+private val technicalDesktopNameRegex = Regex("^[a-z0-9][a-z0-9._-]{1,31}$")
+
+private fun LinkedDeviceDto.inferredKind(): DeviceKind {
+    val type = deviceType?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+    val platform = platform?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+    val userAgent = userAgent?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+    if (type == "tv" || platform == "android tv" || userAgent.contains("/androidtv/")) {
+        return DeviceKind.Tv
+    }
+    if (
+        type == "desktop" ||
+        platform == "linux" ||
+        platform == "windows" ||
+        platform == "macos" ||
+        userAgent.contains("/linux/") ||
+        userAgent.contains("/windows/") ||
+        userAgent.contains("/macos/")
+    ) {
+        return DeviceKind.Desktop
+    }
+    return DeviceKind.Phone
+}
+
+private fun isTechnicalDesktopName(value: String): Boolean =
+    technicalDesktopNameRegex.matches(value) && value == value.lowercase(java.util.Locale.ROOT)
+
+private fun cleanDesktopModel(model: String?, platform: String?): String {
+    val trimmed = model?.trim().orEmpty()
+    if (trimmed.isBlank()) return ""
+    val normalized = trimmed.lowercase(java.util.Locale.ROOT)
+    val normalizedPlatform = platform?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+    if (normalized == "desktop" || normalized == "pc" || normalized == normalizedPlatform) return ""
+    return trimmed
+}
+
 @Composable
-private fun deviceTypeLabel(type: String?): String = when (type?.lowercase()) {
-    "tv" -> stringResource(R.string.devices_type_tv)
-    "desktop" -> stringResource(R.string.devices_type_desktop)
-    else -> stringResource(R.string.devices_type_phone)
+private fun deviceTypeLabel(device: LinkedDeviceDto): String = when (device.inferredKind()) {
+    DeviceKind.Tv -> stringResource(R.string.devices_type_tv)
+    DeviceKind.Desktop -> stringResource(R.string.devices_type_desktop)
+    DeviceKind.Phone -> stringResource(R.string.devices_type_phone)
+}
+
+@Composable
+private fun deviceTitle(device: LinkedDeviceDto): String {
+    val kind = device.inferredKind()
+    if (kind == DeviceKind.Desktop) {
+        val name = device.deviceName?.trim().orEmpty()
+        if (name.isNotBlank() && !isTechnicalDesktopName(name)) return name
+        val model = cleanDesktopModel(device.deviceModel, device.platform)
+        if (model.isNotBlank()) return model
+        val platform = device.platform?.trim()?.takeIf { it.isNotBlank() }
+        val fallback = stringResource(R.string.devices_type_desktop)
+        return if (platform != null) "$fallback $platform" else fallback
+    }
+    return device.deviceName?.takeIf { it.isNotBlank() }
+        ?: device.deviceModel?.takeIf { it.isNotBlank() }
+        ?: deviceTypeLabel(device)
 }
 
 @Composable
@@ -334,7 +392,7 @@ private fun DeviceCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = deviceIcon(device.deviceType),
+                imageVector = deviceIcon(device),
                 contentDescription = null,
                 modifier = Modifier.size(deviceIconSize),
                 tint = if (isCurrent) VpnGreen else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -342,9 +400,7 @@ private fun DeviceCard(
             Spacer(modifier = Modifier.width((14 * scale).dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = device.deviceName
-                        ?: device.deviceModel
-                        ?: stringResource(R.string.devices_unknown),
+                    text = deviceTitle(device),
                     fontSize = bodySize,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -352,7 +408,7 @@ private fun DeviceCard(
                 )
                 Spacer(modifier = Modifier.height((2 * scale).dp))
                 val meta = buildString {
-                    append(deviceTypeLabel(device.deviceType))
+                    append(deviceTypeLabel(device))
                     device.platform?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
                 }
                 Text(
