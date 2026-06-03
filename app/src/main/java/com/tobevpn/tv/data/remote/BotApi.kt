@@ -34,10 +34,7 @@ interface BotApi {
         @Body request: DeviceRegisterRequestDto,
     ): ApiResponse<Unit>
 
-    @POST("api/device/unlink")
-    suspend fun unlinkDevice(): ApiResponse<Unit>
-
-    /** Unlinks another device by id (used by the device manager screen). */
+    /** Unlinks a device by id. Backend resolves the account from the current session. */
     @POST("api/device/unlink")
     suspend fun unlinkDevice(
         @Body request: DeviceUnlinkRequestDto,

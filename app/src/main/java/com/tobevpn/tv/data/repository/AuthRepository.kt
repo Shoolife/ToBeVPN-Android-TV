@@ -2,6 +2,7 @@ package com.tobevpn.tv.data.repository
 
 import android.content.Context
 import android.os.Build
+import com.tobevpn.tv.data.device.DeviceFingerprintProvider
 import com.tobevpn.tv.data.device.DeviceIdProvider
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.local.SessionStore
@@ -61,6 +62,7 @@ class AuthRepository @Inject constructor(
     private val usageRepository: UsageRepository,
     private val subscriptionPinger: SubscriptionPinger,
     private val deviceIdProvider: DeviceIdProvider,
+    private val fingerprintProvider: DeviceFingerprintProvider,
     private val prefsDataStore: PrefsDataStore,
 ) {
     /** Observe the subscription-usage block flag for the current session's shortUuid. */
@@ -254,6 +256,16 @@ class AuthRepository @Inject constructor(
 
     suspend fun getOrCreateDeviceId(): String = deviceIdProvider.getOrCreate()
 
+    suspend fun getCurrentDeviceAliases(): Set<String> {
+        val aliases = linkedSetOf<String>()
+        getOrCreateDeviceId().trim().takeIf { it.isNotBlank() }?.let { aliases += it }
+        fingerprintProvider.get().hwid.trim().takeIf { it.isNotBlank() }?.let { hwid ->
+            aliases += hwid
+            aliases += hwid.lowercase(Locale.ROOT)
+        }
+        return aliases
+    }
+
     private fun currentDeviceName(): String {
         val manufacturer = Build.MANUFACTURER?.trim().orEmpty()
         val model = Build.MODEL?.trim().orEmpty()
@@ -287,11 +299,18 @@ class AuthRepository @Inject constructor(
 
     suspend fun unlinkCurrentDevice(): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val response = botApi.unlinkDevice()
-            if (response.success) {
+            val aliases = getCurrentDeviceAliases()
+            var anySuccess = false
+            for (deviceId in aliases) {
+                val success = runCatching {
+                    botApi.unlinkDevice(DeviceUnlinkRequestDto(deviceId = deviceId)).success
+                }.getOrDefault(false)
+                anySuccess = anySuccess || success
+            }
+            if (anySuccess) {
                 Result.success(Unit)
             } else {
-                Result.failure(IllegalStateException(response.message ?: "Could not unlink device"))
+                Result.failure(IllegalStateException("Could not unlink device"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -299,14 +318,23 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun isCurrentDeviceLinked(): Result<Boolean> = withContext(Dispatchers.IO) {
-        val deviceId = getOrCreateDeviceId()
+        val aliases = getCurrentDeviceAliases().mapTo(mutableSetOf()) {
+            it.trim().lowercase(Locale.ROOT)
+        }
         return@withContext try {
+            runCatching { pingHwidOnly() }
             val response = botApi.getDevices()
             val data = response.data
                 ?: return@withContext Result.failure(
                     IllegalStateException(response.message ?: "Could not load linked devices")
                 )
-            Result.success(data.devices.any { it.deviceId == deviceId })
+            Result.success(
+                data.devices.any { device ->
+                    listOf(device.deviceId, device.hwid).any { value ->
+                        value?.trim()?.lowercase(Locale.ROOT) in aliases
+                    }
+                }
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -624,12 +652,11 @@ class AuthRepository @Inject constructor(
         if (sessionDao.getSession() == null) return
 
         if (unlinkRemote) {
-            // Pass the explicit device_id so the backend unlinks *this* device
-            // and it disappears from the user's device list (the no-body call
-            // left the TV linked, mirroring the phone client's behaviour).
-            try {
-                botApi.unlinkDevice(DeviceUnlinkRequestDto(deviceId = getOrCreateDeviceId()))
-            } catch (_: Exception) {
+            for (deviceId in getCurrentDeviceAliases()) {
+                try {
+                    botApi.unlinkDevice(DeviceUnlinkRequestDto(deviceId = deviceId))
+                } catch (_: Exception) {
+                }
             }
             try {
                 botApi.logoutDevice()

@@ -19,6 +19,8 @@ import javax.inject.Inject
 data class LinkedDevicesUiState(
     val isLoading: Boolean = false,
     val currentDeviceId: String? = null,
+    val currentDeviceAliases: Set<String> = emptySet(),
+    val currentCount: Int? = null,
     val maxDevices: Int = 5,
     val devices: List<LinkedDeviceDto> = emptyList(),
     val busyDeviceId: String? = null,
@@ -42,14 +44,16 @@ class DevicesViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             val currentDeviceId = authRepository.getOrCreateDeviceId()
+            val currentDeviceAliases = authRepository.getCurrentDeviceAliases()
             _state.value = _state.value.copy(
                 isLoading = true,
                 errorMessage = null,
                 currentDeviceId = currentDeviceId,
+                currentDeviceAliases = currentDeviceAliases,
             )
 
-            // Make sure this TV is registered so it shows up in the list.
             authRepository.registerCurrentDevice()
+            runCatching { authRepository.pingHwidOnly() }
 
             _state.value = try {
                 val response = botApi.getDevices()
@@ -58,6 +62,8 @@ class DevicesViewModel @Inject constructor(
                     LinkedDevicesUiState(
                         isLoading = false,
                         currentDeviceId = currentDeviceId,
+                        currentDeviceAliases = currentDeviceAliases,
+                        currentCount = data.currentCount,
                         maxDevices = data.maxDevices,
                         devices = data.devices,
                     )

@@ -117,14 +117,18 @@ data class DeviceRegisterRequestDto(
 
 data class LinkedDeviceDto(
     @SerializedName("device_id") val deviceId: String,
+    val hwid: String? = null,
     @SerializedName("device_name") val deviceName: String? = null,
     @SerializedName("device_type") val deviceType: String? = null,
     val platform: String? = null,
+    @SerializedName("device_model") val deviceModel: String? = null,
+    @SerializedName("user_agent") val userAgent: String? = null,
     @SerializedName("linked_at") val linkedAt: Long? = null,
     @SerializedName("last_seen_at") val lastSeenAt: Long? = null,
 )
 
 data class LinkedDevicesDto(
+    @SerializedName("current_count") val currentCount: Int? = null,
     @SerializedName("max_devices") val maxDevices: Int,
     val devices: List<LinkedDeviceDto>,
 )

@@ -158,13 +158,15 @@ fun DevicesScreen(
 
             Spacer(modifier = Modifier.height(gap))
 
+            val devicesCount = state.currentCount ?: state.devices.size
+
             // Counter N/max
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = if (state.maxDevices == 0) {
-                        state.devices.size.toString()
+                        devicesCount.toString()
                     } else {
-                        "${state.devices.size}/${state.maxDevices}"
+                        "$devicesCount/${state.maxDevices}"
                     },
                     fontSize = counterSize,
                     fontWeight = FontWeight.Bold,
@@ -197,8 +199,12 @@ fun DevicesScreen(
 
             Spacer(modifier = Modifier.height(gap))
 
-            val currentDevice = state.devices.firstOrNull { it.deviceId == state.currentDeviceId }
-            val otherDevices = state.devices.filter { it.deviceId != state.currentDeviceId }
+            val currentDevice = state.devices.firstOrNull {
+                it.matchesDeviceAliases(state.currentDeviceAliases)
+            }
+            val otherDevices = state.devices.filterNot {
+                it.matchesDeviceAliases(state.currentDeviceAliases)
+            }
 
             // This device
             if (currentDevice != null) {
@@ -284,6 +290,16 @@ private fun deviceIcon(type: String?): ImageVector = when (type?.lowercase()) {
     else -> Icons.Default.Smartphone
 }
 
+private fun LinkedDeviceDto.matchesDeviceAliases(aliases: Set<String>): Boolean {
+    if (aliases.isEmpty()) return false
+    val normalizedAliases = aliases.mapTo(mutableSetOf()) {
+        it.trim().lowercase(java.util.Locale.ROOT)
+    }
+    return listOf(deviceId, hwid).any { value ->
+        value?.trim()?.lowercase(java.util.Locale.ROOT) in normalizedAliases
+    }
+}
+
 @Composable
 private fun deviceTypeLabel(type: String?): String = when (type?.lowercase()) {
     "tv" -> stringResource(R.string.devices_type_tv)
@@ -326,7 +342,9 @@ private fun DeviceCard(
             Spacer(modifier = Modifier.width((14 * scale).dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = device.deviceName ?: stringResource(R.string.devices_unknown),
+                    text = device.deviceName
+                        ?: device.deviceModel
+                        ?: stringResource(R.string.devices_unknown),
                     fontSize = bodySize,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,
