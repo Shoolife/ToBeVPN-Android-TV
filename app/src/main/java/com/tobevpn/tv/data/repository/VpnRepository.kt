@@ -3,14 +3,23 @@ package com.tobevpn.tv.data.repository
 import com.tobevpn.tv.data.local.dao.ServerDao
 import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.local.entity.ServerEntity
+import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.remote.BotApi
+import com.tobevpn.tv.data.remote.dto.PanelSubInfoDto
 import com.tobevpn.tv.domain.model.Server
+import com.tobevpn.tv.util.SafeDiagnostics
 import com.tobevpn.tv.vpn.VlessUrlParser
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.net.InetAddress
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,79 +28,36 @@ class VpnRepository @Inject constructor(
     private val serverDao: ServerDao,
     private val sessionDao: SessionDao,
     private val botApi: BotApi,
+    private val subscriptionInfoProvider: SubscriptionInfoProvider,
+    private val prefsDataStore: PrefsDataStore,
 ) {
+    private val enrichmentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val refreshGeneration = AtomicLong(0L)
+
     fun observeServers(): Flow<List<Server>> {
         return serverDao.observeAll().map { entities ->
-            entities.map { it.toDomain() }
+            entities.map { it.toDomain() }.filterNot { it.isSentinel }
         }
     }
 
-    suspend fun refreshServers(): Result<List<Server>> {
+    suspend fun refreshServers(forceRefresh: Boolean = false): Result<List<Server>> {
         return try {
             val shortUuid = sessionDao.getSession()?.shortUuid
-                ?: return Result.failure(Exception("No subscription"))
+                ?: run {
+                    clearServerCache()
+                    return Result.failure(Exception("No subscription"))
+                }
 
-            val subInfo = botApi.getSubscriptionInfo(shortUuid).response
-            if (!subInfo.isFound || subInfo.links.isNullOrEmpty()) {
-                return Result.failure(Exception("Subscription not found"))
-            }
-
-            val nodes = try {
-                botApi.getNodes().response
-            } catch (_: Exception) {
+            val subInfo = subscriptionInfoProvider.get(shortUuid, forceRefresh)
+            updateServersFromSubscription(shortUuid, subInfo)
+        } catch (e: Exception) {
+            SafeDiagnostics.warn(TAG, "Server refresh failed; checking local cache: ${SafeDiagnostics.failureCategory(e)}")
+            val shortUuid = sessionDao.getSession()?.shortUuid
+            val cached = if (shortUuid != null && prefsDataStore.isServerCacheOwner(shortUuid)) {
+                serverDao.getAll().map { it.toDomain() }.filterNot { it.isSentinel }
+            } else {
                 emptyList()
             }
-            val countryByAddress = nodes.associate { it.address to it.countryCode }
-            val disabledNodeIps = nodes
-                .filter { it.isDisabled || !it.isConnected }
-                .map { it.address }
-                .toSet()
-
-            val servers = subInfo.links.mapNotNull { link ->
-                VlessUrlParser.parse(link)
-            }
-
-            if (servers.isEmpty()) {
-                return Result.failure(Exception("No servers available"))
-            }
-
-            val entities = withContext(Dispatchers.IO) {
-                servers.map { server ->
-                    val resolvedIp = try {
-                        InetAddress.getByName(server.address).hostAddress
-                    } catch (_: Exception) {
-                        server.address
-                    }
-                    val country = countryByAddress[server.address]
-                        ?: countryByAddress[resolvedIp] ?: ""
-                    val online = resolvedIp !in disabledNodeIps
-
-                    ServerEntity(
-                        id = "${server.address}:${server.port}:${server.sni}",
-                        name = server.name,
-                        address = server.address,
-                        port = server.port,
-                        uuid = server.uuid,
-                        flow = server.flow,
-                        security = server.security,
-                        sni = server.sni,
-                        fingerprint = server.fingerprint,
-                        publicKey = server.publicKey,
-                        shortId = server.shortId,
-                        network = server.network,
-                        path = server.path,
-                        mode = server.mode,
-                        spx = server.spx,
-                        country = country,
-                        isOnline = online,
-                    )
-                }
-            }
-
-            serverDao.replaceAll(entities)
-            Result.success(entities.map { it.toDomain() })
-        } catch (e: Exception) {
-            val cached = serverDao.getAll().map { it.toDomain() }
             if (cached.isNotEmpty()) {
                 Result.success(cached)
             } else {
@@ -100,9 +66,119 @@ class VpnRepository @Inject constructor(
         }
     }
 
-    suspend fun getServers(): List<Server> {
-        return serverDao.getAll().map { it.toDomain() }
+    suspend fun updateServersFromSubscription(
+        shortUuid: String,
+        subInfo: PanelSubInfoDto,
+    ): Result<List<Server>> {
+        if (!subInfo.isFound || subInfo.links.isNullOrEmpty()) {
+            clearServerCache()
+            return Result.failure(Exception("Subscription not found"))
+        }
+
+        val servers = subInfo.links.mapNotNull { link -> VlessUrlParser.parse(link) }
+            .filterNot { it.isSentinel }
+        if (servers.isEmpty()) {
+            clearServerCache()
+            return Result.failure(Exception("No servers available"))
+        }
+
+        val cachedById = serverDao.getAll().associateBy { it.id }
+        val entities = servers.map { server ->
+            val id = serverId(server)
+            val cached = cachedById[id]
+            server.toEntity(
+                country = cached?.country.orEmpty(),
+                isOnline = cached?.isOnline ?: true,
+            )
+        }
+        val generation = refreshGeneration.incrementAndGet()
+        serverDao.replaceAll(entities)
+        prefsDataStore.setServerCacheOwner(shortUuid)
+        enrichMetadataInBackground(shortUuid, generation, servers)
+        return Result.success(entities.map { it.toDomain() })
     }
+
+    private fun enrichMetadataInBackground(
+        shortUuid: String,
+        generation: Long,
+        servers: List<Server>,
+    ) {
+        enrichmentScope.launch {
+            try {
+                val nodes = botApi.getNodes().response
+                val countryByAddress = nodes.associate { it.address to it.countryCode }
+                val disabledNodeIps = nodes
+                    .filter { it.isDisabled || !it.isConnected }
+                    .map { it.address }
+                    .toSet()
+
+                val enriched = coroutineScope {
+                    servers.map { server ->
+                        async {
+                            val resolvedIp = try {
+                                InetAddress.getByName(server.address).hostAddress
+                            } catch (_: Exception) {
+                                server.address
+                            }
+                            server.toEntity(
+                                country = countryByAddress[server.address]
+                                    ?: countryByAddress[resolvedIp]
+                                    ?: "",
+                                isOnline = resolvedIp !in disabledNodeIps,
+                            )
+                        }
+                    }.awaitAll()
+                }
+
+                val currentShortUuid = sessionDao.getSession()?.shortUuid
+                if (refreshGeneration.get() == generation && currentShortUuid == shortUuid) {
+                    serverDao.replaceAll(enriched)
+                    prefsDataStore.setServerCacheOwner(shortUuid)
+                }
+            } catch (error: Exception) {
+                SafeDiagnostics.warn(TAG, "Node metadata refresh failed: ${SafeDiagnostics.failureCategory(error)}")
+            }
+        }
+    }
+
+    private suspend fun clearServerCache() {
+        refreshGeneration.incrementAndGet()
+        serverDao.deleteAll()
+        prefsDataStore.clearServerCacheOwner()
+    }
+
+    suspend fun getServers(): List<Server> {
+        return serverDao.getAll().map { it.toDomain() }.filterNot { it.isSentinel }
+    }
+
+    suspend fun clearServers() {
+        clearServerCache()
+    }
+
+    private fun serverId(server: Server) = "${server.address}:${server.port}:${server.sni}"
+
+    private fun Server.toEntity(
+        country: String,
+        isOnline: Boolean,
+    ) = ServerEntity(
+        id = serverId(this),
+        name = name,
+        address = address,
+        port = port,
+        uuid = uuid,
+        flow = flow,
+        security = security,
+        sni = sni,
+        fingerprint = fingerprint,
+        publicKey = publicKey,
+        shortId = shortId,
+        network = network,
+        path = path,
+        mode = mode,
+        spx = spx,
+        country = country,
+        isOnline = isOnline,
+    )
 
     private fun ServerEntity.toDomain() = Server(
         id = id,
@@ -123,4 +199,8 @@ class VpnRepository @Inject constructor(
         country = country,
         isOnline = isOnline,
     )
+
+    private companion object {
+        const val TAG = "VpnRepository"
+    }
 }

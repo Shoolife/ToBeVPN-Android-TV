@@ -64,6 +64,8 @@ class AuthRepository @Inject constructor(
     private val deviceIdProvider: DeviceIdProvider,
     private val fingerprintProvider: DeviceFingerprintProvider,
     private val prefsDataStore: PrefsDataStore,
+    private val subscriptionInfoProvider: SubscriptionInfoProvider,
+    private val vpnRepository: VpnRepository,
 ) {
     /** Observe the subscription-usage block flag for the current session's shortUuid. */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -96,11 +98,12 @@ class AuthRepository @Inject constructor(
             prefsDataStore.isSubscriptionUsageBlocked(shortUuid)
         }.getOrDefault(false)
         return try {
-            val subInfo = botApi.getSubscriptionInfo(shortUuid).response
+            val subInfo = subscriptionInfoProvider.get(shortUuid)
             val url = subInfo.subscriptionUrl ?: return wasBlocked
             val result = subscriptionPinger.ping(url) ?: return wasBlocked
             prefsDataStore.setSubscriptionUsageBlocked(shortUuid, result.isUsageBlocked)
             prefsDataStore.setUpdateRequired(result.isUpdateRequired)
+            subscriptionInfoProvider.invalidate(shortUuid)
             result.isUsageBlocked
         } catch (_: Exception) {
             wasBlocked
@@ -582,7 +585,7 @@ class AuthRepository @Inject constructor(
             }
 
             val shortUuid = session.shortUuid ?: return
-            val subInfo = botApi.getSubscriptionInfo(shortUuid).response
+            var subInfo = subscriptionInfoProvider.get(shortUuid)
             if (!subInfo.isFound || subInfo.user == null) return
 
             // Direct hit on the panel's public sub URL with HWID headers — only
@@ -592,9 +595,16 @@ class AuthRepository @Inject constructor(
             if (pingResult != null) {
                 prefsDataStore.setSubscriptionUsageBlocked(shortUuid, pingResult.isUsageBlocked)
                 prefsDataStore.setUpdateRequired(pingResult.isUpdateRequired)
+                // HWID binding can change the effective subscription links.
+                // Refresh the server cache from a post-ping response.
+                subscriptionInfoProvider.invalidate(shortUuid)
+                subInfo = runCatching {
+                    subscriptionInfoProvider.get(shortUuid, forceRefresh = true)
+                }.getOrDefault(subInfo)
             }
+            vpnRepository.updateServersFromSubscription(shortUuid, subInfo)
 
-            val sub = subInfo.user
+            val sub = subInfo.user ?: return
             val isActive = sub.isActive && sub.userStatus == "ACTIVE"
 
             val plan = if (currentPlanInfo != null) {
@@ -681,6 +691,7 @@ class AuthRepository @Inject constructor(
             )
         }
         bootstrapManager.clear()
+        vpnRepository.clearServers()
         usageRepository.updateUsage(0, 0)
         usageRepository.updateLimits(0, 0)
     }

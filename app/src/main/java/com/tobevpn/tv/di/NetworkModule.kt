@@ -17,6 +17,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -66,6 +67,9 @@ object NetworkModule {
     @Singleton
     fun provideBootstrapApi(): BootstrapApi {
         val client = OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(15, TimeUnit.SECONDS)
             .addInterceptor(FallbackInterceptor())
             .addInterceptor(userAgentInterceptor)
             .addInterceptor(loggingInterceptor)
@@ -86,6 +90,9 @@ object NetworkModule {
         authenticator: TokenAuthenticator,
     ): BotApi {
         val client = OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(15, TimeUnit.SECONDS)
             .addInterceptor(FallbackInterceptor())
             .addInterceptor(userAgentInterceptor)
             .addInterceptor(authInterceptor)

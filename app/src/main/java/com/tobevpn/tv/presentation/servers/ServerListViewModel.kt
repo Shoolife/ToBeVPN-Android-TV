@@ -4,12 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.repository.AuthRepository
+import com.tobevpn.tv.data.repository.ServerQualityRepository
 import com.tobevpn.tv.data.repository.VpnRepository
 import com.tobevpn.tv.domain.model.Server
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,9 +16,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.net.InetSocketAddress
-import java.net.Socket
 import javax.inject.Inject
 
 @HiltViewModel
@@ -28,6 +23,7 @@ class ServerListViewModel @Inject constructor(
     private val vpnRepository: VpnRepository,
     private val authRepository: AuthRepository,
     private val prefsDataStore: PrefsDataStore,
+    private val serverQualityRepository: ServerQualityRepository,
 ) : ViewModel() {
 
     private val _pings = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -42,6 +38,12 @@ class ServerListViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val selectedServerId: StateFlow<String?> = prefsDataStore.selectedServerId
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val automaticServerSelection: StateFlow<Boolean> = prefsDataStore.automaticServerSelection
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -76,34 +78,22 @@ class ServerListViewModel @Inject constructor(
 
     private fun measurePings(serverList: List<Server>) {
         viewModelScope.launch {
-            val results = serverList.map { server ->
-                async(Dispatchers.IO) {
-                    server.id to measureTcpPing(server.address, server.port)
-                }
-            }.awaitAll()
-            // Keep failed (-1) results too so the list can show "Unavailable",
-            // exactly like the phone client.
-            _pings.value = results.toMap()
+            _pings.value = serverQualityRepository.measurePings(serverList, force = true)
         }
     }
 
-    private suspend fun measureTcpPing(host: String, port: Int): Long {
-        return withContext(Dispatchers.IO) {
-            try {
-                val start = System.currentTimeMillis()
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(host, port), 3000)
-                }
-                System.currentTimeMillis() - start
-            } catch (_: Exception) {
-                -1L
-            }
-        }
+    suspend fun selectAutomaticServer(): Boolean {
+        val best = serverQualityRepository.selectBestServer(servers.value, forceProbe = true)
+            ?: return false
+        prefsDataStore.setAutomaticSelectedServerId(best.id)
+        return true
     }
 
-    fun selectServer(server: Server) {
-        viewModelScope.launch {
-            prefsDataStore.setSelectedServerId(server.id)
-        }
+    suspend fun selectServer(server: Server): Boolean {
+        // Focus and server metadata can update between key-down and this call.
+        // Never persist an offline or failed-probe entry.
+        if (!server.isSelectable) return false
+        prefsDataStore.setManualSelectedServerId(server.id)
+        return true
     }
 }

@@ -1,5 +1,6 @@
 package com.tobevpn.tv.data.remote
 
+import android.os.SystemClock
 import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.util.SafeDiagnostics
 import okhttp3.HttpUrl
@@ -10,6 +11,7 @@ import okhttp3.Response
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLException
 import javax.net.ssl.SSLHandshakeException
 
@@ -23,9 +25,9 @@ import javax.net.ssl.SSLHandshakeException
  * It receives the original API target through the expected query parameter and
  * preserves method/body semantics.
  *
- * A non-2xx HTTP response from the primary is **not** a fallback trigger —
- * that's the upstream telling us something genuine (auth failed, validation
- * error, …). Only IOExceptions / abrupt socket failures are.
+ * Most non-2xx HTTP responses from the primary are not fallback triggers.
+ * A 403 is the exception because restricted networks can reject the primary
+ * route with an HTTP response instead of a DNS or socket failure.
  *
  * The interceptor is a no-op when [BuildConfig.FALLBACK_BOT_DOMAIN] is
  * empty (no operator-configured fallback) — keeps debug builds working
@@ -36,33 +38,83 @@ class FallbackInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
         val fallbackProxyUrl = BuildConfig.FALLBACK_BOT_DOMAIN
-        if (fallbackProxyUrl.isBlank()) {
+        if (fallbackProxyUrl.isBlank() || isFallbackUrl(original.url, fallbackProxyUrl)) {
             return chain.proceed(original)
         }
 
+        val fallbackRequest = buildFallbackRequest(original, fallbackProxyUrl)
+            ?: return chain.proceed(original)
+        val isSafeRead = original.method == "GET" || original.method == "HEAD"
+        if (isSafeRead && SystemClock.elapsedRealtime() < primaryUnavailableUntilMs) {
+            return fallbackFirst(chain, original, fallbackRequest)
+        }
+
+        val primaryChain = if (isSafeRead) {
+            chain
+                .withConnectTimeout(FAST_PRIMARY_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                .withReadTimeout(FAST_PRIMARY_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        } else {
+            chain
+        }
+
         return try {
-            chain.proceed(original)
+            val primaryResponse = primaryChain.proceed(original)
+            if (primaryResponse.code != FALLBACK_HTTP_STATUS) {
+                if (primaryResponse.isSuccessful) {
+                    primaryUnavailableUntilMs = 0L
+                }
+                primaryResponse
+            } else {
+                primaryResponse.close()
+                SafeDiagnostics.warn(TAG, "Primary API route rejected request; retrying via fallback")
+                proceedFallback(chain, fallbackRequest)
+            }
         } catch (primaryError: IOException) {
             if (!isFallbackEligible(primaryError)) throw primaryError
-            val fallbackRequest = buildFallbackRequest(original, fallbackProxyUrl)
-                ?: throw primaryError
             SafeDiagnostics.warn(
                 TAG,
                 "Primary API request failed; retrying via fallback: " +
                     SafeDiagnostics.failureCategory(primaryError),
             )
             try {
-                chain.proceed(fallbackRequest)
+                proceedFallback(chain, fallbackRequest)
             } catch (fallbackError: IOException) {
                 SafeDiagnostics.warn(
                     TAG,
                     "Fallback API request failed: ${SafeDiagnostics.failureCategory(fallbackError)}",
                 )
-                // Surface the *primary* error so callers get the original
-                // (and more diagnostic-useful) failure cause when both legs
-                // are down.
-                throw primaryError
+                if (isSafeRead) {
+                    chain.proceed(original)
+                } else {
+                    throw primaryError
+                }
             }
+        }
+    }
+
+    private fun fallbackFirst(
+        chain: Interceptor.Chain,
+        original: Request,
+        fallbackRequest: Request,
+    ): Response {
+        return try {
+            proceedFallback(chain, fallbackRequest)
+        } catch (fallbackError: IOException) {
+            SafeDiagnostics.warn(
+                TAG,
+                "Fallback API request failed; retrying primary: " +
+                    SafeDiagnostics.failureCategory(fallbackError),
+            )
+            chain.proceed(original)
+        }
+    }
+
+    private fun proceedFallback(
+        chain: Interceptor.Chain,
+        fallbackRequest: Request,
+    ): Response {
+        return chain.proceed(fallbackRequest).also {
+            primaryUnavailableUntilMs = SystemClock.elapsedRealtime() + PRIMARY_FAILURE_COOLDOWN_MS
         }
     }
 
@@ -90,21 +142,32 @@ class FallbackInterceptor : Interceptor {
     }
 
     private fun buildFallbackRequest(original: Request, fallbackProxyUrl: String): Request? {
-        val proxyUrl = fallbackProxyUrl
-            .trim()
-            .let { value ->
-                when {
-                    value.startsWith("https://") || value.startsWith("http://") -> value
-                    else -> "https://$value"
-                }
-            }
-            .toHttpUrlOrNull()
+        val proxyUrl = normalizedFallbackUrl(fallbackProxyUrl)
             ?: return null
 
         val rebuiltUrl = proxyUrl.newBuilder()
             .setQueryParameter("u", original.url.toProxyTarget())
             .build()
         return original.newBuilder().url(rebuiltUrl).build()
+    }
+
+    private fun isFallbackUrl(url: HttpUrl, fallbackProxyUrl: String): Boolean {
+        val fallbackUrl = normalizedFallbackUrl(fallbackProxyUrl) ?: return false
+        return url.host == fallbackUrl.host &&
+            url.port == fallbackUrl.port &&
+            url.encodedPath == fallbackUrl.encodedPath
+    }
+
+    private fun normalizedFallbackUrl(value: String): HttpUrl? {
+        return value
+            .trim()
+            .let {
+                when {
+                    it.startsWith("https://") || it.startsWith("http://") -> it
+                    else -> "https://$it"
+                }
+            }
+            .toHttpUrlOrNull()
     }
 
     private fun HttpUrl.toProxyTarget(): String {
@@ -130,5 +193,11 @@ class FallbackInterceptor : Interceptor {
 
     private companion object {
         const val TAG = "FallbackInterceptor"
+        const val FALLBACK_HTTP_STATUS = 403
+        const val FAST_PRIMARY_TIMEOUT_MS = 1_200
+        const val PRIMARY_FAILURE_COOLDOWN_MS = 2L * 60L * 1000L
+
+        @Volatile
+        var primaryUnavailableUntilMs = 0L
     }
 }

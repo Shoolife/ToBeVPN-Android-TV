@@ -103,6 +103,7 @@ fun MainScreen(
     val usageInfo by viewModel.usageInfo.collectAsStateWithLifecycle()
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val currentServer by viewModel.currentServer.collectAsStateWithLifecycle()
+    val automaticServerSelection by viewModel.automaticServerSelection.collectAsStateWithLifecycle()
     val subscriptionUsageBlocked by viewModel.subscriptionUsageBlocked.collectAsStateWithLifecycle()
     val updateRequired by viewModel.updateRequired.collectAsStateWithLifecycle()
     var showBlockedDialog by remember { mutableStateOf(false) }
@@ -221,6 +222,7 @@ fun MainScreen(
                 // Server selector
                 ServerSelectorCard(
                     server = currentServer,
+                    automatic = automaticServerSelection,
                     onClick = onNavigateToServers,
                     scale = scale,
                     cardPad = cardPad,
@@ -553,6 +555,7 @@ private fun ConnectButtonLarge(
 @Composable
 private fun ServerSelectorCard(
     server: Server?,
+    automatic: Boolean,
     onClick: () -> Unit,
     scale: Float,
     cardPad: Dp,
@@ -596,7 +599,11 @@ private fun ServerSelectorCard(
                 .padding(cardPad),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val displayCountryName = server?.let { serverCountryNameForUi(it.country, it.name) }.orEmpty()
+            val displayCountryName = if (automatic && server != null) {
+                stringResource(R.string.server_auto_selected)
+            } else {
+                server?.let { serverCountryNameForUi(it.country, it.name) }.orEmpty()
+            }
             Text(
                 text = if (server != null) countryFlagForUi(server.country, server.name) else "\uD83C\uDF10",
                 fontSize = flagSize,

@@ -26,9 +26,12 @@ class PrefsDataStore @Inject constructor(
         val DEVICE_ID = stringPreferencesKey("device_id")
         val ONBOARDING_SEEN = booleanPreferencesKey("onboarding_seen")
         val SELECTED_SERVER_ID = stringPreferencesKey("selected_server_id")
+        val AUTOMATIC_SERVER_SELECTION = booleanPreferencesKey("automatic_server_selection")
+        val SERVER_QUALITY_STATE = stringPreferencesKey("server_quality_state")
         val USD_RATE = doublePreferencesKey("usd_rate")
         val USD_RATE_TIMESTAMP = longPreferencesKey("usd_rate_timestamp")
         val DEVICE_ID_V2 = booleanPreferencesKey("device_id_v2")
+        val SERVER_CACHE_OWNER = stringPreferencesKey("server_cache_owner")
         val BLOCKED_SUBSCRIPTION_OWNER = stringPreferencesKey("blocked_subscription_owner")
         val UPDATE_REQUIRED = booleanPreferencesKey("update_required")
     }
@@ -36,6 +39,9 @@ class PrefsDataStore @Inject constructor(
     val deviceId: Flow<String?> = context.dataStore.data.map { it[Keys.DEVICE_ID] }
     val onboardingSeen: Flow<Boolean> = context.dataStore.data.map { it[Keys.ONBOARDING_SEEN] ?: false }
     val selectedServerId: Flow<String?> = context.dataStore.data.map { it[Keys.SELECTED_SERVER_ID] }
+    val automaticServerSelection: Flow<Boolean> = context.dataStore.data.map {
+        it[Keys.AUTOMATIC_SERVER_SELECTION] ?: (it[Keys.SELECTED_SERVER_ID] == null)
+    }
 
     suspend fun getCachedUsdRate(): Pair<Double, Long>? {
         val prefs = context.dataStore.data.first()
@@ -60,13 +66,60 @@ class PrefsDataStore @Inject constructor(
     }
 
     suspend fun setSelectedServerId(id: String) {
-        context.dataStore.edit { it[Keys.SELECTED_SERVER_ID] = id }
+        context.dataStore.edit {
+            val automatic = it[Keys.AUTOMATIC_SERVER_SELECTION] ?: (it[Keys.SELECTED_SERVER_ID] == null)
+            it[Keys.SELECTED_SERVER_ID] = id
+            it[Keys.AUTOMATIC_SERVER_SELECTION] = automatic
+        }
+    }
+
+    suspend fun setManualSelectedServerId(id: String) {
+        context.dataStore.edit {
+            it[Keys.SELECTED_SERVER_ID] = id
+            it[Keys.AUTOMATIC_SERVER_SELECTION] = false
+        }
+    }
+
+    suspend fun setAutomaticSelectedServerId(id: String) {
+        context.dataStore.edit {
+            it[Keys.SELECTED_SERVER_ID] = id
+            it[Keys.AUTOMATIC_SERVER_SELECTION] = true
+        }
+    }
+
+    suspend fun isAutomaticServerSelection(): Boolean {
+        val prefs = context.dataStore.data.first()
+        return prefs[Keys.AUTOMATIC_SERVER_SELECTION] ?: (prefs[Keys.SELECTED_SERVER_ID] == null)
+    }
+
+    suspend fun getSelectedServerId(): String? {
+        return context.dataStore.data.first()[Keys.SELECTED_SERVER_ID]
+    }
+
+    suspend fun getServerQualityState(): String? {
+        return context.dataStore.data.first()[Keys.SERVER_QUALITY_STATE]
+    }
+
+    suspend fun setServerQualityState(value: String) {
+        context.dataStore.edit { it[Keys.SERVER_QUALITY_STATE] = value }
     }
 
     val isDeviceIdV2: Flow<Boolean> = context.dataStore.data.map { it[Keys.DEVICE_ID_V2] ?: false }
 
     suspend fun markDeviceIdV2() {
         context.dataStore.edit { it[Keys.DEVICE_ID_V2] = true }
+    }
+
+    suspend fun setServerCacheOwner(shortUuid: String) {
+        context.dataStore.edit { it[Keys.SERVER_CACHE_OWNER] = cacheOwnerHash(shortUuid) }
+    }
+
+    suspend fun isServerCacheOwner(shortUuid: String): Boolean {
+        return context.dataStore.data.first()[Keys.SERVER_CACHE_OWNER] == cacheOwnerHash(shortUuid)
+    }
+
+    suspend fun clearServerCacheOwner() {
+        context.dataStore.edit { it.remove(Keys.SERVER_CACHE_OWNER) }
     }
 
     // --- Subscription usage block (is-hack) ---

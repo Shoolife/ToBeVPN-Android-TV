@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,6 +32,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import com.tobevpn.tv.R
@@ -59,6 +61,7 @@ import com.tobevpn.tv.presentation.serverDisplayName
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
+import kotlinx.coroutines.launch
 
 @Composable
 fun ServerListScreen(
@@ -66,8 +69,11 @@ fun ServerListScreen(
     viewModel: ServerListViewModel = hiltViewModel(),
 ) {
     val servers by viewModel.servers.collectAsStateWithLifecycle()
+    val selectedServerId by viewModel.selectedServerId.collectAsStateWithLifecycle()
+    val automaticServerSelection by viewModel.automaticServerSelection.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
@@ -165,9 +171,7 @@ fun ServerListScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
-                    // Match the desktop client: while (re)loading, the list is
-                    // replaced by a centered accent spinner — not only on first load.
-                    isLoading -> {
+                    isLoading && servers.isEmpty() -> {
                         CircularProgressIndicator(
                             modifier = Modifier.align(Alignment.Center),
                             color = com.tobevpn.tv.presentation.theme.VpnGreen,
@@ -193,12 +197,40 @@ fun ServerListScreen(
                     }
                     else -> {
                         LazyColumn {
+                            item(key = "automatic") {
+                                AutomaticServerItem(
+                                    selected = automaticServerSelection,
+                                    enabled = servers.any { it.isSelectable },
+                                    onClick = {
+                                        scope.launch {
+                                            if (viewModel.selectAutomaticServer()) {
+                                                onBack()
+                                            }
+                                        }
+                                    },
+                                    scale = scale,
+                                    cardPad = cardPad,
+                                    cardCorner = cardCorner,
+                                    itemPadV = itemPadV,
+                                    gap = gap,
+                                    titleSize = titleSize,
+                                    bodySize = bodySize,
+                                    borderWidth = borderWidth,
+                                    tightStyle = tightStyle,
+                                )
+                            }
                             items(servers, key = { it.id }) { server ->
+                                val selectable = server.isSelectable
                                 ServerItem(
                                     server = server,
+                                    selected = !automaticServerSelection && selectable && server.id == selectedServerId,
+                                    enabled = selectable,
                                     onClick = {
-                                        viewModel.selectServer(server)
-                                        onBack()
+                                        scope.launch {
+                                            if (viewModel.selectServer(server)) {
+                                                onBack()
+                                            }
+                                        }
                                     },
                                     scale = scale,
                                     cardPad = cardPad,
@@ -222,8 +254,89 @@ fun ServerListScreen(
 }
 
 @Composable
+private fun AutomaticServerItem(
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    scale: Float,
+    cardPad: androidx.compose.ui.unit.Dp,
+    cardCorner: androidx.compose.ui.unit.Dp,
+    itemPadV: androidx.compose.ui.unit.Dp,
+    gap: androidx.compose.ui.unit.Dp,
+    titleSize: androidx.compose.ui.unit.TextUnit,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    borderWidth: androidx.compose.ui.unit.Dp,
+    tightStyle: TextStyle,
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = itemPadV)
+            .then(
+                when {
+                    isFocused -> Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                    selected -> Modifier.border(borderWidth, VpnGreen, RoundedCornerShape(cardCorner))
+                    else -> Modifier
+                }
+            )
+            .onFocusChanged { isFocused = it.isFocused }
+            .focusable(enabled = enabled)
+            .onKeyEvent { event ->
+                if (enabled &&
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            },
+        shape = RoundedCornerShape(cardCorner),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                isFocused -> MaterialTheme.colorScheme.primaryContainer
+                selected -> VpnGreen.copy(alpha = 0.16f)
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            },
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(cardPad),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Bolt,
+                contentDescription = null,
+                tint = VpnGreen,
+                modifier = Modifier.size((36 * scale).dp),
+            )
+            Spacer(modifier = Modifier.width(gap))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.server_auto),
+                    fontSize = titleSize,
+                    fontWeight = FontWeight.Medium,
+                    style = tightStyle,
+                )
+                Text(
+                    text = stringResource(R.string.server_auto_description),
+                    fontSize = bodySize,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = tightStyle,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ServerItem(
     server: Server,
+    selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
     scale: Float,
     cardPad: androidx.compose.ui.unit.Dp,
@@ -244,13 +357,17 @@ private fun ServerItem(
             .fillMaxWidth()
             .padding(vertical = itemPadV)
             .then(
-                if (isFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
-                else Modifier
+                when {
+                    isFocused -> Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                    selected -> Modifier.border(borderWidth, VpnGreen, RoundedCornerShape(cardCorner))
+                    else -> Modifier
+                }
             )
             .onFocusChanged { isFocused = it.isFocused }
-            .focusable()
+            .focusable(enabled = enabled)
             .onKeyEvent { event ->
-                if (event.type == KeyEventType.KeyUp &&
+                if (enabled &&
+                    event.type == KeyEventType.KeyUp &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
                     onClick()
@@ -259,8 +376,11 @@ private fun ServerItem(
             },
         shape = RoundedCornerShape(cardCorner),
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceVariant,
+            containerColor = when {
+                isFocused -> MaterialTheme.colorScheme.primaryContainer
+                selected -> VpnGreen.copy(alpha = 0.16f)
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            },
         ),
     ) {
         Row(
