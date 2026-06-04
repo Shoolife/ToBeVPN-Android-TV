@@ -44,7 +44,7 @@ data class Server(
      * probe is still pending; a negative value means it completed and failed.
      */
     val isSelectable: Boolean
-        get() = isAvailable && ping > 0
+        get() = isAvailable && ping >= 0
 
     /**
      * Compares only fields that affect the XRay outbound. Country, online

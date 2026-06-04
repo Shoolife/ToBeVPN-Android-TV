@@ -20,9 +20,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private data class SelectedServerSnapshot(
+    val server: Server?,
+    val selectionKey: String?,
+)
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -38,7 +44,7 @@ class MainViewModel @Inject constructor(
 
     private val _serverPing = MutableStateFlow<Long>(0)
 
-    val currentServer: StateFlow<Server?> = combine(
+    private val selectedServerSnapshot: StateFlow<SelectedServerSnapshot> = combine(
         prefsDataStore.selectedServerId,
         prefsDataStore.automaticServerSelection,
         vpnRepository.observeServers(),
@@ -47,8 +53,18 @@ class MainViewModel @Inject constructor(
         val availableServers = servers.filter { it.isAvailable }
         val selected = selectedId?.let { id -> availableServers.find { it.id == id } }
         val server = selected ?: availableServers.firstOrNull().takeIf { automatic }
-        server?.copy(ping = if (ping >= 0) ping else server.ping)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+        val selectionKey = server?.let {
+            "${if (automatic) "auto" else "manual"}:${selectedId ?: it.id}"
+        }
+        SelectedServerSnapshot(
+            server = server?.copy(ping = if (ping >= 0) ping else server.ping),
+            selectionKey = selectionKey,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SelectedServerSnapshot(null, null))
+
+    val currentServer: StateFlow<Server?> = selectedServerSnapshot
+        .map { it.server }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val automaticServerSelection: StateFlow<Boolean> = prefsDataStore.automaticServerSelection
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -86,24 +102,25 @@ class MainViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            var lastServer: Server? = null
-            currentServer.collect { server ->
-                if (server != null) {
-                    val previous = lastServer
-                    val vpnConfigChanged = previous == null || !server.hasSameVpnConfig(previous)
-                    lastServer = server
-                    if (!vpnConfigChanged) return@collect
-                    prefsDataStore.setSelectedServerId(server.id)
+            var lastSnapshot: SelectedServerSnapshot? = null
+            selectedServerSnapshot.collect { snapshot ->
+                val server = snapshot.server ?: return@collect
+                val previous = lastSnapshot
+                lastSnapshot = snapshot
+
+                val selectionChanged = previous != null &&
+                    previous.selectionKey != snapshot.selectionKey
+                if (previous == null || selectionChanged) {
                     _serverPing.value = serverQualityRepository.measurePing(server, force = true)
-                    if (previous != null) {
-                        val state = connectionState.value
-                        val managedServer = connectionManager.currentServer.value
-                        if ((state is ConnectionState.Connected || state is ConnectionState.Connecting) &&
-                            managedServer?.hasSameVpnConfig(server) != true
-                        ) {
-                            connectionManager.switchServer(server)
-                        }
-                    }
+                }
+                if (!selectionChanged) return@collect
+
+                val state = connectionState.value
+                val managedServer = connectionManager.currentServer.value
+                if ((state is ConnectionState.Connected || state is ConnectionState.Connecting) &&
+                    managedServer?.hasSameVpnConfig(server) != true
+                ) {
+                    connectionManager.switchServer(server)
                 }
             }
         }
@@ -197,7 +214,9 @@ class MainViewModel @Inject constructor(
             authRepository.syncSubscription(overwriteUsage = !isConnected)
             runCatching { authRepository.pingHwidOnly() }
             val servers = vpnRepository.refreshServers().getOrNull().orEmpty()
-            ensureAutomaticServerSelected(servers)
+            if (!isConnected) {
+                ensureAutomaticServerSelected(servers)
+            }
         }
     }
 
