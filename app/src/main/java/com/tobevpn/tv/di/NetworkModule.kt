@@ -36,7 +36,8 @@ object NetworkModule {
             // Even in debug, never print the bearer access_token or the bot-side
             // legacy/panel tokens to logcat — anyone with adb on the dev device
             // could otherwise lift a working session.
-            redactHeader("Authorization")
+            redactHeader(AuthHeaderInterceptor.DIRECT_AUTH_HEADER)
+            redactHeader(AuthHeaderInterceptor.FALLBACK_AUTH_HEADER)
             redactHeader("X-Api-Token")
             redactHeader("Cookie")
         }

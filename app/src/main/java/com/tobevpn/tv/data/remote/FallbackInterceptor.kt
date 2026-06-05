@@ -27,7 +27,9 @@ import javax.net.ssl.SSLHandshakeException
  *
  * Most non-2xx HTTP responses from the primary are not fallback triggers.
  * A 403 is the exception because restricted networks can reject the primary
- * route with an HTTP response instead of a DNS or socket failure.
+ * route with an HTTP response instead of a DNS or socket failure. Technical
+ * gateway 403 responses are ignored so they do not masquerade as backend
+ * authorization errors.
  *
  * The interceptor is a no-op when [BuildConfig.FALLBACK_BOT_DOMAIN] is
  * empty (no operator-configured fallback) — keeps debug builds working
@@ -65,9 +67,23 @@ class FallbackInterceptor : Interceptor {
                 }
                 primaryResponse
             } else {
-                primaryResponse.close()
                 SafeDiagnostics.warn(TAG, "Primary API route rejected request; retrying via fallback")
-                proceedFallback(chain, fallbackRequest)
+                val fallbackResponse = try {
+                    proceedFallback(chain, fallbackRequest)
+                } catch (fallbackError: IOException) {
+                    SafeDiagnostics.warn(
+                        TAG,
+                        "Fallback API request failed: ${SafeDiagnostics.failureCategory(fallbackError)}",
+                    )
+                    return primaryResponse
+                }
+                if (isGatewayAuthError(fallbackResponse)) {
+                    fallbackResponse.close()
+                    primaryResponse
+                } else {
+                    primaryResponse.close()
+                    fallbackResponse
+                }
             }
         } catch (primaryError: IOException) {
             if (!isFallbackEligible(primaryError)) throw primaryError
@@ -77,7 +93,17 @@ class FallbackInterceptor : Interceptor {
                     SafeDiagnostics.failureCategory(primaryError),
             )
             try {
-                proceedFallback(chain, fallbackRequest)
+                val fallbackResponse = proceedFallback(chain, fallbackRequest)
+                if (isGatewayAuthError(fallbackResponse)) {
+                    fallbackResponse.close()
+                    if (isSafeRead) {
+                        chain.proceed(original)
+                    } else {
+                        throw primaryError
+                    }
+                } else {
+                    fallbackResponse
+                }
             } catch (fallbackError: IOException) {
                 SafeDiagnostics.warn(
                     TAG,
@@ -98,7 +124,13 @@ class FallbackInterceptor : Interceptor {
         fallbackRequest: Request,
     ): Response {
         return try {
-            proceedFallback(chain, fallbackRequest)
+            val fallbackResponse = proceedFallback(chain, fallbackRequest)
+            if (isGatewayAuthError(fallbackResponse)) {
+                fallbackResponse.close()
+                chain.proceed(original)
+            } else {
+                fallbackResponse
+            }
         } catch (fallbackError: IOException) {
             SafeDiagnostics.warn(
                 TAG,
@@ -113,9 +145,20 @@ class FallbackInterceptor : Interceptor {
         chain: Interceptor.Chain,
         fallbackRequest: Request,
     ): Response {
-        return chain.proceed(fallbackRequest).also {
+        return chain.proceed(fallbackRequest).also { response ->
+            if (isGatewayAuthError(response)) return@also
             primaryUnavailableUntilMs = SystemClock.elapsedRealtime() + PRIMARY_FAILURE_COOLDOWN_MS
         }
+    }
+
+    private fun isGatewayAuthError(response: Response): Boolean {
+        if (response.code != FALLBACK_HTTP_STATUS) return false
+        val body = runCatching {
+            response.peekBody(MAX_GATEWAY_BODY_BYTES).string()
+        }.getOrDefault("")
+        return body.contains("\"errorCode\":403") &&
+            body.contains("Forbidden: Not authorized", ignoreCase = true) &&
+            body.contains("ClientError", ignoreCase = true)
     }
 
     /**
@@ -196,6 +239,7 @@ class FallbackInterceptor : Interceptor {
         const val FALLBACK_HTTP_STATUS = 403
         const val FAST_PRIMARY_TIMEOUT_MS = 1_200
         const val PRIMARY_FAILURE_COOLDOWN_MS = 2L * 60L * 1000L
+        const val MAX_GATEWAY_BODY_BYTES = 1_024L
 
         @Volatile
         var primaryUnavailableUntilMs = 0L

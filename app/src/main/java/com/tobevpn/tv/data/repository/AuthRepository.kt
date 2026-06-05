@@ -356,15 +356,35 @@ class AuthRepository @Inject constructor(
             }
             Result.success(isLinked)
         } catch (e: HttpException) {
-            if (e.code() == 403) {
+            if (e.isRemoteDeviceUnlinkedError()) {
                 clearLinkedIdentity()
                 Result.success(false)
             } else {
                 Result.failure(e)
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e.isRemoteDeviceUnlinkedError()) {
+                clearLinkedIdentity()
+                Result.success(false)
+            } else {
+                Result.failure(e)
+            }
         }
+    }
+
+    private fun Throwable.isRemoteDeviceUnlinkedError(): Boolean {
+        if (this is HttpException && code() !in setOf(400, 403)) return false
+        val body = if (this is HttpException) {
+            runCatching { response()?.errorBody()?.string() }.getOrDefault("")
+        } else {
+            ""
+        }
+        val text = listOfNotNull(message, body)
+            .joinToString("\n")
+            .lowercase(Locale.US)
+        return (text.contains("current device") && text.contains("not linked")) ||
+            (text.contains("telegram_id") && text.contains("not authenticated")) ||
+            (text.contains("telegram_id") && text.contains("required"))
     }
 
     private suspend fun clearLinkedIdentity() {
