@@ -725,7 +725,7 @@ private fun TrafficCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     StatItem(
-                        label = stringResource(R.string.downloaded),
+                        label = stringResource(R.string.traffic),
                         value = formatBytes(usageInfo.bytesUsed),
                         modifier = Modifier.weight(1f),
                         valueSize = statValueSize,

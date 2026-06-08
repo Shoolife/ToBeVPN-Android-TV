@@ -28,7 +28,6 @@ interface TrafficLogDao {
             COUNT(*) AS sessions
         FROM traffic_log
         WHERE timestamp >= :dayStart AND timestamp < :dayEnd
-          AND isAuthenticated = 1
         GROUP BY period
         ORDER BY period ASC
     """)
@@ -43,7 +42,6 @@ interface TrafficLogDao {
             COUNT(*) AS sessions
         FROM traffic_log
         WHERE timestamp >= :weekStart AND timestamp < :weekEnd
-          AND isAuthenticated = 1
         GROUP BY ((timestamp + :tzOffsetSec) / 86400)
         ORDER BY period ASC
     """)
@@ -58,12 +56,11 @@ interface TrafficLogDao {
             COUNT(*) AS sessions
         FROM traffic_log
         WHERE timestamp >= :monthStart AND timestamp < :monthEnd
-          AND isAuthenticated = 1
         GROUP BY period
         ORDER BY period ASC
     """)
     fun getWeeklyStats(monthStart: Long, monthEnd: Long): Flow<List<TrafficStat>>
 
-    @Query("SELECT COALESCE(SUM(bytesUsed), 0) FROM traffic_log WHERE isAuthenticated = 1")
+    @Query("SELECT COALESCE(SUM(bytesUsed), 0) FROM traffic_log")
     fun getTotalBytes(): Flow<Long>
 }
