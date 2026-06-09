@@ -134,9 +134,6 @@ class MainViewModel @Inject constructor(
                 val server = currentServer.value ?: continue
                 val ping = serverQualityRepository.measurePing(server, force = true)
                 _serverPing.value = ping
-                if (ping < 0L && automaticServerSelection.value) {
-                    selectAutomaticServer(excludeServerId = server.id)
-                }
             }
         }
     }
@@ -174,7 +171,7 @@ class MainViewModel @Inject constructor(
                     if (subscriptionUsageBlocked.value) return@launch
                     val selected = currentServer.value ?: return@launch
                     val automatic = prefsDataStore.isAutomaticServerSelection()
-                    if (!automatic && (!selected.isAvailable || selected.ping < 0)) return@launch
+                    if (!automatic && !selected.isAvailable) return@launch
                     authRepository.syncSubscription()
                     val availableServers = vpnRepository.refreshServers(forceRefresh = true)
                         .getOrNull()

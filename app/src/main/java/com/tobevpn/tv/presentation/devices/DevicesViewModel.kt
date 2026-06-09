@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.remote.BotApi
-import com.tobevpn.tv.data.remote.dto.DeviceUnlinkRequestDto
 import com.tobevpn.tv.data.remote.dto.LinkedDeviceDto
 import com.tobevpn.tv.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -86,13 +85,14 @@ class DevicesViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(busyDeviceId = deviceId, errorMessage = null)
             _state.value = try {
-                val response = botApi.unlinkDevice(DeviceUnlinkRequestDto(deviceId = deviceId))
-                if (response.success) {
+                val result = authRepository.unlinkOtherDevice(deviceId)
+                if (result.isSuccess) {
                     _state.value.copy(busyDeviceId = null)
                 } else {
                     _state.value.copy(
                         busyDeviceId = null,
-                        errorMessage = response.message ?: context.getString(R.string.error_devices_disconnect),
+                        errorMessage = result.exceptionOrNull()?.message
+                            ?: context.getString(R.string.error_devices_disconnect),
                     )
                 }
             } catch (_: Exception) {

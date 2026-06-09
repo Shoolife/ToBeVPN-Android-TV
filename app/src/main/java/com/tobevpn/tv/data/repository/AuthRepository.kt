@@ -50,6 +50,7 @@ data class CurrentSubscriptionPlanInfo(
     val isTrial: Boolean?,
     val isUnlimited: Boolean?,
     val hasPlanData: Boolean,
+    val subscriptionUrl: String?,
 )
 
 @Singleton
@@ -88,8 +89,8 @@ class AuthRepository @Inject constructor(
     /**
      * HWID-marker ping used by the connect path so the panel registers the
      * device on every VPN start and we learn the current block / update state.
-     * Returns true if usage is blocked. The subscription URL is resolved via
-     * the panel JSON endpoint (TV doesn't cache it in the session row).
+     * Returns true if usage is blocked. The subscription URL is resolved from
+     * local cache/current-plan first; the panel JSON endpoint is legacy fallback.
      */
     suspend fun pingHwidOnly(): Boolean {
         val session = sessionDao.getSession() ?: return false
@@ -98,12 +99,20 @@ class AuthRepository @Inject constructor(
             prefsDataStore.isSubscriptionUsageBlocked(shortUuid)
         }.getOrDefault(false)
         return try {
-            val subInfo = subscriptionInfoProvider.get(shortUuid)
-            val url = subInfo.subscriptionUrl ?: return wasBlocked
+            val cachedUrl = prefsDataStore.getCachedSubscriptionUrl(shortUuid)
+            val currentPlanUrl = if (session.authState == "AUTHENTICATED") {
+                getCurrentSubscriptionPlan()?.subscriptionUrl
+            } else {
+                null
+            }
+            val url = cachedUrl ?: currentPlanUrl ?: run {
+                val subInfo = subscriptionInfoProvider.get(shortUuid)
+                subInfo.subscriptionUrl?.also { prefsDataStore.setCachedSubscriptionUrl(shortUuid, it) }
+            } ?: return wasBlocked
+            prefsDataStore.setCachedSubscriptionUrl(shortUuid, url)
             val result = subscriptionPinger.ping(url) ?: return wasBlocked
             prefsDataStore.setSubscriptionUsageBlocked(shortUuid, result.isUsageBlocked)
             prefsDataStore.setUpdateRequired(result.isUpdateRequired)
-            subscriptionInfoProvider.invalidate(shortUuid)
             result.isUsageBlocked
         } catch (_: Exception) {
             wasBlocked
@@ -207,6 +216,7 @@ class AuthRepository @Inject constructor(
             isUnlimited = subscription?.isUnlimited
                 ?: snapshot?.type?.equals("UNLIMITED", ignoreCase = true),
             hasPlanData = hasPlanData,
+            subscriptionUrl = subscription?.url?.trim()?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -315,6 +325,58 @@ class AuthRepository @Inject constructor(
             } else {
                 Result.failure(IllegalStateException("Could not unlink device"))
             }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun unlinkOtherDevice(deviceId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val response = botApi.unlinkDevice(DeviceUnlinkRequestDto(deviceId = deviceId))
+            if (!response.success) {
+                return@withContext Result.failure(
+                    IllegalStateException(response.message ?: "Could not unlink device")
+                )
+            }
+            resetSubscriptionAfterDeviceUnlink().getOrThrow()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun resetSubscriptionAfterDeviceUnlink(): Result<Unit> {
+        val session = sessionDao.getSession() ?: return Result.success(Unit)
+        val oldShortUuid = session.shortUuid ?: return Result.success(Unit)
+        return try {
+            val response = botApi.resetSubscription(oldShortUuid)
+            val data = response.data
+            if (!response.success || data == null) {
+                return Result.failure(
+                    IllegalStateException(response.message ?: "Could not reset subscription link")
+                )
+            }
+            val nextShortUuid = data.shortUuid?.trim()?.takeIf { it.isNotBlank() } ?: oldShortUuid
+            prefsDataStore.setCachedSubscriptionUrl(oldShortUuid, null)
+            prefsDataStore.setCachedSubscriptionUrl(nextShortUuid, data.subscriptionUrl)
+            subscriptionInfoProvider.invalidate(oldShortUuid)
+            if (nextShortUuid != oldShortUuid) {
+                subscriptionInfoProvider.invalidate(nextShortUuid)
+            }
+            sessionStore.update { current ->
+                current.copy(
+                    shortUuid = nextShortUuid,
+                    panelUserUuid = data.panelUserUuid ?: current.panelUserUuid,
+                    telegramId = data.telegramId ?: current.telegramId,
+                )
+            }
+            data.trafficLimitBytes?.let { usageRepository.updateLimits(it, 0) }
+            data.trafficUsedBytes?.let {
+                usageRepository.updateUsage(it, usageRepository.getUsage().timeUsedSeconds)
+            }
+            vpnRepository.clearCachedServers()
+            vpnRepository.refreshServers(forceRefresh = true)
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -605,30 +667,55 @@ class AuthRepository @Inject constructor(
             }
 
             val shortUuid = session.shortUuid ?: return
-            var subInfo = subscriptionInfoProvider.get(shortUuid)
-            if (!subInfo.isFound || subInfo.user == null) return
-
-            // Direct hit on the panel's public sub URL with HWID headers — only
-            // request Remnawave actually parses for HWID device tracking. The
-            // response also carries the block (is-hack) / forced-update flags.
-            val pingResult = subscriptionPinger.ping(panelUser?.subscriptionUrl ?: subInfo.subscriptionUrl)
-            if (pingResult != null) {
-                prefsDataStore.setSubscriptionUsageBlocked(shortUuid, pingResult.isUsageBlocked)
-                prefsDataStore.setUpdateRequired(pingResult.isUpdateRequired)
-                // HWID binding can change the effective subscription links.
-                // Refresh the server cache from a post-ping response.
-                subscriptionInfoProvider.invalidate(shortUuid)
-                subInfo = runCatching {
-                    subscriptionInfoProvider.get(shortUuid, forceRefresh = true)
-                }.getOrDefault(subInfo)
+            var subInfo: com.tobevpn.tv.data.remote.dto.PanelSubInfoDto? = null
+            var subscriptionUrl = currentPlanInfo?.subscriptionUrl
+                ?: panelUser?.subscriptionUrl
+                ?: prefsDataStore.getCachedSubscriptionUrl(shortUuid)
+            var profileResult = if (!subscriptionUrl.isNullOrBlank()) {
+                subscriptionPinger.fetchProfile(subscriptionUrl)
+            } else {
+                null
             }
-            vpnRepository.updateServersFromSubscription(shortUuid, subInfo)
 
-            val sub = subInfo.user ?: return
-            val isActive = sub.isActive && sub.userStatus == "ACTIVE"
+            if (profileResult == null && subscriptionUrl.isNullOrBlank()) {
+                subInfo = runCatching {
+                    subscriptionInfoProvider.get(shortUuid)
+                }.getOrNull()
+                subscriptionUrl = subInfo?.subscriptionUrl
+                prefsDataStore.setCachedSubscriptionUrl(shortUuid, subscriptionUrl)
+                profileResult = subscriptionPinger.fetchProfile(subscriptionUrl)
+            }
+
+            if (profileResult != null) {
+                prefsDataStore.setCachedSubscriptionUrl(shortUuid, subscriptionUrl)
+                prefsDataStore.setSubscriptionUsageBlocked(shortUuid, profileResult.isUsageBlocked)
+                prefsDataStore.setUpdateRequired(profileResult.isUpdateRequired)
+                when {
+                    profileResult.isUsageBlocked -> vpnRepository.clearCachedServers()
+                    profileResult.links.isNotEmpty() -> vpnRepository.updateServersFromLinks(shortUuid, profileResult.links)
+                    profileResult.isSuccessful -> vpnRepository.clearCachedServers()
+                }
+            }
+
+            if (subInfo == null && currentPlanInfo == null) {
+                subInfo = runCatching {
+                    subscriptionInfoProvider.get(shortUuid)
+                }.getOrNull()
+                prefsDataStore.setCachedSubscriptionUrl(shortUuid, subInfo?.subscriptionUrl ?: subscriptionUrl)
+            }
+
+            if (profileResult == null && subInfo != null) {
+                vpnRepository.updateServersFromSubscription(shortUuid, subInfo)
+            }
+
+            val sub = subInfo?.user
+            val isActive = sub?.let { it.isActive && it.userStatus == "ACTIVE" }
+                ?: (currentPlanInfo?.isActive == true)
 
             val plan = if (currentPlanInfo != null) {
                 resolvePlanFromCurrentPlan(session.userPlan, currentPlanInfo)
+            } else if (sub == null) {
+                session.userPlan
             } else if (!isActive) {
                 "EXPIRED"
             } else if (session.authState == "AUTHENTICATED" && session.telegramId != null && panelUser != null) {
@@ -638,7 +725,7 @@ class AuthRepository @Inject constructor(
             }
 
             val expiresAtMillis = try {
-                val expiresStr = sub.expiresAt
+                val expiresStr = sub?.expiresAt
                 if (expiresStr != null) {
                     val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
                         timeZone = TimeZone.getTimeZone("UTC")
@@ -659,14 +746,16 @@ class AuthRepository @Inject constructor(
                 )
             }
 
-            val trafficLimitBytes = currentPlanInfo?.trafficLimitBytes
+            val trafficLimitBytes = profileResult?.trafficLimitBytes
+                ?: currentPlanInfo?.trafficLimitBytes
                 ?: panelUser?.trafficLimitBytes
-                ?: (sub.trafficLimitBytes.toLongOrNull() ?: 0)
+                ?: (sub?.trafficLimitBytes?.toLongOrNull() ?: 0)
             usageRepository.updateLimits(trafficLimitBytes, 0)
 
             if (overwriteUsage && session.authState == "AUTHENTICATED") {
-                val trafficUsedBytes = panelUser?.userTraffic?.usedTrafficBytes
-                    ?: (sub.trafficUsedBytes.toLongOrNull() ?: 0)
+                val trafficUsedBytes = profileResult?.trafficUsedBytes
+                    ?: panelUser?.userTraffic?.usedTrafficBytes
+                    ?: (sub?.trafficUsedBytes?.toLongOrNull() ?: 0)
                 val currentTime = usageRepository.getUsage().timeUsedSeconds
                 usageRepository.updateUsage(trafficUsedBytes, currentTime)
             }

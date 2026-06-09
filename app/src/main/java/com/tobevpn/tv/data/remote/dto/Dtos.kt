@@ -107,6 +107,18 @@ data class CurrentPlanSubscriptionDto(
     @SerializedName("device_limit") val deviceLimit: Int? = null,
     @SerializedName("created_at") val createdAt: String? = null,
     @SerializedName("created_at_ts") val createdAtTs: Long? = null,
+    val url: String? = null,
+)
+
+data class ResetSubscriptionDto(
+    @SerializedName("short_uuid") val shortUuid: String? = null,
+    @SerializedName("panel_user_uuid") val panelUserUuid: String? = null,
+    @SerializedName("traffic_limit_bytes") val trafficLimitBytes: Long? = null,
+    @SerializedName("traffic_used_bytes") val trafficUsedBytes: Long? = null,
+    @SerializedName("anon_traffic_bytes") val anonTrafficBytes: Long? = null,
+    @SerializedName("max_devices") val maxDevices: Int? = null,
+    @SerializedName("telegram_id") val telegramId: Long? = null,
+    @SerializedName("subscription_url") val subscriptionUrl: String? = null,
 )
 
 data class DeviceRegisterRequestDto(

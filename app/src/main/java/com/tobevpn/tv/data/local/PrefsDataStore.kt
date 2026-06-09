@@ -32,6 +32,8 @@ class PrefsDataStore @Inject constructor(
         val USD_RATE_TIMESTAMP = longPreferencesKey("usd_rate_timestamp")
         val DEVICE_ID_V2 = booleanPreferencesKey("device_id_v2")
         val SERVER_CACHE_OWNER = stringPreferencesKey("server_cache_owner")
+        val SUBSCRIPTION_URL_OWNER = stringPreferencesKey("subscription_url_owner")
+        val SUBSCRIPTION_URL_VALUE = stringPreferencesKey("subscription_url_value")
         val BLOCKED_SUBSCRIPTION_OWNER = stringPreferencesKey("blocked_subscription_owner")
         val UPDATE_REQUIRED = booleanPreferencesKey("update_required")
     }
@@ -120,6 +122,30 @@ class PrefsDataStore @Inject constructor(
 
     suspend fun clearServerCacheOwner() {
         context.dataStore.edit { it.remove(Keys.SERVER_CACHE_OWNER) }
+    }
+
+    suspend fun setCachedSubscriptionUrl(shortUuid: String, url: String?) {
+        val owner = cacheOwnerHash(shortUuid)
+        context.dataStore.edit {
+            if (url.isNullOrBlank()) {
+                if (it[Keys.SUBSCRIPTION_URL_OWNER] == owner) {
+                    it.remove(Keys.SUBSCRIPTION_URL_OWNER)
+                    it.remove(Keys.SUBSCRIPTION_URL_VALUE)
+                }
+            } else {
+                it[Keys.SUBSCRIPTION_URL_OWNER] = owner
+                it[Keys.SUBSCRIPTION_URL_VALUE] = url
+            }
+        }
+    }
+
+    suspend fun getCachedSubscriptionUrl(shortUuid: String): String? {
+        val prefs = context.dataStore.data.first()
+        return if (prefs[Keys.SUBSCRIPTION_URL_OWNER] == cacheOwnerHash(shortUuid)) {
+            prefs[Keys.SUBSCRIPTION_URL_VALUE]?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
     }
 
     // --- Subscription usage block (is-hack) ---

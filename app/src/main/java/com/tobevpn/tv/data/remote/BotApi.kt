@@ -13,6 +13,7 @@ import com.tobevpn.tv.data.remote.dto.PanelResponse
 import com.tobevpn.tv.data.remote.dto.PanelSubInfoDto
 import com.tobevpn.tv.data.remote.dto.PanelUserDto
 import com.tobevpn.tv.data.remote.dto.PurchasePlansDto
+import com.tobevpn.tv.data.remote.dto.ResetSubscriptionDto
 import com.tobevpn.tv.data.remote.dto.TvPairCreateRequestDto
 import com.tobevpn.tv.data.remote.dto.TvPairCreateResponseDto
 import com.tobevpn.tv.data.remote.dto.TvPairStatusDto
@@ -83,6 +84,11 @@ interface BotApi {
     suspend fun getSubscriptionInfo(
         @Path("shortUuid") shortUuid: String,
     ): PanelResponse<PanelSubInfoDto>
+
+    @POST("api/panel/sub/{shortUuid}/reset")
+    suspend fun resetSubscription(
+        @Path("shortUuid") shortUuid: String,
+    ): ApiResponse<ResetSubscriptionDto>
 
     // Purchase / tariff plans
 

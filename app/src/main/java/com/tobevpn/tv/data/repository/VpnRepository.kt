@@ -5,6 +5,7 @@ import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.local.entity.ServerEntity
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.remote.BotApi
+import com.tobevpn.tv.data.remote.SubscriptionPinger
 import com.tobevpn.tv.data.remote.dto.PanelSubInfoDto
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.util.SafeDiagnostics
@@ -30,6 +31,7 @@ class VpnRepository @Inject constructor(
     private val botApi: BotApi,
     private val subscriptionInfoProvider: SubscriptionInfoProvider,
     private val prefsDataStore: PrefsDataStore,
+    private val subscriptionPinger: SubscriptionPinger,
 ) {
     private val enrichmentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val refreshGeneration = AtomicLong(0L)
@@ -48,8 +50,37 @@ class VpnRepository @Inject constructor(
                     return Result.failure(Exception("No subscription"))
                 }
 
-            val subInfo = subscriptionInfoProvider.get(shortUuid, forceRefresh)
-            updateServersFromSubscription(shortUuid, subInfo)
+            var subscriptionUrl = prefsDataStore.getCachedSubscriptionUrl(shortUuid)
+            var subInfo: PanelSubInfoDto? = null
+
+            if (subscriptionUrl.isNullOrBlank()) {
+                subInfo = subscriptionInfoProvider.get(shortUuid, forceRefresh)
+                subscriptionUrl = subInfo.subscriptionUrl
+                prefsDataStore.setCachedSubscriptionUrl(shortUuid, subscriptionUrl)
+            }
+
+            if (!subscriptionUrl.isNullOrBlank()) {
+                val profile = subscriptionPinger.fetchProfile(subscriptionUrl)
+                if (profile != null) {
+                    prefsDataStore.setSubscriptionUsageBlocked(shortUuid, profile.isUsageBlocked)
+                    prefsDataStore.setUpdateRequired(profile.isUpdateRequired)
+                    if (profile.isUsageBlocked) {
+                        clearServerCache()
+                        return Result.success(emptyList())
+                    }
+                    if (profile.links.isNotEmpty()) {
+                        return updateServersFromLinks(shortUuid, profile.links)
+                    }
+                    if (profile.isSuccessful) {
+                        clearServerCache()
+                        return Result.success(emptyList())
+                    }
+                }
+            }
+
+            val legacyInfo = subInfo ?: subscriptionInfoProvider.get(shortUuid, forceRefresh)
+            prefsDataStore.setCachedSubscriptionUrl(shortUuid, legacyInfo.subscriptionUrl)
+            updateServersFromSubscription(shortUuid, legacyInfo)
         } catch (e: Exception) {
             SafeDiagnostics.warn(TAG, "Server refresh failed; checking local cache: ${SafeDiagnostics.failureCategory(e)}")
             val shortUuid = sessionDao.getSession()?.shortUuid
@@ -75,7 +106,19 @@ class VpnRepository @Inject constructor(
             return Result.failure(Exception("Subscription not found"))
         }
 
-        val servers = subInfo.links.mapNotNull { link -> VlessUrlParser.parse(link) }
+        return updateServersFromLinks(shortUuid, subInfo.links)
+    }
+
+    suspend fun updateServersFromLinks(
+        shortUuid: String,
+        links: List<String>,
+    ): Result<List<Server>> {
+        if (links.isEmpty()) {
+            clearServerCache()
+            return Result.failure(Exception("No servers available"))
+        }
+
+        val servers = links.mapNotNull { link -> VlessUrlParser.parse(link) }
             .filterNot { it.isSentinel }
         if (servers.isEmpty()) {
             clearServerCache()
@@ -152,6 +195,10 @@ class VpnRepository @Inject constructor(
     }
 
     suspend fun clearServers() {
+        clearServerCache()
+    }
+
+    suspend fun clearCachedServers() {
         clearServerCache()
     }
 

@@ -39,12 +39,9 @@ data class Server(
     val isAvailable: Boolean
         get() = isOnline && !isSentinel
 
-    /**
-     * The server can be selected from a measured list. ping == 0 means the
-     * probe is still pending; a negative value means it completed and failed.
-     */
+    /** The server can be selected when subscription metadata marks it usable. */
     val isSelectable: Boolean
-        get() = isAvailable && ping >= 0
+        get() = isAvailable
 
     /**
      * Compares only fields that affect the XRay outbound. Country, online
