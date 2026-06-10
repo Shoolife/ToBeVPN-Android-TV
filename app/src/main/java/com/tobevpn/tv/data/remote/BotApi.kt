@@ -10,7 +10,6 @@ import com.tobevpn.tv.data.remote.dto.DeviceUnlinkRequestDto
 import com.tobevpn.tv.data.remote.dto.LinkedDevicesDto
 import com.tobevpn.tv.data.remote.dto.PanelNodeDto
 import com.tobevpn.tv.data.remote.dto.PanelResponse
-import com.tobevpn.tv.data.remote.dto.PanelSubInfoDto
 import com.tobevpn.tv.data.remote.dto.PanelUserDto
 import com.tobevpn.tv.data.remote.dto.PurchasePlansDto
 import com.tobevpn.tv.data.remote.dto.ResetSubscriptionDto
@@ -79,11 +78,6 @@ interface BotApi {
 
     @GET("api/panel/nodes")
     suspend fun getNodes(): PanelResponse<List<PanelNodeDto>>
-
-    @GET("api/panel/sub/{shortUuid}/info")
-    suspend fun getSubscriptionInfo(
-        @Path("shortUuid") shortUuid: String,
-    ): PanelResponse<PanelSubInfoDto>
 
     @POST("api/panel/sub/{shortUuid}/reset")
     suspend fun resetSubscription(

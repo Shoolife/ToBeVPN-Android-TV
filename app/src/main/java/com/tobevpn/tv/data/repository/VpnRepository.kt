@@ -6,7 +6,6 @@ import com.tobevpn.tv.data.local.entity.ServerEntity
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.remote.BotApi
 import com.tobevpn.tv.data.remote.SubscriptionPinger
-import com.tobevpn.tv.data.remote.dto.PanelSubInfoDto
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.util.SafeDiagnostics
 import com.tobevpn.tv.vpn.VlessUrlParser
@@ -29,7 +28,6 @@ class VpnRepository @Inject constructor(
     private val serverDao: ServerDao,
     private val sessionDao: SessionDao,
     private val botApi: BotApi,
-    private val subscriptionInfoProvider: SubscriptionInfoProvider,
     private val prefsDataStore: PrefsDataStore,
     private val subscriptionPinger: SubscriptionPinger,
 ) {
@@ -50,37 +48,25 @@ class VpnRepository @Inject constructor(
                     return Result.failure(Exception("No subscription"))
                 }
 
-            var subscriptionUrl = prefsDataStore.getCachedSubscriptionUrl(shortUuid)
-            var subInfo: PanelSubInfoDto? = null
-
-            if (subscriptionUrl.isNullOrBlank()) {
-                subInfo = subscriptionInfoProvider.get(shortUuid, forceRefresh)
-                subscriptionUrl = subInfo.subscriptionUrl
-                prefsDataStore.setCachedSubscriptionUrl(shortUuid, subscriptionUrl)
+            val subscriptionUrl = prefsDataStore.getCachedSubscriptionUrl(shortUuid)
+            val profile = subscriptionPinger.fetchProfile(
+                subscriptionUrl = subscriptionUrl,
+                subscriptionKey = shortUuid,
+            ) ?: throw IllegalStateException("Subscription profile unavailable")
+            prefsDataStore.setSubscriptionUsageBlocked(shortUuid, profile.isUsageBlocked)
+            prefsDataStore.setUpdateRequired(profile.isUpdateRequired)
+            if (profile.isUsageBlocked) {
+                clearServerCache()
+                return Result.success(emptyList())
             }
-
-            if (!subscriptionUrl.isNullOrBlank()) {
-                val profile = subscriptionPinger.fetchProfile(subscriptionUrl)
-                if (profile != null) {
-                    prefsDataStore.setSubscriptionUsageBlocked(shortUuid, profile.isUsageBlocked)
-                    prefsDataStore.setUpdateRequired(profile.isUpdateRequired)
-                    if (profile.isUsageBlocked) {
-                        clearServerCache()
-                        return Result.success(emptyList())
-                    }
-                    if (profile.links.isNotEmpty()) {
-                        return updateServersFromLinks(shortUuid, profile.links)
-                    }
-                    if (profile.isSuccessful) {
-                        clearServerCache()
-                        return Result.success(emptyList())
-                    }
-                }
+            if (profile.links.isNotEmpty()) {
+                return updateServersFromLinks(shortUuid, profile.links)
             }
-
-            val legacyInfo = subInfo ?: subscriptionInfoProvider.get(shortUuid, forceRefresh)
-            prefsDataStore.setCachedSubscriptionUrl(shortUuid, legacyInfo.subscriptionUrl)
-            updateServersFromSubscription(shortUuid, legacyInfo)
+            if (profile.isSuccessful) {
+                clearServerCache()
+                return Result.success(emptyList())
+            }
+            throw IllegalStateException("Subscription profile unavailable")
         } catch (e: Exception) {
             SafeDiagnostics.warn(TAG, "Server refresh failed; checking local cache: ${SafeDiagnostics.failureCategory(e)}")
             val shortUuid = sessionDao.getSession()?.shortUuid
@@ -95,18 +81,6 @@ class VpnRepository @Inject constructor(
                 Result.failure(e)
             }
         }
-    }
-
-    suspend fun updateServersFromSubscription(
-        shortUuid: String,
-        subInfo: PanelSubInfoDto,
-    ): Result<List<Server>> {
-        if (!subInfo.isFound || subInfo.links.isNullOrEmpty()) {
-            clearServerCache()
-            return Result.failure(Exception("Subscription not found"))
-        }
-
-        return updateServersFromLinks(shortUuid, subInfo.links)
     }
 
     suspend fun updateServersFromLinks(

@@ -94,9 +94,10 @@ class BootstrapManager @Inject constructor(
     }
 
     suspend fun bootstrap(): StoredTokens = mutex.withLock {
+        val deviceId = deviceIdProvider.getOrCreate()
         val response = bootstrapApi.bootstrap(
             BootstrapRequestDto(
-                deviceId = deviceIdProvider.getOrCreate(),
+                deviceId = deviceId,
                 platform = "android_tv",
             )
         )
