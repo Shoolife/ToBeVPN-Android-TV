@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.tobevpn.tv.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -35,7 +36,12 @@ class PrefsDataStore @Inject constructor(
         val SUBSCRIPTION_URL_OWNER = stringPreferencesKey("subscription_url_owner")
         val SUBSCRIPTION_URL_VALUE = stringPreferencesKey("subscription_url_value")
         val BLOCKED_SUBSCRIPTION_OWNER = stringPreferencesKey("blocked_subscription_owner")
-        val UPDATE_REQUIRED = booleanPreferencesKey("update_required")
+        // Scope the persisted block to the installed build. After an update,
+        // a block recorded by the previous version must not lock the new
+        // version before it can read the current minimum-version header.
+        val UPDATE_REQUIRED = booleanPreferencesKey(
+            "minimum_version_update_required_${BuildConfig.VERSION_NAME}",
+        )
     }
 
     val deviceId: Flow<String?> = context.dataStore.data.map { it[Keys.DEVICE_ID] }
@@ -173,7 +179,7 @@ class PrefsDataStore @Inject constructor(
             .distinctUntilChanged()
     }
 
-    // --- Forced update (update-required) ---
+    // --- Forced update ---
     suspend fun setUpdateRequired(required: Boolean) {
         context.dataStore.edit {
             if (required) it[Keys.UPDATE_REQUIRED] = true

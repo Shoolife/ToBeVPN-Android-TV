@@ -15,6 +15,7 @@ import com.tobevpn.tv.data.remote.dto.AuthRequestDto
 import com.tobevpn.tv.data.remote.dto.CurrentPlanDto
 import com.tobevpn.tv.data.remote.dto.DeviceRegisterRequestDto
 import com.tobevpn.tv.data.remote.dto.DeviceUnlinkRequestDto
+import com.tobevpn.tv.data.remote.dto.DeviceUnlinkResponseDto
 import com.tobevpn.tv.data.remote.dto.TvPairCreateRequestDto
 import com.tobevpn.tv.data.remote.dto.TvPairCreateResponseDto
 import com.tobevpn.tv.domain.model.AuthState
@@ -329,67 +330,105 @@ class AuthRepository @Inject constructor(
                     IllegalStateException(response.message ?: "Could not unlink device")
                 )
             }
-            resetSubscriptionAfterDeviceUnlink().getOrThrow()
+            refreshAfterDeviceUnlink(response.data)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    private suspend fun resetSubscriptionAfterDeviceUnlink(): Result<Unit> {
-        val session = sessionDao.getSession() ?: return Result.success(Unit)
-        val oldShortUuid = session.shortUuid ?: return Result.success(Unit)
-        return try {
-            val response = botApi.resetSubscription(oldShortUuid)
-            val data = response.data
-            if (!response.success || data == null) {
-                return Result.failure(
-                    IllegalStateException(response.message ?: "Could not reset subscription link")
-                )
+    private suspend fun refreshAfterDeviceUnlink(data: DeviceUnlinkResponseDto?) {
+        val oldShortUuid = sessionDao.getSession()?.shortUuid
+        runCatching { bootstrapManager.bootstrap() }
+
+        val planInfo = data
+            ?.takeIf { it.currentPlan != null || it.subscription != null }
+            ?.let {
+                CurrentPlanDto(
+                    currentPlan = it.currentPlan,
+                    subscription = it.subscription,
+                ).toCurrentSubscriptionPlanInfo()
             }
-            val nextShortUuid = data.shortUuid?.trim()?.takeIf { it.isNotBlank() } ?: oldShortUuid
-            prefsDataStore.setCachedSubscriptionUrl(oldShortUuid, null)
-            prefsDataStore.setCachedSubscriptionUrl(nextShortUuid, data.subscriptionUrl)
-            sessionStore.update { current ->
-                current.copy(
-                    shortUuid = nextShortUuid,
-                    panelUserUuid = data.panelUserUuid ?: current.panelUserUuid,
-                    telegramId = data.telegramId ?: current.telegramId,
-                )
+        sessionStore.update { current ->
+            val resolvedPlan = planInfo?.let {
+                resolvePlanFromCurrentPlan(current.userPlan, it)
             }
-            data.trafficLimitBytes?.let { usageRepository.updateLimits(it, 0) }
-            data.trafficUsedBytes?.let {
-                usageRepository.updateUsage(it, usageRepository.getUsage().timeUsedSeconds)
-            }
-            vpnRepository.clearCachedServers()
-            vpnRepository.refreshServers(forceRefresh = true)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
+            current.copy(
+                userPlan = resolvedPlan ?: current.userPlan,
+                planDisplayName = planInfo?.displayName ?: current.planDisplayName,
+                planExpiresAt = planInfo?.expiresAtMillis ?: current.planExpiresAt,
+            )
         }
+        planInfo?.trafficLimitBytes?.let { usageRepository.updateLimits(it, 0) }
+
+        val newShortUuid = sessionDao.getSession()?.shortUuid
+        if (!oldShortUuid.isNullOrBlank() && oldShortUuid != newShortUuid) {
+            prefsDataStore.setCachedSubscriptionUrl(oldShortUuid, null)
+        }
+        val subscriptionUrl = data?.subscriptionUrl
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: planInfo?.subscriptionUrl
+        if (!newShortUuid.isNullOrBlank()) {
+            prefsDataStore.setCachedSubscriptionUrl(newShortUuid, subscriptionUrl)
+        }
+        vpnRepository.clearCachedServers()
+        runCatching { syncSubscription() }
+        runCatching { vpnRepository.refreshServers(forceRefresh = true) }
     }
 
     suspend fun isCurrentDeviceLinked(): Result<Boolean> = withContext(Dispatchers.IO) {
-        val aliases = getCurrentDeviceAliases().mapTo(mutableSetOf()) {
-            it.trim().lowercase(Locale.ROOT)
-        }
         return@withContext try {
-            runCatching { pingHwidOnly() }
-            val response = botApi.getDevices()
-            val data = response.data
-                ?: return@withContext Result.failure(
-                    IllegalStateException(response.message ?: "Could not load linked devices")
+            val response = botApi.getCurrentPlan()
+            if (response.success) {
+                runCatching { applyCurrentPlanHeartbeat(response.data) }
+                Result.success(true)
+            } else {
+                Result.failure(
+                    IllegalStateException(response.message ?: "Could not verify device session")
                 )
-            Result.success(
-                data.devices.any { device ->
-                    listOf(device.deviceId, device.hwid).any { value ->
-                        value?.trim()?.lowercase(Locale.ROOT) in aliases
-                    }
-                }
-            )
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private suspend fun applyCurrentPlanHeartbeat(data: CurrentPlanDto?) {
+        val planInfo = data?.toCurrentSubscriptionPlanInfo() ?: return
+        val sessionBefore = sessionDao.getSession() ?: return
+        val oldShortUuid = sessionBefore.shortUuid
+        val cachedUrl = oldShortUuid?.let { prefsDataStore.getCachedSubscriptionUrl(it) }
+        val nextUrl = planInfo.subscriptionUrl
+        val subscriptionUrlChanged = !nextUrl.isNullOrBlank() && nextUrl != cachedUrl
+
+        if (subscriptionUrlChanged) {
+            runCatching { bootstrapManager.bootstrap() }
+        }
+        sessionStore.update { current ->
+            val resolvedPlan = resolvePlanFromCurrentPlan(current.userPlan, planInfo)
+            current.copy(
+                userPlan = resolvedPlan,
+                planDisplayName = if (resolvedPlan == "EXPIRED") {
+                    null
+                } else {
+                    planInfo.displayName ?: current.planDisplayName
+                },
+                planExpiresAt = planInfo.expiresAtMillis,
+            )
+        }
+        planInfo.trafficLimitBytes?.let { usageRepository.updateLimits(it, 0) }
+
+        if (!subscriptionUrlChanged) return
+        val newShortUuid = sessionDao.getSession()?.shortUuid ?: oldShortUuid
+        if (!oldShortUuid.isNullOrBlank() && oldShortUuid != newShortUuid) {
+            prefsDataStore.setCachedSubscriptionUrl(oldShortUuid, null)
+        }
+        if (!newShortUuid.isNullOrBlank()) {
+            prefsDataStore.setCachedSubscriptionUrl(newShortUuid, nextUrl)
+        }
+        vpnRepository.clearCachedServers()
+        runCatching { syncSubscription() }
+        runCatching { vpnRepository.refreshServers(forceRefresh = true) }
     }
 
     suspend fun syncDeviceSessionState(): Result<Boolean> = withContext(Dispatchers.IO) {
@@ -400,20 +439,15 @@ class AuthRepository @Inject constructor(
             if (!hadLinkedIdentity) return@withContext Result.success(false)
 
             val isLinked = isCurrentDeviceLinked().getOrThrow()
-            if (!isLinked) {
-                clearLinkedIdentity()
-            }
             Result.success(isLinked)
         } catch (e: HttpException) {
             if (e.isRemoteDeviceUnlinkedError()) {
-                clearLinkedIdentity()
                 Result.success(false)
             } else {
                 Result.failure(e)
             }
         } catch (e: Exception) {
             if (e.isRemoteDeviceUnlinkedError()) {
-                clearLinkedIdentity()
                 Result.success(false)
             } else {
                 Result.failure(e)
@@ -421,7 +455,12 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    suspend fun clearRemoteUnlinkedSession() {
+        clearLinkedIdentity()
+    }
+
     private fun Throwable.isRemoteDeviceUnlinkedError(): Boolean {
+        if (this is HttpException && code() == 401) return true
         if (this is HttpException && code() !in setOf(400, 403)) return false
         val body = if (this is HttpException) {
             runCatching { response()?.errorBody()?.string() }.getOrDefault("")
@@ -437,6 +476,7 @@ class AuthRepository @Inject constructor(
     }
 
     private suspend fun clearLinkedIdentity() {
+        val oldShortUuid = sessionDao.getSession()?.shortUuid
         sessionStore.update { session ->
             session.copy(
                 authState = "UNAUTHENTICATED",
@@ -446,11 +486,20 @@ class AuthRepository @Inject constructor(
                 panelUserUuid = null,
                 userPlan = "FREE_TRIAL",
                 planDisplayName = null,
+                accessToken = null,
+                refreshToken = null,
+                accessExpiresAt = null,
+                refreshExpiresAt = null,
                 isLinked = false,
             )
         } ?: return
         usageRepository.updateUsage(0, 0)
         usageRepository.updateLimits(0, 0)
+        if (!oldShortUuid.isNullOrBlank()) {
+            prefsDataStore.setCachedSubscriptionUrl(oldShortUuid, null)
+        }
+        vpnRepository.clearCachedServers()
+        bootstrapManager.clear()
     }
 
     suspend fun getCurrentPlanLimits(): PlanLimitsInfo? = withContext(Dispatchers.IO) {

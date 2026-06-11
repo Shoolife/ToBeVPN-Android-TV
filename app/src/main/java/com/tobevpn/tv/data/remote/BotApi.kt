@@ -7,12 +7,12 @@ import com.tobevpn.tv.data.remote.dto.AuthStatusDto
 import com.tobevpn.tv.data.remote.dto.CurrentPlanDto
 import com.tobevpn.tv.data.remote.dto.DeviceRegisterRequestDto
 import com.tobevpn.tv.data.remote.dto.DeviceUnlinkRequestDto
+import com.tobevpn.tv.data.remote.dto.DeviceUnlinkResponseDto
 import com.tobevpn.tv.data.remote.dto.LinkedDevicesDto
 import com.tobevpn.tv.data.remote.dto.PanelNodeDto
 import com.tobevpn.tv.data.remote.dto.PanelResponse
 import com.tobevpn.tv.data.remote.dto.PanelUserDto
 import com.tobevpn.tv.data.remote.dto.PurchasePlansDto
-import com.tobevpn.tv.data.remote.dto.ResetSubscriptionDto
 import com.tobevpn.tv.data.remote.dto.TvPairCreateRequestDto
 import com.tobevpn.tv.data.remote.dto.TvPairCreateResponseDto
 import com.tobevpn.tv.data.remote.dto.TvPairStatusDto
@@ -38,7 +38,7 @@ interface BotApi {
     @POST("api/device/unlink")
     suspend fun unlinkDevice(
         @Body request: DeviceUnlinkRequestDto,
-    ): ApiResponse<Unit>
+    ): ApiResponse<DeviceUnlinkResponseDto>
 
     @POST("api/device/logout")
     suspend fun logoutDevice(): ApiResponse<Unit>
@@ -78,11 +78,6 @@ interface BotApi {
 
     @GET("api/panel/nodes")
     suspend fun getNodes(): PanelResponse<List<PanelNodeDto>>
-
-    @POST("api/panel/sub/{shortUuid}/reset")
-    suspend fun resetSubscription(
-        @Path("shortUuid") shortUuid: String,
-    ): ApiResponse<ResetSubscriptionDto>
 
     // Purchase / tariff plans
 

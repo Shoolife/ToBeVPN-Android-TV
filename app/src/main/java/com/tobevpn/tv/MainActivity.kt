@@ -18,6 +18,7 @@ import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.presentation.navigation.AppNavHost
+import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.Lazy
 import com.tobevpn.tv.presentation.splash.SplashScreen
 import com.tobevpn.tv.presentation.theme.ToBeVPNTvTheme
@@ -42,6 +43,9 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var authRepositoryLazy: Lazy<AuthRepository>
 
+    @Inject
+    lateinit var connectionManagerLazy: Lazy<VpnConnectionManager>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -58,7 +62,11 @@ class MainActivity : AppCompatActivity() {
                         authRepository.syncSubscription()
                         true
                     }
-                    false -> false
+                    false -> {
+                        connectionManagerLazy.get().stopVpn()
+                        authRepository.clearRemoteUnlinkedSession()
+                        false
+                    }
                     null -> {
                         val fallbackLinked = sessionDao.getSession()?.authState == "AUTHENTICATED"
                         if (fallbackLinked) {

@@ -110,17 +110,6 @@ data class CurrentPlanSubscriptionDto(
     val url: String? = null,
 )
 
-data class ResetSubscriptionDto(
-    @SerializedName("short_uuid") val shortUuid: String? = null,
-    @SerializedName("panel_user_uuid") val panelUserUuid: String? = null,
-    @SerializedName("traffic_limit_bytes") val trafficLimitBytes: Long? = null,
-    @SerializedName("traffic_used_bytes") val trafficUsedBytes: Long? = null,
-    @SerializedName("anon_traffic_bytes") val anonTrafficBytes: Long? = null,
-    @SerializedName("max_devices") val maxDevices: Int? = null,
-    @SerializedName("telegram_id") val telegramId: Long? = null,
-    @SerializedName("subscription_url") val subscriptionUrl: String? = null,
-)
-
 data class DeviceRegisterRequestDto(
     @SerializedName("device_name") val deviceName: String,
     @SerializedName("device_type") val deviceType: String,
@@ -147,6 +136,16 @@ data class LinkedDevicesDto(
 
 data class DeviceUnlinkRequestDto(
     @SerializedName("device_id") val deviceId: String,
+)
+
+data class DeviceUnlinkResponseDto(
+    @SerializedName("remaining_devices") val remainingDevices: Int? = null,
+    @SerializedName("subscription_url") val subscriptionUrl: String? = null,
+    @SerializedName("bot_subscription_updated") val botSubscriptionUpdated: Boolean? = null,
+    @SerializedName("bot_subscription_changed") val botSubscriptionChanged: Boolean? = null,
+    @SerializedName("linked_devices_updated") val linkedDevicesUpdated: Int? = null,
+    @SerializedName("current_plan") val currentPlan: CurrentPlanSnapshotDto? = null,
+    val subscription: CurrentPlanSubscriptionDto? = null,
 )
 
 // Servers
