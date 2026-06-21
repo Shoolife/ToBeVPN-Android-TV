@@ -2,8 +2,11 @@ package com.tobevpn.tv.presentation.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tobevpn.tv.data.repository.AppFilterRepository
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.data.repository.VpnRepository
+import com.tobevpn.tv.domain.model.AppFilterMode
+import com.tobevpn.tv.domain.model.AppFilterState
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.util.LocaleManager
@@ -23,10 +26,18 @@ class SettingsViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val vpnRepository: VpnRepository,
     private val connectionManager: VpnConnectionManager,
+    appFilterRepository: AppFilterRepository,
 ) : ViewModel() {
 
     val authState: StateFlow<AuthState> = authRepository.observeAuthState()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AuthState.Unauthenticated)
+
+    val appFilterState: StateFlow<AppFilterState> = appFilterRepository.observeState()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            AppFilterState(AppFilterMode.OFF, emptySet()),
+        )
 
     val xrayVersion: String = XRayCore.getVersion()
 

@@ -17,6 +17,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.tobevpn.tv.domain.model.AuthState
+import com.tobevpn.tv.presentation.appfilter.AppFilterScreen
 import com.tobevpn.tv.presentation.devices.DevicesScreen
 import com.tobevpn.tv.presentation.main.MainScreen
 import com.tobevpn.tv.presentation.onboarding.OnboardingScreen
@@ -152,6 +153,12 @@ fun AppNavHost(
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateToDevices = { navController.navigate(DevicesRoute) },
+                onNavigateToAppFilter = { navController.navigate(AppFilterRoute) },
+            )
+        }
+        composable<AppFilterRoute> {
+            AppFilterScreen(
+                onBack = { navController.popBackStack() },
             )
         }
         composable<DevicesRoute> {

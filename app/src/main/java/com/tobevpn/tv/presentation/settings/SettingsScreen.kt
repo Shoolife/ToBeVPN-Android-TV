@@ -1,12 +1,22 @@
 package com.tobevpn.tv.presentation.settings
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,12 +40,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +63,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
+import com.tobevpn.tv.domain.model.AppFilterMode
+import com.tobevpn.tv.domain.model.AppFilterState
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
@@ -62,12 +78,24 @@ import com.tobevpn.tv.presentation.theme.VpnRed
 fun SettingsScreen(
     onBack: () -> Unit,
     onNavigateToDevices: () -> Unit = {},
+    onNavigateToAppFilter: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
+    val appFilterState by viewModel.appFilterState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pendingLanguage by remember { mutableStateOf<String?>(null) }
+    var settingsPage by remember { mutableStateOf(0) }
+    var keepPageIndicatorFocus by remember { mutableStateOf(false) }
+    val pageFocusRequesters = remember { List(2) { FocusRequester() } }
+
+    LaunchedEffect(settingsPage, keepPageIndicatorFocus) {
+        if (keepPageIndicatorFocus) {
+            withFrameNanos { }
+            runCatching { pageFocusRequesters.getOrNull(settingsPage)?.requestFocus() }
+        }
+    }
 
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize(),
@@ -141,12 +169,37 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(cardPad))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-            ) {
+            AnimatedContent(
+                targetState = settingsPage,
+                transitionSpec = {
+                    val direction = if (targetState > initialState) 1 else -1
+                    (
+                        slideInHorizontally(
+                            animationSpec = tween(260),
+                            initialOffsetX = { fullWidth -> fullWidth * direction },
+                        ) + fadeIn(animationSpec = tween(180))
+                        ).togetherWith(
+                        slideOutHorizontally(
+                            animationSpec = tween(260),
+                            targetOffsetX = { fullWidth -> -fullWidth * direction },
+                        ) + fadeOut(animationSpec = tween(180)),
+                    )
+                },
+                label = "settings-page",
+            ) { page ->
+                if (page == 0) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Max),
+                        verticalAlignment = Alignment.Top,
+                    ) {
                 // Left column: Account + Language
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                ) {
                     // Account card
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -291,42 +344,86 @@ fun SettingsScreen(
                     if (authState is AuthState.Authenticated) {
                         Spacer(modifier = Modifier.height(cardSpacing))
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
                             shape = RoundedCornerShape(cardCorner),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                             ),
                         ) {
-                            Column(modifier = Modifier.padding(cardPad)) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(cardPad),
+                            ) {
                                 Text(
                                     stringResource(R.string.devices_title),
                                     fontSize = titleSize,
                                     fontWeight = FontWeight.SemiBold,
                                     style = tightStyle,
                                 )
-                                Spacer(modifier = Modifier.height(smallGap))
-                                Text(
-                                    stringResource(R.string.devices_manage_hint),
-                                    fontSize = bodySize,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = tightStyle,
-                                )
-                                Spacer(modifier = Modifier.height(gap))
-                                AccountActionButton(
-                                    label = stringResource(R.string.devices_manage),
-                                    onClick = onNavigateToDevices,
-                                    contentColor = MaterialTheme.colorScheme.onBackground,
-                                    bodySize = bodySize,
-                                    scale = scale,
-                                    buttonPadH = buttonPadH,
-                                    buttonPadV = buttonPadV,
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    verticalArrangement = Arrangement.Center,
+                                ) {
+                                    Text(
+                                        stringResource(R.string.devices_manage_hint),
+                                        fontSize = bodySize,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = tightStyle,
+                                    )
+                                    Spacer(modifier = Modifier.height(gap))
+                                    AccountActionButton(
+                                        label = stringResource(R.string.devices_manage),
+                                        onClick = onNavigateToDevices,
+                                        contentColor = MaterialTheme.colorScheme.onBackground,
+                                        bodySize = bodySize,
+                                        scale = scale,
+                                        buttonPadH = buttonPadH,
+                                        buttonPadV = buttonPadV,
+                                    )
+                                }
                             }
                         }
                     }
                 }
+                    }
+                } else {
+                    SettingsAppsPage(
+                        appFilterState = appFilterState,
+                        onNavigateToAppFilter = onNavigateToAppFilter,
+                        cardPad = cardPad,
+                        cardCorner = cardCorner,
+                        cardSpacing = cardSpacing,
+                        titleSize = titleSize,
+                        bodySize = bodySize,
+                        buttonPadH = buttonPadH,
+                        buttonPadV = buttonPadV,
+                        scale = scale,
+                        tightStyle = tightStyle,
+                    )
+                }
             }
+
         }
+
+        SettingsPageIndicator(
+            currentPage = settingsPage,
+            pageCount = 2,
+            focusRequesters = pageFocusRequesters,
+            onPageSelected = {
+                keepPageIndicatorFocus = true
+                settingsPage = it
+            },
+            scale = scale,
+            bodySize = (15 * scale).sp,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = (12 * scale).dp),
+        )
 
         val pending = pendingLanguage
         if (pending != null) {
@@ -376,6 +473,161 @@ fun SettingsScreen(
 }
 
 @Composable
+private fun SettingsAppsPage(
+    appFilterState: AppFilterState,
+    onNavigateToAppFilter: () -> Unit,
+    cardPad: androidx.compose.ui.unit.Dp,
+    cardCorner: androidx.compose.ui.unit.Dp,
+    cardSpacing: androidx.compose.ui.unit.Dp,
+    titleSize: androidx.compose.ui.unit.TextUnit,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    buttonPadH: androidx.compose.ui.unit.Dp,
+    buttonPadV: androidx.compose.ui.unit.Dp,
+    scale: Float,
+    tightStyle: TextStyle,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(cardCorner),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(cardPad)) {
+                    Text(
+                        stringResource(R.string.settings_app_filter),
+                        fontSize = titleSize,
+                        fontWeight = FontWeight.SemiBold,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((8 * scale).dp))
+                    Text(
+                        stringResource(R.string.settings_app_filter_hint),
+                        fontSize = bodySize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((14 * scale).dp))
+                    Text(
+                        appFilterSummary(appFilterState),
+                        fontSize = bodySize,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((18 * scale).dp))
+                    AccountActionButton(
+                        label = stringResource(R.string.settings_app_filter_manage),
+                        onClick = onNavigateToAppFilter,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        bodySize = bodySize,
+                        scale = scale,
+                        buttonPadH = buttonPadH,
+                        buttonPadV = buttonPadV,
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(cardSpacing))
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun appFilterSummary(state: AppFilterState): String =
+    when (state.mode) {
+        AppFilterMode.OFF -> stringResource(R.string.app_filter_subtitle_off)
+        AppFilterMode.WHITELIST -> stringResource(R.string.app_filter_subtitle_whitelist, state.selectedPackages.size)
+        AppFilterMode.BLACKLIST -> stringResource(R.string.app_filter_subtitle_blacklist, state.selectedPackages.size)
+    }
+
+@Composable
+private fun SettingsPageIndicator(
+    currentPage: Int,
+    pageCount: Int,
+    focusRequesters: List<FocusRequester>,
+    onPageSelected: (Int) -> Unit,
+    scale: Float,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(pageCount) { index ->
+            if (index > 0) Spacer(modifier = Modifier.width((8 * scale).dp))
+            PageIndicatorButton(
+                label = "${index + 1}",
+                selected = index == currentPage,
+                focusRequester = focusRequesters.getOrNull(index),
+                onClick = { onPageSelected(index) },
+                scale = scale,
+                bodySize = bodySize,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PageIndicatorButton(
+    label: String,
+    selected: Boolean,
+    focusRequester: FocusRequester?,
+    onClick: () -> Unit,
+    scale: Float,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape((8 * scale).dp)
+    val size = (42 * scale).dp
+    val modifier = Modifier
+        .size(size)
+        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+        .then(
+            if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+            else Modifier
+        )
+        .onFocusChanged { focused = it.isFocused }
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
+    ) {
+        if (selected) {
+            Button(
+                onClick = onClick,
+                modifier = modifier,
+                shape = shape,
+                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VpnGreen,
+                    contentColor = Color.Black,
+                ),
+            ) {
+                Text(label, fontSize = bodySize, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            OutlinedButton(
+                onClick = onClick,
+                modifier = modifier,
+                shape = shape,
+                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                ),
+            ) {
+                Text(label, fontSize = bodySize, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
 private fun AccountActionButton(
     label: String,
     onClick: () -> Unit,
@@ -387,20 +639,24 @@ private fun AccountActionButton(
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape((10 * scale).dp)
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier
-            .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-            .then(
-                if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
-                else Modifier
-            )
-            .onFocusChanged { focused = it.isFocused },
-        shape = shape,
-        contentPadding = PaddingValues(horizontal = buttonPadH, vertical = buttonPadV),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
     ) {
-        Text(label, fontSize = bodySize)
+        OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier
+                .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                .then(
+                    if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+                    else Modifier
+                )
+                .onFocusChanged { focused = it.isFocused },
+            shape = shape,
+            contentPadding = PaddingValues(horizontal = buttonPadH, vertical = buttonPadV),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
+        ) {
+            Text(label, fontSize = bodySize)
+        }
     }
 }
 
@@ -414,42 +670,46 @@ private fun LanguageChip(
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape((10 * scale).dp)
-    if (selected) {
-        Button(
-            onClick = onClick,
-            modifier = Modifier
-                .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                .then(
-                    if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
-                    else Modifier
-                )
-                .onFocusChanged { focused = it.isFocused },
-            shape = shape,
-            contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = VpnGreen,
-                contentColor = Color.Black,
-            ),
-        ) {
-            Text(label, fontSize = bodySize)
-        }
-    } else {
-        OutlinedButton(
-            onClick = onClick,
-            modifier = Modifier
-                .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                .then(
-                    if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
-                    else Modifier
-                )
-                .onFocusChanged { focused = it.isFocused },
-            shape = shape,
-            contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.onBackground,
-            ),
-        ) {
-            Text(label, fontSize = bodySize)
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
+    ) {
+        if (selected) {
+            Button(
+                onClick = onClick,
+                modifier = Modifier
+                    .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                    .then(
+                        if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+                        else Modifier
+                    )
+                    .onFocusChanged { focused = it.isFocused },
+                shape = shape,
+                contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VpnGreen,
+                    contentColor = Color.Black,
+                ),
+            ) {
+                Text(label, fontSize = bodySize)
+            }
+        } else {
+            OutlinedButton(
+                onClick = onClick,
+                modifier = Modifier
+                    .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                    .then(
+                        if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+                        else Modifier
+                    )
+                    .onFocusChanged { focused = it.isFocused },
+                shape = shape,
+                contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                ),
+            ) {
+                Text(label, fontSize = bodySize)
+            }
         }
     }
 }

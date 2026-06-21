@@ -15,6 +15,9 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import com.tobevpn.tv.MainActivity
 import com.tobevpn.tv.R
+import com.tobevpn.tv.data.repository.AppFilterRepository
+import com.tobevpn.tv.domain.model.AppFilterMode
+import com.tobevpn.tv.domain.model.AppFilterState
 import com.tobevpn.tv.domain.model.ConnectionState
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -32,6 +35,9 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
 
     @Inject
     lateinit var connectionManager: VpnConnectionManager
+
+    @Inject
+    lateinit var appFilterRepository: AppFilterRepository
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
@@ -128,7 +134,8 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         }
     }
 
-    private fun setupTunInterface(): ParcelFileDescriptor? {
+    private suspend fun setupTunInterface(): ParcelFileDescriptor? {
+        val filter = appFilterRepository.getSnapshot()
         val builder = Builder()
             .setSession("ToBeVPN")
             .setMtu(1500)
@@ -140,13 +147,37 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
             .addDnsServer("8.8.8.8")
             .addDnsServer("2606:4700:4700::1111")
             .addDnsServer("2001:4860:4860::8888")
-        // Exclude our own process so VPN traffic doesn't recurse through the
-        // tunnel. TV has no per-app split tunneling.
+        applyAppFilter(builder, filter)
+        return builder.establish()
+    }
+
+    private fun applyAppFilter(builder: Builder, state: AppFilterState) {
+        when (state.mode) {
+            AppFilterMode.OFF -> {
+                tryDisallow(builder, packageName)
+            }
+            AppFilterMode.WHITELIST -> {
+                state.selectedPackages.forEach { tryAllow(builder, it) }
+            }
+            AppFilterMode.BLACKLIST -> {
+                tryDisallow(builder, packageName)
+                state.selectedPackages.forEach { tryDisallow(builder, it) }
+            }
+        }
+    }
+
+    private fun tryAllow(builder: Builder, pkg: String) {
         try {
-            builder.addDisallowedApplication(packageName)
+            builder.addAllowedApplication(pkg)
         } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
         }
-        return builder.establish()
+    }
+
+    private fun tryDisallow(builder: Builder, pkg: String) {
+        try {
+            builder.addDisallowedApplication(pkg)
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+        }
     }
 
     /**

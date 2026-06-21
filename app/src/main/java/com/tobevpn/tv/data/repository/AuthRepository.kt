@@ -22,6 +22,7 @@ import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -120,13 +121,80 @@ class AuthRepository @Inject constructor(
         val deviceLimit: Int,
     )
 
+    private fun normalizedSquadName(name: String): String =
+        name.trim().uppercase(Locale.ROOT)
+
+    private fun isAdminSquadName(name: String): Boolean =
+        name.contains("ADMIN") || name.contains("АДМИН")
+
+    private fun isTrialSquadName(name: String): Boolean =
+        name.contains("TRIAL") ||
+            name.contains("FREE") ||
+            name.contains("БЕСПЛАТ") ||
+            name.contains("ПРОБ")
+
+    private fun isPaidSquadName(name: String): Boolean =
+        name == "STANDART" ||
+            name == "STANDARD" ||
+            name.contains("STANDART") ||
+            name.contains("STANDARD") ||
+            name.contains("СТАНДАРТ") ||
+            name.contains("CORP") ||
+            name.contains("КОРП") ||
+            name.contains("BUSINESS") ||
+            name.contains("БИЗНЕС") ||
+            name.contains("PAID") ||
+            name.contains("PREMIUM") ||
+            name.contains("VIP") ||
+            name.contains("UNLIMIT") ||
+            name.contains("БЕЗЛИМИТ")
+
     private fun planForPanelUser(panelUser: com.tobevpn.tv.data.remote.dto.PanelUserDto): String {
-        val squads = panelUser.activeInternalSquads.map { it.name.uppercase(Locale.US) }
+        val squads = panelUser.activeInternalSquads.map { normalizedSquadName(it.name) }
         return when {
-            "ADMINS" in squads -> "ADMIN"
-            "STANDART" in squads -> "PAID"
+            squads.any(::isAdminSquadName) -> "ADMIN"
+            squads.any(::isPaidSquadName) -> "PAID"
+            squads.none(::isTrialSquadName) && panelUser.trafficLimitStrategy.equals("MONTH", ignoreCase = true) -> "PAID"
             else -> "FREE_TRIAL"
         }
+    }
+
+    private fun panelPlanDisplayName(
+        panelUser: com.tobevpn.tv.data.remote.dto.PanelUserDto,
+        plan: String,
+    ): String? {
+        if (plan != "PAID") return null
+        return panelUser.activeInternalSquads
+            .map { it.name.trim() }
+            .firstOrNull { it.isNotBlank() && isPaidSquadName(normalizedSquadName(it)) }
+    }
+
+    private fun mergeCurrentAndPanelPlan(
+        currentPlan: String,
+        currentPlanInfo: CurrentSubscriptionPlanInfo?,
+        panelPlan: String?,
+    ): String {
+        if (panelPlan == null) return currentPlan
+        if (panelPlan == "EXPIRED" && currentPlanInfo?.hasPlanData != true) return "EXPIRED"
+        if (
+            currentPlanInfo?.hasPlanData == true &&
+            (currentPlanInfo.isExpired == true || currentPlanInfo.isActive == false || currentPlanInfo.isTrial == true)
+        ) {
+            return currentPlan
+        }
+        val currentRank = when (currentPlan) {
+            "ADMIN" -> 3
+            "PAID" -> 2
+            "FREE_TRIAL" -> 1
+            else -> 0
+        }
+        val panelRank = when (panelPlan) {
+            "ADMIN" -> 3
+            "PAID" -> 2
+            "FREE_TRIAL" -> 1
+            else -> 0
+        }
+        return if (panelRank > currentRank) panelPlan else currentPlan
     }
 
     private fun parsePanelExpireAtMillis(value: String?): Long {
@@ -166,15 +234,31 @@ class AuthRepository @Inject constructor(
 
     private suspend fun getCurrentSubscriptionPlan(): CurrentSubscriptionPlanInfo? {
         return try {
-            val response = botApi.getCurrentPlan()
-            if (response.success) {
-                response.data?.toCurrentSubscriptionPlanInfo()
-            } else {
-                null
+            withFreshDeviceSessionRetry {
+                val response = botApi.getCurrentPlan()
+                if (response.success) {
+                    response.data?.toCurrentSubscriptionPlanInfo()
+                } else {
+                    null
+                }
             }
         } catch (_: Exception) {
             null
         }
+    }
+
+    private suspend fun <T> withFreshDeviceSessionRetry(block: suspend () -> T): T {
+        return try {
+            block()
+        } catch (error: Exception) {
+            if (!error.isDeviceSessionAuthFailure()) throw error
+            runCatching { bootstrapManager.bootstrap() }.getOrElse { throw error }
+            block()
+        }
+    }
+
+    private fun Throwable.isDeviceSessionAuthFailure(): Boolean {
+        return this is HttpException && (code() == 401 || code() == 403)
     }
 
     private fun CurrentPlanDto.toCurrentSubscriptionPlanInfo(): CurrentSubscriptionPlanInfo {
@@ -240,7 +324,7 @@ class AuthRepository @Inject constructor(
 
     private fun resolvePlanFromCurrentPlan(cachedPlan: String, currentPlanInfo: CurrentSubscriptionPlanInfo?): String {
         if (currentPlanInfo == null) return cachedPlan
-        if (!currentPlanInfo.hasPlanData) return "FREE_TRIAL"
+        if (!currentPlanInfo.hasPlanData) return cachedPlan
         return when {
             currentPlanInfo.isExpired == true || currentPlanInfo.isActive == false -> "EXPIRED"
             currentPlanInfo.isTrial == true -> "FREE_TRIAL"
@@ -249,19 +333,27 @@ class AuthRepository @Inject constructor(
     }
 
     fun observeAuthState(): Flow<AuthState> {
-        return sessionDao.observeSession().map { session ->
-            if (session?.authState == "AUTHENTICATED" && session.telegramId != null) {
-                val plan = UserPlan.entries.find { it.name == session.userPlan } ?: UserPlan.FREE_TRIAL
-                AuthState.Authenticated(
-                    telegramId = session.telegramId,
-                    plan = plan,
-                    planExpiresAt = session.planExpiresAt,
-                    planDisplayName = session.planDisplayName,
-                )
-            } else {
-                AuthState.Unauthenticated
-            }
-        }.distinctUntilChanged()
+        return sessionDao.observeSession()
+            .map(::sessionToAuthState)
+            .distinctUntilChanged()
+    }
+
+    suspend fun getAuthStateSnapshot(): AuthState = withContext(Dispatchers.IO) {
+        sessionToAuthState(sessionDao.getSession())
+    }
+
+    private fun sessionToAuthState(session: SessionEntity?): AuthState {
+        return if (session?.authState == "AUTHENTICATED" && session.telegramId != null) {
+            val plan = UserPlan.entries.find { it.name == session.userPlan } ?: UserPlan.FREE_TRIAL
+            AuthState.Authenticated(
+                telegramId = session.telegramId,
+                plan = plan,
+                planExpiresAt = session.planExpiresAt,
+                planDisplayName = session.planDisplayName,
+            )
+        } else {
+            AuthState.Unauthenticated
+        }
     }
 
     suspend fun getOrCreateDeviceId(): String = deviceIdProvider.getOrCreate()
@@ -583,11 +675,13 @@ class AuthRepository @Inject constructor(
                     val telegramId = data.telegramId ?: return@withContext Result.failure(
                         IllegalStateException("Auth completed without telegram_id")
                     )
-                    applyAuthenticatedDevice(
-                        telegramId = telegramId,
-                        shortUuid = data.shortUuid,
-                        panelUserUuid = data.panelUserUuid,
-                    )
+                    withContext(NonCancellable) {
+                        applyAuthenticatedDevice(
+                            telegramId = telegramId,
+                            shortUuid = data.shortUuid,
+                            panelUserUuid = data.panelUserUuid,
+                        )
+                    }
                     Result.success(true)
                 }
                 "expired" -> Result.failure(IllegalStateException("expired"))
@@ -613,11 +707,13 @@ class AuthRepository @Inject constructor(
                         val telegramId = data.telegramId ?: return@withContext Result.failure(
                             IllegalStateException("Pairing completed without telegram_id")
                         )
-                        applyAuthenticatedDevice(
-                            telegramId = telegramId,
-                            shortUuid = data.shortUuid,
-                            panelUserUuid = data.panelUserUuid,
-                        )
+                        withContext(NonCancellable) {
+                            applyAuthenticatedDevice(
+                                telegramId = telegramId,
+                                shortUuid = data.shortUuid,
+                                panelUserUuid = data.panelUserUuid,
+                            )
+                        }
                         Result.success(DevicePairingPollResult.Completed)
                     }
                     "expired" -> Result.success(DevicePairingPollResult.Expired)
@@ -659,11 +755,14 @@ class AuthRepository @Inject constructor(
                 preferredShortUuid = shortUuid ?: seeded.shortUuid,
             )
             if (panelUser != null) {
+                val panelPlan = planForPanelUser(panelUser)
                 sessionStore.update { current ->
                     current.copy(
                         panelUserUuid = panelUser.uuid,
                         shortUuid = panelUser.shortUuid,
-                        userPlan = planForPanelUser(panelUser),
+                        userPlan = panelPlan,
+                        planDisplayName = panelPlanDisplayName(panelUser, panelPlan)
+                            ?: current.planDisplayName,
                     )
                 }
             }
@@ -724,12 +823,19 @@ class AuthRepository @Inject constructor(
                 }
             }
 
+            val panelPlan = panelUser?.let { panel ->
+                if (panel.status.uppercase(Locale.US) != "ACTIVE") "EXPIRED" else planForPanelUser(panel)
+            }
             val plan = if (currentPlanInfo != null) {
-                resolvePlanFromCurrentPlan(session.userPlan, currentPlanInfo)
+                mergeCurrentAndPanelPlan(
+                    currentPlan = resolvePlanFromCurrentPlan(session.userPlan, currentPlanInfo),
+                    currentPlanInfo = currentPlanInfo,
+                    panelPlan = panelPlan,
+                )
             } else if (panelUser != null) {
                 when {
                     panelUser.status.uppercase(Locale.US) != "ACTIVE" -> "EXPIRED"
-                    planForPanelUser(panelUser) != "FREE_TRIAL" -> planForPanelUser(panelUser)
+                    panelPlan != "FREE_TRIAL" -> panelPlan ?: "FREE_TRIAL"
                     panelUser.trafficLimitStrategy.uppercase(Locale.US) == "MONTH" -> "PAID"
                     session.userPlan == "PAID" || session.userPlan == "ADMIN" -> session.userPlan
                     else -> "FREE_TRIAL"
@@ -747,6 +853,7 @@ class AuthRepository @Inject constructor(
                 current.copy(
                     userPlan = plan,
                     planDisplayName = currentPlanInfo?.displayName
+                        ?: panelUser?.let { panelPlanDisplayName(it, plan) }
                         ?: session.planDisplayName?.takeIf { session.userPlan == plan && plan != "EXPIRED" },
                     planExpiresAt = currentPlanInfo?.expiresAtMillis ?: panelExpiresAt,
                 )

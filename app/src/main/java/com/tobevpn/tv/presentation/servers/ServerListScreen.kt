@@ -298,6 +298,7 @@ private fun AutomaticServerItem(
                 selected -> VpnGreen.copy(alpha = 0.16f)
                 else -> MaterialTheme.colorScheme.surfaceVariant
             },
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
     ) {
         Row(
@@ -380,6 +381,7 @@ private fun ServerItem(
                 selected -> VpnGreen.copy(alpha = 0.16f)
                 else -> MaterialTheme.colorScheme.surfaceVariant
             },
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
     ) {
         Row(

@@ -36,6 +36,8 @@ class PrefsDataStore @Inject constructor(
         val SUBSCRIPTION_URL_OWNER = stringPreferencesKey("subscription_url_owner")
         val SUBSCRIPTION_URL_VALUE = stringPreferencesKey("subscription_url_value")
         val BLOCKED_SUBSCRIPTION_OWNER = stringPreferencesKey("blocked_subscription_owner")
+        val APP_FILTER_MODE = stringPreferencesKey("app_filter_mode")
+        val APP_FILTER_PACKAGES = stringPreferencesKey("app_filter_packages")
         // Scope the persisted block to the installed build. After an update,
         // a block recorded by the previous version must not lock the new
         // version before it can read the current minimum-version header.
@@ -193,8 +195,45 @@ class PrefsDataStore @Inject constructor(
             .distinctUntilChanged()
     }
 
+    val appFilterMode: Flow<String?> = context.dataStore.data.map { it[Keys.APP_FILTER_MODE] }
+    val appFilterPackages: Flow<Set<String>?> = context.dataStore.data.map {
+        it[Keys.APP_FILTER_PACKAGES]?.let(::decodeAppFilterPackages)
+    }
+
+    suspend fun getAppFilterMode(): String? {
+        return context.dataStore.data.first()[Keys.APP_FILTER_MODE]
+    }
+
+    suspend fun setAppFilterMode(mode: String) {
+        context.dataStore.edit { it[Keys.APP_FILTER_MODE] = mode }
+    }
+
+    suspend fun getAppFilterPackages(): Set<String>? {
+        return context.dataStore.data.first()[Keys.APP_FILTER_PACKAGES]?.let(::decodeAppFilterPackages)
+    }
+
+    suspend fun setAppFilterPackages(packageNames: Collection<String>) {
+        context.dataStore.edit {
+            it[Keys.APP_FILTER_PACKAGES] = encodeAppFilterPackages(packageNames)
+        }
+    }
+
     private fun cacheOwnerHash(value: String): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
         return bytes.joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
     }
+
+    private fun encodeAppFilterPackages(packageNames: Collection<String>): String =
+        packageNames.asSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+            .joinToString(separator = "\n")
+
+    private fun decodeAppFilterPackages(raw: String): Set<String> =
+        raw.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toSet()
 }

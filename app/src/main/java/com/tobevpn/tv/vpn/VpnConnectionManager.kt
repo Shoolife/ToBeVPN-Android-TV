@@ -10,10 +10,12 @@ import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.local.dao.TrafficLogDao
 import com.tobevpn.tv.data.local.entity.TrafficLogEntity
+import com.tobevpn.tv.data.repository.AppFilterRepository
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.data.repository.ServerQualityRepository
 import com.tobevpn.tv.data.repository.UsageRepository
 import com.tobevpn.tv.data.repository.VpnRepository
+import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.domain.model.UsageInfo
@@ -52,6 +54,7 @@ class VpnConnectionManager @Inject constructor(
     private val authRepository: AuthRepository,
     private val vpnRepository: VpnRepository,
     private val serverQualityRepository: ServerQualityRepository,
+    private val appFilterRepository: AppFilterRepository,
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val mutex = Mutex()
@@ -95,6 +98,41 @@ class VpnConnectionManager @Inject constructor(
 
     init {
         scope.launch { usageRepository.ensureInitialized() }
+        scope.launch { observeAppFilterAndReconnect() }
+    }
+
+    private suspend fun observeAppFilterAndReconnect() {
+        val filterEmptyMsg = context.getString(R.string.app_filter_empty_warning)
+        var firstEmission = true
+        var lastSnapshot: com.tobevpn.tv.domain.model.AppFilterState? = null
+        appFilterRepository.observeState().collect { state ->
+            if (firstEmission) {
+                firstEmission = false
+                lastSnapshot = state
+                return@collect
+            }
+            if (state == lastSnapshot) return@collect
+            lastSnapshot = state
+
+            val pre = _connectionState.value
+            if (pre is ConnectionState.Error && pre.message == filterEmptyMsg) {
+                _connectionState.value = ConnectionState.Disconnected
+            }
+
+            val current = _connectionState.value
+            if (current !is ConnectionState.Connected && current !is ConnectionState.Connecting) {
+                return@collect
+            }
+
+            delay(600)
+            if (lastSnapshot != state) return@collect
+            val server = _currentServer.value ?: return@collect
+            if (state.mode == AppFilterMode.WHITELIST && state.selectedPackages.isEmpty()) {
+                stopVpn()
+                return@collect
+            }
+            switchServer(server)
+        }
     }
 
     private suspend fun isPaidUser(): Boolean {
@@ -158,6 +196,14 @@ class VpnConnectionManager @Inject constructor(
                     return@launch
                 }
 
+                val filterCheck = appFilterRepository.getSnapshot()
+                if (filterCheck.mode == AppFilterMode.WHITELIST && filterCheck.selectedPackages.isEmpty()) {
+                    _connectionState.value = ConnectionState.Error(
+                        context.getString(R.string.app_filter_empty_warning),
+                    )
+                    onAttemptHandled?.invoke()
+                    return@launch
+                }
 
                 gen = advanceGeneration()
                 if (resetWatchdogRecovery) {

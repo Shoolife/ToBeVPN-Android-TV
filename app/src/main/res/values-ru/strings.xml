@@ -97,6 +97,27 @@
     <string name="language_restart_message">Для применения нового языка необходимо перезапустить приложение.</string>
     <string name="language_restart_button">Перезапустить</string>
     <string name="cancel">Отмена</string>
+    <string name="settings_page">Страница %1$d из %2$d</string>
+    <string name="settings_app_filter">Приложения VPN</string>
+    <string name="settings_app_filter_hint">Выберите, в каких приложениях работает VPN</string>
+    <string name="settings_app_filter_manage">Настроить</string>
+    <string name="app_filter_title">Приложения VPN</string>
+    <string name="app_filter_mode_off">Все приложения</string>
+    <string name="app_filter_mode_whitelist">Только выбранные</string>
+    <string name="app_filter_mode_blacklist">Кроме выбранных</string>
+    <string name="app_filter_subtitle_off">Все приложения идут через VPN</string>
+    <string name="app_filter_subtitle_whitelist">Только выбранные: %1$d</string>
+    <string name="app_filter_subtitle_blacklist">Кроме выбранных: %1$d</string>
+    <string name="app_filter_show_system">Системные</string>
+    <string name="app_filter_select_all">Выбрать все</string>
+    <string name="app_filter_clear_all">Очистить</string>
+    <string name="app_filter_selected_count">Выбрано: %1$d из %2$d</string>
+    <string name="app_filter_off_explainer">Все приложения на этом TV используют VPN. Выберите другой режим, чтобы указать конкретные приложения.</string>
+    <string name="app_filter_empty_warning">Выберите хотя бы одно приложение — иначе через VPN ничего не пойдёт.</string>
+    <string name="app_filter_reconnect_hint">VPN переподключится для применения изменений</string>
+    <string name="app_filter_loading">Загружаем список приложений…</string>
+    <string name="app_filter_badge_vpn">VPN</string>
+    <string name="app_filter_badge_bypass">Мимо VPN</string>
 
     <!-- Подключённые устройства -->
     <string name="devices_title">Устройства</string>
