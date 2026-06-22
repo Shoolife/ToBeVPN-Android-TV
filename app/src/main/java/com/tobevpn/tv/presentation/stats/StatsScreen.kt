@@ -76,6 +76,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.local.dao.TrafficStat
 import com.tobevpn.tv.presentation.rememberTvScreenScale
+import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import java.text.SimpleDateFormat
@@ -149,19 +150,11 @@ fun StatsScreen(
                 .padding(screenPad),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                var backFocused by remember { mutableStateOf(false) }
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
-                ) {
-                    IconButton(
+                    TvHeaderIconButton(
                         onClick = onBack,
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (backFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(backCorner))
-                                else Modifier
-                            )
-                            .onFocusChanged { backFocused = it.isFocused },
+                        modifier = Modifier.size(headerButtonSize),
+                        shape = RoundedCornerShape(backCorner),
+                        borderWidth = borderWidth,
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
@@ -170,7 +163,6 @@ fun StatsScreen(
                             tint = headerColor,
                         )
                     }
-                }
                 Spacer(modifier = Modifier.width(gap))
                 Text(
                     stringResource(R.string.stats_title),
@@ -316,7 +308,7 @@ private fun StatsPeriodChip(
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
     }
     val textColor = if (selected) {
-        Color.White
+        MaterialTheme.colorScheme.onSurface
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -326,7 +318,7 @@ private fun StatsPeriodChip(
             .clip(shape)
             .background(containerColor)
             .then(
-                if (isFocused) Modifier.border(borderWidth, Color.White, shape)
+                if (isFocused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, shape)
                 else Modifier
             )
             .onFocusChanged { isFocused = it.isFocused }
@@ -372,6 +364,11 @@ private fun HeroStatsCard(
     heroDividerHeight: androidx.compose.ui.unit.Dp,
     tightStyle: TextStyle,
 ) {
+    val heroContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val heroLabelColor = heroContentColor.copy(alpha = 0.72f)
+    val heroSecondaryLabelColor = heroContentColor.copy(alpha = 0.56f)
+    val heroDividerColor = heroContentColor.copy(alpha = 0.16f)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(cardCorner),
@@ -402,7 +399,7 @@ private fun HeroStatsCard(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ShowChart,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = heroContentColor,
                             modifier = Modifier.size(heroCircleIconSize),
                         )
                     }
@@ -411,13 +408,13 @@ private fun HeroStatsCard(
                         Text(
                             stringResource(R.string.stats_total_used),
                             fontSize = heroLabelSize,
-                            color = Color.White.copy(alpha = 0.75f),
+                            color = heroLabelColor,
                             style = tightStyle,
                         )
                         Text(
                             text = stringResource(R.string.stats_context_authenticated),
                             fontSize = heroLabelSize,
-                            color = Color.White.copy(alpha = 0.55f),
+                            color = heroSecondaryLabelColor,
                             style = tightStyle,
                         )
                     }
@@ -427,7 +424,7 @@ private fun HeroStatsCard(
                     text = formatBytes(totalBytes),
                     fontSize = displaySize,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = heroContentColor,
                     style = tightStyle,
                 )
                 Spacer(Modifier.height((16 * scale).dp))
@@ -443,8 +440,10 @@ private fun HeroStatsCard(
                         heroValueSize = heroValueSize,
                         heroLabelSize = heroLabelSize,
                         tightStyle = tightStyle,
+                        contentColor = heroContentColor,
+                        labelColor = heroSecondaryLabelColor,
                     )
-                    HeroDivider(heroDividerWidth, heroDividerHeight)
+                    HeroDivider(heroDividerWidth, heroDividerHeight, heroDividerColor)
                     HeroMetric(
                         icon = Icons.Default.Schedule,
                         label = stringResource(R.string.stats_metric_time),
@@ -453,8 +452,10 @@ private fun HeroStatsCard(
                         heroValueSize = heroValueSize,
                         heroLabelSize = heroLabelSize,
                         tightStyle = tightStyle,
+                        contentColor = heroContentColor,
+                        labelColor = heroSecondaryLabelColor,
                     )
-                    HeroDivider(heroDividerWidth, heroDividerHeight)
+                    HeroDivider(heroDividerWidth, heroDividerHeight, heroDividerColor)
                     HeroMetric(
                         icon = Icons.AutoMirrored.Filled.ShowChart,
                         label = stringResource(R.string.stats_metric_avg),
@@ -465,6 +466,8 @@ private fun HeroStatsCard(
                         heroValueSize = heroValueSize,
                         heroLabelSize = heroLabelSize,
                         tightStyle = tightStyle,
+                        contentColor = heroContentColor,
+                        labelColor = heroSecondaryLabelColor,
                     )
                 }
             }
@@ -481,6 +484,8 @@ private fun HeroMetric(
     heroValueSize: androidx.compose.ui.unit.TextUnit,
     heroLabelSize: androidx.compose.ui.unit.TextUnit,
     tightStyle: TextStyle,
+    contentColor: Color,
+    labelColor: Color,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -488,7 +493,7 @@ private fun HeroMetric(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.75f),
+            tint = labelColor,
             modifier = Modifier.size(heroIconSize),
         )
         Spacer(Modifier.height(4.dp))
@@ -496,13 +501,13 @@ private fun HeroMetric(
             text = value,
             fontSize = heroValueSize,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White,
+            color = contentColor,
             style = tightStyle,
         )
         Text(
             text = label,
             fontSize = heroLabelSize,
-            color = Color.White.copy(alpha = 0.6f),
+            color = labelColor,
             style = tightStyle,
         )
     }
@@ -512,12 +517,13 @@ private fun HeroMetric(
 private fun HeroDivider(
     dividerWidth: androidx.compose.ui.unit.Dp,
     dividerHeight: androidx.compose.ui.unit.Dp,
+    color: Color,
 ) {
     Box(
         modifier = Modifier
             .width(dividerWidth)
             .height(dividerHeight)
-            .background(Color.White.copy(alpha = 0.15f)),
+            .background(color),
     )
 }
 

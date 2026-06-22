@@ -87,7 +87,7 @@ fun SettingsUpdateCheckRow(
             border = BorderStroke(1.dp, buttonBorderColor),
             modifier = Modifier
                 .then(
-                    if (isFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp))
+                    if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
                     else Modifier
                 )
                 .onFocusChanged { isFocused = it.isFocused }

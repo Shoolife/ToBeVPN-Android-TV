@@ -527,7 +527,7 @@ private fun ConnectButtonLarge(
                 .clip(CircleShape)
                 .background(backgroundColor)
                 .then(
-                    if (isFocused) Modifier.border(borderWidth, Color.White, CircleShape)
+                    if (isFocused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, CircleShape)
                     else Modifier
                 )
                 .onFocusChanged { isFocused = it.isFocused }
@@ -575,7 +575,7 @@ private fun ServerSelectorCard(
             .fillMaxWidth()
             .padding(horizontal = cardPad)
             .then(
-                if (isFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                if (isFocused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(cardCorner))
                 else Modifier
             )
             .onFocusChanged { isFocused = it.isFocused }
@@ -676,7 +676,7 @@ private fun TrafficCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (isFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                if (isFocused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(cardCorner))
                 else Modifier
             )
             .onFocusChanged { isFocused = it.isFocused }
@@ -809,7 +809,7 @@ private fun TvMenuCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (isFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                if (isFocused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(cardCorner))
                 else Modifier
             )
             .onFocusChanged { isFocused = it.isFocused }

@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.remote.dto.LinkedDeviceDto
 import com.tobevpn.tv.presentation.rememberTvScreenScale
+import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.theme.VpnGreen
 
 @Composable
@@ -104,55 +105,41 @@ fun DevicesScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                var backFocused by remember { mutableStateOf(false) }
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
+                TvHeaderIconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(headerButtonSize),
+                    shape = RoundedCornerShape(backCorner),
+                    borderWidth = borderWidth,
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (backFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(backCorner))
-                                else Modifier
-                            )
-                            .onFocusChanged { backFocused = it.isFocused },
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            modifier = Modifier.size(headerIconSize),
-                            tint = headerColor,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(gap))
-                    Text(
-                        stringResource(R.string.devices_title),
-                        fontSize = headlineSize,
-                        fontWeight = FontWeight.Bold,
-                        color = headerColor,
-                        style = tightStyle,
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier.size(headerIconSize),
+                        tint = headerColor,
                     )
-                    Spacer(modifier = Modifier.weight(1f))
-                    var refreshFocused by remember { mutableStateOf(false) }
-                    IconButton(
-                        onClick = { viewModel.refresh() },
-                        enabled = !state.isLoading,
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (refreshFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(backCorner))
-                                else Modifier
-                            )
-                            .onFocusChanged { refreshFocused = it.isFocused },
-                    ) {
-                        com.tobevpn.tv.presentation.components.SpinningRefreshIcon(
-                            spinning = state.isLoading,
-                            contentDescription = stringResource(R.string.refresh),
-                            tint = headerColor,
-                            size = headerIconSize,
-                        )
-                    }
+                }
+                Spacer(modifier = Modifier.width(gap))
+                Text(
+                    stringResource(R.string.devices_title),
+                    fontSize = headlineSize,
+                    fontWeight = FontWeight.Bold,
+                    color = headerColor,
+                    style = tightStyle,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                TvHeaderIconButton(
+                    onClick = { viewModel.refresh() },
+                    enabled = !state.isLoading,
+                    modifier = Modifier.size(headerButtonSize),
+                    shape = RoundedCornerShape(backCorner),
+                    borderWidth = borderWidth,
+                ) {
+                    com.tobevpn.tv.presentation.components.SpinningRefreshIcon(
+                        spinning = state.isLoading,
+                        contentDescription = stringResource(R.string.refresh),
+                        tint = headerColor,
+                        size = headerIconSize,
+                    )
                 }
             }
 
@@ -436,7 +423,7 @@ private fun DeviceCard(
                     modifier = Modifier
                         .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
                         .then(
-                            if (focused) Modifier.border(borderWidth, Color.White, shape)
+                            if (focused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, shape)
                             else Modifier
                         )
                         .onFocusChanged { focused = it.isFocused },

@@ -5,18 +5,23 @@ import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.repository.AuthRepository
+import com.tobevpn.tv.domain.model.AppThemeMode
 import com.tobevpn.tv.presentation.navigation.AppNavHost
 import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.Lazy
@@ -83,6 +88,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContent {
+            val savedThemeMode by prefsDataStore.themeModeOrNull.collectAsStateWithLifecycle(
+                initialValue = null,
+            )
+            val systemThemeMode = if (isSystemInDarkTheme()) AppThemeMode.DARK else AppThemeMode.LIGHT
+            val themeMode = savedThemeMode ?: systemThemeMode
             val dataReady = splashFinished && startAuthenticated != null && onboardingNeeded != null
             val mainAlpha by animateFloatAsState(
                 targetValue = if (dataReady) 1f else 0f,
@@ -91,27 +101,36 @@ class MainActivity : AppCompatActivity() {
             )
 
             Box(modifier = Modifier.fillMaxSize()) {
-                ToBeVPNTvTheme {
-                    if (dataReady) {
-                        val navController = rememberNavController()
-                        Box(modifier = Modifier.alpha(mainAlpha)) {
-                            AppNavHost(
-                                navController = navController,
-                                startFromOnboarding = onboardingNeeded == true,
-                                startAuthenticated = startAuthenticated == true,
-                            )
+                ToBeVPNTvTheme(darkTheme = themeMode == AppThemeMode.DARK) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                    ) {
+                        if (dataReady) {
+                            val navController = rememberNavController()
+                            Box(modifier = Modifier.alpha(mainAlpha)) {
+                                AppNavHost(
+                                    navController = navController,
+                                    startFromOnboarding = onboardingNeeded == true,
+                                    startAuthenticated = startAuthenticated == true,
+                                )
+                            }
+                            // Updater overlay. UpdateBannerCheck triggers the
+                            // automatic 7-day GitHub probe; UpdateBannerHost
+                            // renders the modal dialog when state != Idle.
+                            // Mounted at activity level so it covers any route.
+                            UpdateBannerCheck()
+                            UpdateBannerHost(modifier = Modifier.alpha(mainAlpha))
                         }
-                        // Updater overlay. UpdateBannerCheck triggers the
-                        // automatic 7-day GitHub probe; UpdateBannerHost
-                        // renders the modal dialog when state != Idle.
-                        // Mounted at activity level so it covers any route.
-                        UpdateBannerCheck()
-                        UpdateBannerHost(modifier = Modifier.alpha(mainAlpha))
                     }
                 }
 
                 if (!splashFinished) {
-                    SplashScreen(onFinished = { splashFinished = true })
+                    SplashScreen(
+                        darkTheme = themeMode == AppThemeMode.DARK,
+                        onFinished = { splashFinished = true },
+                    )
                 }
             }
         }

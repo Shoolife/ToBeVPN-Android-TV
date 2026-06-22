@@ -47,12 +47,29 @@ import com.tobevpn.tv.R
 import kotlinx.coroutines.delay
 
 private val DarkBg = Color(0xFF0A1628)
+private val LightBg = Color(0xFFF4F7FB)
+private val DarkText = Color.White
+private val DarkTextSecondary = Color.White.copy(alpha = 0.5f)
+private val LightText = Color(0xFF102A43)
+private val LightTextSecondary = Color(0xFF102A43).copy(alpha = 0.55f)
+private val DarkChevron = Color.White
+private val DarkChevronSecondary = Color.White.copy(alpha = 0.4f)
+private val LightChevron = Color(0xFF6B7280)
+private val LightChevronSecondary = Color(0xFF6B7280).copy(alpha = 0.35f)
 private val Teal = Color(0xFF00E5A0)
 private val Cyan = Color(0xFF00BCD4)
 private val Blue = Color(0xFF2196F3)
 
 @Composable
-fun SplashScreen(onFinished: () -> Unit) {
+fun SplashScreen(
+    darkTheme: Boolean,
+    onFinished: () -> Unit,
+) {
+    val backgroundColor = if (darkTheme) DarkBg else LightBg
+    val titleColor = if (darkTheme) DarkText else LightText
+    val subtitleColor = if (darkTheme) DarkTextSecondary else LightTextSecondary
+    val chevronColor = if (darkTheme) DarkChevron else LightChevron
+    val chevronTrailColor = if (darkTheme) DarkChevronSecondary else LightChevronSecondary
     val shieldScale = remember { Animatable(0f) }
     val shieldAlpha = remember { Animatable(0f) }
     val chevronOffset = remember { Animatable(-40f) }
@@ -88,7 +105,7 @@ fun SplashScreen(onFinished: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .alpha(fadeOut.value)
-            .background(DarkBg),
+            .background(backgroundColor),
         contentAlignment = Alignment.Center,
     ) {
         // Scale: use pixel height to pick baseline — 4K gets larger baseline
@@ -117,7 +134,12 @@ fun SplashScreen(onFinished: () -> Unit) {
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawShield(glowAlpha)
-                    drawChevrons(chevronOffset.value, chevronAlpha.value)
+                    drawChevrons(
+                        offset = chevronOffset.value,
+                        alpha = chevronAlpha.value,
+                        color = chevronColor,
+                        trailColor = chevronTrailColor,
+                    )
                 }
             }
 
@@ -128,7 +150,7 @@ fun SplashScreen(onFinished: () -> Unit) {
                 fontSize = titleSize,
                 fontFamily = FontFamily.SansSerif,
                 fontWeight = FontWeight.Light,
-                color = Color.White,
+                color = titleColor,
                 letterSpacing = letterSpacingTitle,
                 modifier = Modifier
                     .alpha(textAlpha.value)
@@ -142,7 +164,7 @@ fun SplashScreen(onFinished: () -> Unit) {
                 fontSize = taglineSize,
                 fontFamily = FontFamily.SansSerif,
                 fontWeight = FontWeight.Light,
-                color = Color.White.copy(alpha = 0.5f),
+                color = subtitleColor,
                 letterSpacing = letterSpacingTagline,
                 modifier = Modifier
                     .alpha(textAlpha.value)
@@ -184,7 +206,12 @@ private fun DrawScope.drawShield(glowAlpha: Float) {
     )
 }
 
-private fun DrawScope.drawChevrons(offset: Float, alpha: Float) {
+private fun DrawScope.drawChevrons(
+    offset: Float,
+    alpha: Float,
+    color: Color,
+    trailColor: Color,
+) {
     if (alpha <= 0f) return
     val w = size.width; val h = size.height; val cx = w / 2; val cy = h / 2
     val offsetPx = offset.dp.toPx()
@@ -197,7 +224,7 @@ private fun DrawScope.drawChevrons(offset: Float, alpha: Float) {
     }
     drawPath(
         path = chevron1,
-        color = Color.White.copy(alpha = alpha),
+        color = color.copy(alpha = color.alpha * alpha),
         style = Stroke(width = (5.dp.toPx() * scale).coerceIn(2f, 8f), cap = StrokeCap.Round, join = StrokeJoin.Round),
     )
 
@@ -208,7 +235,7 @@ private fun DrawScope.drawChevrons(offset: Float, alpha: Float) {
     }
     drawPath(
         path = chevron2,
-        color = Color.White.copy(alpha = alpha * 0.4f),
+        color = trailColor.copy(alpha = trailColor.alpha * alpha),
         style = Stroke(width = (3.5f.dp.toPx() * scale).coerceIn(1.5f, 6f), cap = StrokeCap.Round, join = StrokeJoin.Round),
     )
 }

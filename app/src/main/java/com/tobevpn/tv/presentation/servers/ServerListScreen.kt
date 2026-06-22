@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.presentation.countryFlagForUi
 import com.tobevpn.tv.presentation.rememberTvScreenScale
+import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.serverCountryNameForUi
 import com.tobevpn.tv.presentation.serverDisplayName
 import com.tobevpn.tv.presentation.theme.VpnGreen
@@ -111,27 +112,18 @@ fun ServerListScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                var backFocused by remember { mutableStateOf(false) }
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
+                TvHeaderIconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(headerButtonSize),
+                    shape = RoundedCornerShape(backCorner),
+                    borderWidth = borderWidth,
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (backFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(backCorner))
-                                else Modifier
-                            )
-                            .onFocusChanged { backFocused = it.isFocused },
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            modifier = Modifier.size(headerIconSize),
-                            tint = headerColor,
-                        )
-                    }
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier.size(headerIconSize),
+                        tint = headerColor,
+                    )
                 }
                 Spacer(modifier = Modifier.width(gap))
                 Text(
@@ -142,27 +134,18 @@ fun ServerListScreen(
                     modifier = Modifier.weight(1f),
                     style = tightStyle,
                 )
-                var refreshFocused by remember { mutableStateOf(false) }
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
+                TvHeaderIconButton(
+                    onClick = { viewModel.refreshServers() },
+                    modifier = Modifier.size(headerButtonSize),
+                    shape = RoundedCornerShape(backCorner),
+                    borderWidth = borderWidth,
                 ) {
-                    IconButton(
-                        onClick = { viewModel.refreshServers() },
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (refreshFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(backCorner))
-                                else Modifier
-                            )
-                            .onFocusChanged { refreshFocused = it.isFocused },
-                    ) {
-                        com.tobevpn.tv.presentation.components.SpinningRefreshIcon(
-                            spinning = isLoading,
-                            contentDescription = stringResource(R.string.refresh),
-                            tint = headerColor,
-                            size = headerIconSize,
-                        )
-                    }
+                    com.tobevpn.tv.presentation.components.SpinningRefreshIcon(
+                        spinning = isLoading,
+                        contentDescription = stringResource(R.string.refresh),
+                        tint = headerColor,
+                        size = headerIconSize,
+                    )
                 }
             }
 
@@ -275,7 +258,7 @@ private fun AutomaticServerItem(
             .padding(vertical = itemPadV)
             .then(
                 when {
-                    isFocused -> Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                    isFocused -> Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(cardCorner))
                     selected -> Modifier.border(borderWidth, VpnGreen, RoundedCornerShape(cardCorner))
                     else -> Modifier
                 }
@@ -358,7 +341,7 @@ private fun ServerItem(
             .padding(vertical = itemPadV)
             .then(
                 when {
-                    isFocused -> Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                    isFocused -> Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(cardCorner))
                     selected -> Modifier.border(borderWidth, VpnGreen, RoundedCornerShape(cardCorner))
                     else -> Modifier
                 }

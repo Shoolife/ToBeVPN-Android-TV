@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -49,6 +50,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -65,9 +67,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
 import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.domain.model.AppFilterState
+import com.tobevpn.tv.domain.model.AppThemeMode
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
+import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.util.LocaleManager
 import com.tobevpn.tv.presentation.theme.VpnGreen
@@ -84,6 +88,9 @@ fun SettingsScreen(
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
     val appFilterState by viewModel.appFilterState.collectAsStateWithLifecycle()
+    val savedThemeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val systemThemeMode = if (isSystemInDarkTheme()) AppThemeMode.DARK else AppThemeMode.LIGHT
+    val themeMode = savedThemeMode ?: systemThemeMode
     val context = LocalContext.current
     var pendingLanguage by remember { mutableStateOf<String?>(null) }
     var settingsPage by remember { mutableStateOf(0) }
@@ -135,27 +142,18 @@ fun SettingsScreen(
                 .padding(screenPad),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                var backFocused by remember { mutableStateOf(false) }
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
+                TvHeaderIconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(headerButtonSize),
+                    shape = RoundedCornerShape(backCorner),
+                    borderWidth = borderWidth,
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (backFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(backCorner))
-                                else Modifier
-                            )
-                            .onFocusChanged { backFocused = it.isFocused },
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            modifier = Modifier.size(headerIconSize),
-                            tint = headerColor,
-                        )
-                    }
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier.size(headerIconSize),
+                        tint = headerColor,
+                    )
                 }
                 Spacer(modifier = Modifier.width(gap))
                 Text(
@@ -287,7 +285,7 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(gap))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                LanguageChip(
+                                SettingsChoiceChip(
                                     label = stringResource(R.string.language_english),
                                     selected = language == LocaleManager.LANG_EN,
                                     onClick = {
@@ -297,7 +295,7 @@ fun SettingsScreen(
                                     scale = scale,
                                 )
                                 Spacer(modifier = Modifier.width((12 * scale).dp))
-                                LanguageChip(
+                                SettingsChoiceChip(
                                     label = stringResource(R.string.language_russian),
                                     selected = language == LocaleManager.LANG_RU,
                                     onClick = {
@@ -395,6 +393,8 @@ fun SettingsScreen(
                     SettingsAppsPage(
                         appFilterState = appFilterState,
                         onNavigateToAppFilter = onNavigateToAppFilter,
+                        themeMode = themeMode,
+                        onThemeSelected = viewModel::setThemeMode,
                         cardPad = cardPad,
                         cardCorner = cardCorner,
                         cardSpacing = cardSpacing,
@@ -443,7 +443,11 @@ fun SettingsScreen(
                         shape = confirmShape,
                         modifier = Modifier
                             .then(
-                                if (confirmFocused) Modifier.border((2 * scale).dp, Color.White, confirmShape)
+                                if (confirmFocused) Modifier.border(
+                                    (2 * scale).dp,
+                                    MaterialTheme.colorScheme.onSurface,
+                                    confirmShape,
+                                )
                                 else Modifier
                             )
                             .onFocusChanged { confirmFocused = it.isFocused },
@@ -459,7 +463,11 @@ fun SettingsScreen(
                         shape = cancelShape,
                         modifier = Modifier
                             .then(
-                                if (cancelFocused) Modifier.border((2 * scale).dp, Color.White, cancelShape)
+                                if (cancelFocused) Modifier.border(
+                                    (2 * scale).dp,
+                                    MaterialTheme.colorScheme.onSurface,
+                                    cancelShape,
+                                )
                                 else Modifier
                             )
                             .onFocusChanged { cancelFocused = it.isFocused },
@@ -476,6 +484,8 @@ fun SettingsScreen(
 private fun SettingsAppsPage(
     appFilterState: AppFilterState,
     onNavigateToAppFilter: () -> Unit,
+    themeMode: AppThemeMode,
+    onThemeSelected: (AppThemeMode) -> Unit,
     cardPad: androidx.compose.ui.unit.Dp,
     cardCorner: androidx.compose.ui.unit.Dp,
     cardSpacing: androidx.compose.ui.unit.Dp,
@@ -486,6 +496,10 @@ private fun SettingsAppsPage(
     scale: Float,
     tightStyle: TextStyle,
 ) {
+    val appFilterFocusRequester = remember { FocusRequester() }
+    val darkThemeFocusRequester = remember { FocusRequester() }
+    val lightThemeFocusRequester = remember { FocusRequester() }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
@@ -529,12 +543,61 @@ private fun SettingsAppsPage(
                         scale = scale,
                         buttonPadH = buttonPadH,
                         buttonPadV = buttonPadV,
+                        focusRequester = appFilterFocusRequester,
+                        rightFocusRequester = darkThemeFocusRequester,
                     )
                 }
             }
         }
         Spacer(modifier = Modifier.width(cardSpacing))
-        Spacer(modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.weight(1f)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(cardCorner),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(cardPad)) {
+                    Text(
+                        stringResource(R.string.settings_theme),
+                        fontSize = titleSize,
+                        fontWeight = FontWeight.SemiBold,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((8 * scale).dp))
+                    Text(
+                        stringResource(R.string.settings_theme_hint),
+                        fontSize = bodySize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((18 * scale).dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SettingsChoiceChip(
+                            label = stringResource(R.string.theme_dark),
+                            selected = themeMode == AppThemeMode.DARK,
+                            onClick = { onThemeSelected(AppThemeMode.DARK) },
+                            bodySize = bodySize,
+                            scale = scale,
+                            focusRequester = darkThemeFocusRequester,
+                            leftFocusRequester = appFilterFocusRequester,
+                            rightFocusRequester = lightThemeFocusRequester,
+                        )
+                        Spacer(modifier = Modifier.width((12 * scale).dp))
+                        SettingsChoiceChip(
+                            label = stringResource(R.string.theme_light),
+                            selected = themeMode == AppThemeMode.LIGHT,
+                            onClick = { onThemeSelected(AppThemeMode.LIGHT) },
+                            bodySize = bodySize,
+                            scale = scale,
+                            focusRequester = lightThemeFocusRequester,
+                            leftFocusRequester = darkThemeFocusRequester,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -591,7 +654,7 @@ private fun PageIndicatorButton(
         .size(size)
         .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
         .then(
-            if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+            if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
             else Modifier
         )
         .onFocusChanged { focused = it.isFocused }
@@ -636,6 +699,8 @@ private fun AccountActionButton(
     scale: Float,
     buttonPadH: androidx.compose.ui.unit.Dp,
     buttonPadV: androidx.compose.ui.unit.Dp,
+    focusRequester: FocusRequester? = null,
+    rightFocusRequester: FocusRequester? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape((10 * scale).dp)
@@ -647,7 +712,16 @@ private fun AccountActionButton(
             modifier = Modifier
                 .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
                 .then(
-                    if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+                    if (focusRequester != null) Modifier.focusRequester(focusRequester)
+                    else Modifier
+                )
+                .then(
+                    if (rightFocusRequester != null) {
+                        Modifier.focusProperties { right = rightFocusRequester }
+                    } else Modifier
+                )
+                .then(
+                    if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
                     else Modifier
                 )
                 .onFocusChanged { focused = it.isFocused },
@@ -661,12 +735,15 @@ private fun AccountActionButton(
 }
 
 @Composable
-private fun LanguageChip(
+private fun SettingsChoiceChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
     bodySize: androidx.compose.ui.unit.TextUnit,
     scale: Float,
+    focusRequester: FocusRequester? = null,
+    leftFocusRequester: FocusRequester? = null,
+    rightFocusRequester: FocusRequester? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape((10 * scale).dp)
@@ -678,8 +755,13 @@ private fun LanguageChip(
                 onClick = onClick,
                 modifier = Modifier
                     .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                    .settingsChoiceFocus(
+                        focusRequester = focusRequester,
+                        leftFocusRequester = leftFocusRequester,
+                        rightFocusRequester = rightFocusRequester,
+                    )
                     .then(
-                        if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+                        if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
                         else Modifier
                     )
                     .onFocusChanged { focused = it.isFocused },
@@ -697,8 +779,13 @@ private fun LanguageChip(
                 onClick = onClick,
                 modifier = Modifier
                     .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                    .settingsChoiceFocus(
+                        focusRequester = focusRequester,
+                        leftFocusRequester = leftFocusRequester,
+                        rightFocusRequester = rightFocusRequester,
+                    )
                     .then(
-                        if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+                        if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
                         else Modifier
                     )
                     .onFocusChanged { focused = it.isFocused },
@@ -713,6 +800,24 @@ private fun LanguageChip(
         }
     }
 }
+
+private fun Modifier.settingsChoiceFocus(
+    focusRequester: FocusRequester?,
+    leftFocusRequester: FocusRequester?,
+    rightFocusRequester: FocusRequester?,
+): Modifier = this
+    .then(
+        if (focusRequester != null) Modifier.focusRequester(focusRequester)
+        else Modifier
+    )
+    .then(
+        if (leftFocusRequester != null || rightFocusRequester != null) {
+            Modifier.focusProperties {
+                if (leftFocusRequester != null) left = leftFocusRequester
+                if (rightFocusRequester != null) right = rightFocusRequester
+            }
+        } else Modifier
+    )
 
 @Composable
 private fun InfoRow(

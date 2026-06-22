@@ -264,7 +264,7 @@ fun PairingScreen(
                             .then(
                                 if (retryFocused) Modifier.border(
                                     2.dp,
-                                    androidx.compose.ui.graphics.Color.White,
+                                    MaterialTheme.colorScheme.onSurface,
                                     RoundedCornerShape(12.dp),
                                 ) else Modifier
                             ),

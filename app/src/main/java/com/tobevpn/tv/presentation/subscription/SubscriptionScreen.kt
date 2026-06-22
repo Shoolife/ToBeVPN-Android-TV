@@ -54,6 +54,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -82,6 +83,7 @@ import com.tobevpn.tv.R
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
+import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
@@ -222,29 +224,20 @@ fun SubscriptionScreen(
                 .padding(screenPad),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                var backFocused by remember { mutableStateOf(false) }
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+                TvHeaderIconButton(
+                    onClick = {
+                        if (showQr) showQr = false else onBack()
+                    },
+                    modifier = Modifier.size(headerButtonSize),
+                    shape = RoundedCornerShape(backCorner),
+                    borderWidth = borderWidth,
                 ) {
-                    IconButton(
-                        onClick = {
-                            if (showQr) showQr = false else onBack()
-                        },
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (backFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(backCorner))
-                                else Modifier
-                            )
-                            .onFocusChanged { backFocused = it.isFocused },
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            modifier = Modifier.size(headerIconSize),
-                            tint = headerColor,
-                        )
-                    }
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier.size(headerIconSize),
+                        tint = headerColor,
+                    )
                 }
                 Spacer(modifier = Modifier.width(cardGap))
                 Text(
@@ -580,7 +573,7 @@ private fun SubscriptionActionButton(
             modifier = modifier
                 .defaultMinSize(minWidth = 1.dp, minHeight = minHeight)
                 .then(
-                    if (isFocused) Modifier.border(borderWidth, Color.White, shape)
+                    if (isFocused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, shape)
                     else Modifier
                 )
                 .onFocusChanged { isFocused = it.isFocused },
@@ -622,17 +615,21 @@ private fun SubscriptionOutlinedActionButton(
             modifier = modifier
                 .defaultMinSize(minWidth = 1.dp, minHeight = minHeight)
                 .then(
-                    if (isFocused) Modifier.border(borderWidth, Color.White, shape)
+                    if (isFocused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, shape)
                     else Modifier
                 )
                 .onFocusChanged { isFocused = it.isFocused },
             shape = shape,
             contentPadding = padding,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.onBackground,
+            ),
         ) {
             Text(
                 text = text,
                 fontSize = textSize,
                 fontWeight = textWeight,
+                color = MaterialTheme.colorScheme.onBackground,
                 style = tightStyle,
             )
         }
@@ -841,8 +838,19 @@ private fun PlanOptionCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(corner)
+    val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val defaultContainerColor = if (isLightTheme) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val containerColor = if (selected) {
+        VpnGreen.copy(alpha = if (isLightTheme) 0.16f else 0.18f)
+    } else {
+        defaultContainerColor
+    }
     val borderColor = when {
-        isFocused -> Color.White
+        isFocused -> MaterialTheme.colorScheme.onSurface
         selected -> VpnGreen
         else -> Color.Transparent
     }
@@ -866,11 +874,7 @@ private fun PlanOptionCard(
             },
         shape = shape,
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
-                VpnGreen.copy(alpha = 0.18f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
+            containerColor = containerColor,
         ),
     ) {
         Row(

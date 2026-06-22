@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +40,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -299,13 +299,13 @@ private val BannerLightContent = Color(0xFF1A1A1A)
 
 @Composable
 private fun bannerContentColor(): Color =
-    if (isSystemInDarkTheme()) BannerDarkContent else BannerLightContent
+    if (MaterialTheme.colorScheme.background.luminance() < 0.5f) BannerDarkContent else BannerLightContent
 
 @Composable
 private fun DialogCard(
     content: @Composable () -> Unit,
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val containerColor = if (isDark) BannerDarkBg else BannerLightBg
     val cardShape = RoundedCornerShape(20.dp)
     Box(
@@ -345,12 +345,12 @@ private fun FocusablePrimaryButton(
         shape = RoundedCornerShape(10.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = VpnGreen,
-            contentColor = Color.White,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
         modifier = Modifier
             .focusRequester(focusRequester)
             .then(
-                if (isFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp))
+                if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
                 else Modifier
             )
             .onFocusChanged { isFocused = it.isFocused }
@@ -387,7 +387,7 @@ private fun FocusableTextButton(
         modifier = Modifier
             .focusRequester(focusRequester)
             .then(
-                if (isFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp))
+                if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
                 else Modifier
             )
             .onFocusChanged { isFocused = it.isFocused }
@@ -421,7 +421,7 @@ private fun FocusableOutlinedButton(
         modifier = Modifier
             .focusRequester(focusRequester)
             .then(
-                if (isFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp))
+                if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
                 else Modifier
             )
             .onFocusChanged { isFocused = it.isFocused }

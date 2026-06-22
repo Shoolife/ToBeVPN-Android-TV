@@ -58,6 +58,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.rememberTvScreenScale
+import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
@@ -118,27 +119,18 @@ fun SpeedTestScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                var backFocused by remember { mutableStateOf(false) }
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
+                TvHeaderIconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(headerButtonSize),
+                    shape = RoundedCornerShape(backCorner),
+                    borderWidth = borderWidth,
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (backFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape(backCorner))
-                                else Modifier
-                            )
-                            .onFocusChanged { backFocused = it.isFocused },
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            modifier = Modifier.size(headerIconSize),
-                            tint = headerColor,
-                        )
-                    }
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier.size(headerIconSize),
+                        tint = headerColor,
+                    )
                 }
                 Spacer(modifier = Modifier.width(gap))
                 Text(
@@ -245,7 +237,7 @@ fun SpeedTestScreen(
                                     .defaultMinSize(minWidth = 1.dp, minHeight = buttonMinHeight)
                                     .then(
                                         if (startBtnFocused) {
-                                            Modifier.border(borderWidth, Color.White, RoundedCornerShape(cardCorner))
+                                            Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(cardCorner))
                                         } else {
                                             Modifier
                                         }

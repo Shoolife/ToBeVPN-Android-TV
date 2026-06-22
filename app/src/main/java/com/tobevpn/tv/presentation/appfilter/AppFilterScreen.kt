@@ -54,6 +54,7 @@ import com.tobevpn.tv.R
 import com.tobevpn.tv.data.InstalledAppItem
 import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.presentation.rememberTvScreenScale
+import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
@@ -95,25 +96,18 @@ fun AppFilterScreen(
                 .padding(screenPad),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                var backFocused by remember { mutableStateOf(false) }
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .size(headerButtonSize)
-                            .then(
-                                if (backFocused) Modifier.border(borderWidth, Color.White, RoundedCornerShape((8 * scale).dp))
-                                else Modifier
-                            )
-                            .onFocusChanged { backFocused = it.isFocused },
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            modifier = Modifier.size(headerIconSize),
-                            tint = headerColor,
-                        )
-                    }
+                TvHeaderIconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(headerButtonSize),
+                    shape = RoundedCornerShape((8 * scale).dp),
+                    borderWidth = borderWidth,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier.size(headerIconSize),
+                        tint = headerColor,
+                    )
                 }
                 Spacer(modifier = Modifier.width(gap))
                 Text(
@@ -296,7 +290,7 @@ private fun ModeButton(
     val modifier = Modifier
         .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
         .then(
-            if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+            if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
             else Modifier
         )
         .onFocusChanged { focused = it.isFocused }
@@ -351,7 +345,7 @@ private fun SmallActionButton(
             modifier = Modifier
                 .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
                 .then(
-                    if (focused) Modifier.border((2 * scale).dp, Color.White, shape)
+                    if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
                     else Modifier
                 )
                 .onFocusChanged { focused = it.isFocused },
@@ -389,7 +383,7 @@ private fun AppRow(
             .fillMaxWidth()
             .border(
                 width = if (focused) (2 * scale).dp else 0.dp,
-                color = if (focused) Color.White else Color.Transparent,
+                color = if (focused) MaterialTheme.colorScheme.onSurface else Color.Transparent,
                 shape = shape,
             )
             .onFocusChanged { focused = it.isFocused }

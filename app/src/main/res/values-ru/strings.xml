@@ -101,6 +101,10 @@
     <string name="settings_app_filter">Приложения VPN</string>
     <string name="settings_app_filter_hint">Выберите, в каких приложениях работает VPN</string>
     <string name="settings_app_filter_manage">Настроить</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_theme_hint">Выберите оформление приложения</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="theme_light">Светлая</string>
     <string name="app_filter_title">Приложения VPN</string>
     <string name="app_filter_mode_off">Все приложения</string>
     <string name="app_filter_mode_whitelist">Только выбранные</string>

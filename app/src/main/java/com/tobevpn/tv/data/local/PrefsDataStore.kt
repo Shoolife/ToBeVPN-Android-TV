@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tobevpn.tv.BuildConfig
+import com.tobevpn.tv.domain.model.AppThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -38,6 +39,7 @@ class PrefsDataStore @Inject constructor(
         val BLOCKED_SUBSCRIPTION_OWNER = stringPreferencesKey("blocked_subscription_owner")
         val APP_FILTER_MODE = stringPreferencesKey("app_filter_mode")
         val APP_FILTER_PACKAGES = stringPreferencesKey("app_filter_packages")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
         // Scope the persisted block to the installed build. After an update,
         // a block recorded by the previous version must not lock the new
         // version before it can read the current minimum-version header.
@@ -51,6 +53,19 @@ class PrefsDataStore @Inject constructor(
     val selectedServerId: Flow<String?> = context.dataStore.data.map { it[Keys.SELECTED_SERVER_ID] }
     val automaticServerSelection: Flow<Boolean> = context.dataStore.data.map {
         it[Keys.AUTOMATIC_SERVER_SELECTION] ?: (it[Keys.SELECTED_SERVER_ID] == null)
+    }
+    val themeModeOrNull: Flow<AppThemeMode?> = context.dataStore.data
+        .map { preferences ->
+            AppThemeMode.entries.firstOrNull { it.name == preferences[Keys.THEME_MODE] }
+        }
+        .distinctUntilChanged()
+
+    val themeMode: Flow<AppThemeMode> = themeModeOrNull
+        .map { it ?: AppThemeMode.DARK }
+        .distinctUntilChanged()
+
+    suspend fun setThemeMode(mode: AppThemeMode) {
+        context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
     }
 
     suspend fun getCachedUsdRate(): Pair<Double, Long>? {

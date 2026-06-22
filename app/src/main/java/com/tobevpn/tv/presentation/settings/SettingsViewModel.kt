@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.tobevpn.tv.data.repository.AppFilterRepository
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.data.repository.VpnRepository
+import com.tobevpn.tv.data.local.PrefsDataStore
+import com.tobevpn.tv.domain.model.AppThemeMode
 import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.domain.model.AppFilterState
 import com.tobevpn.tv.domain.model.AuthState
@@ -26,6 +28,7 @@ class SettingsViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val vpnRepository: VpnRepository,
     private val connectionManager: VpnConnectionManager,
+    private val prefsDataStore: PrefsDataStore,
     appFilterRepository: AppFilterRepository,
 ) : ViewModel() {
 
@@ -41,12 +44,19 @@ class SettingsViewModel @Inject constructor(
 
     val xrayVersion: String = XRayCore.getVersion()
 
+    val themeMode: StateFlow<AppThemeMode?> = prefsDataStore.themeModeOrNull
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     private val _language = MutableStateFlow(LocaleManager.current())
     val language: StateFlow<String> = _language.asStateFlow()
 
     fun setLanguage(tag: String) {
         LocaleManager.apply(tag)
         _language.value = tag
+    }
+
+    fun setThemeMode(mode: AppThemeMode) {
+        viewModelScope.launch { prefsDataStore.setThemeMode(mode) }
     }
 
     init {

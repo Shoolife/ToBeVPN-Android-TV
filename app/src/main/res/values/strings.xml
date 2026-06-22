@@ -101,6 +101,10 @@
     <string name="settings_app_filter">VPN apps</string>
     <string name="settings_app_filter_hint">Choose which apps use the VPN</string>
     <string name="settings_app_filter_manage">Configure</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_hint">Choose the app appearance</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
     <string name="app_filter_title">VPN apps</string>
     <string name="app_filter_mode_off">All apps</string>
     <string name="app_filter_mode_whitelist">Only selected</string>
