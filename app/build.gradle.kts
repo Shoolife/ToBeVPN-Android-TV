@@ -35,8 +35,8 @@ fun requireConfiguredReleaseFallback(name: String, value: String) {
 android {
     namespace = "com.tobevpn.tv"
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
+        version = release(37) {
+            minorApiLevel = 0
         }
     }
 
@@ -48,8 +48,8 @@ android {
         applicationId = "com.tobevpn.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1016
-        versionName = "1.0.16"
+        versionCode = 1017
+        versionName = "1.0.17"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
