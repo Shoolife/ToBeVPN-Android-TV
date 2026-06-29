@@ -71,6 +71,7 @@ fun ServerListScreen(
     val servers by viewModel.servers.collectAsStateWithLifecycle()
     val selectedServerId by viewModel.selectedServerId.collectAsStateWithLifecycle()
     val automaticServerSelection by viewModel.automaticServerSelection.collectAsStateWithLifecycle()
+    val isAdminProfile by viewModel.isAdminProfile.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -201,7 +202,7 @@ fun ServerListScreen(
                                     tightStyle = tightStyle,
                                 )
                             }
-                            items(servers, key = { it.id }) { server ->
+                            items(servers, key = { serverListItemKey(it) }) { server ->
                                 val selectable = server.isSelectable
                                 ServerItem(
                                     server = server,
@@ -225,6 +226,7 @@ fun ServerListScreen(
                                     labelSize = labelSize,
                                     borderWidth = borderWidth,
                                     tightStyle = tightStyle,
+                                    showEndpoint = isAdminProfile,
                                 )
                             }
                         }
@@ -332,6 +334,7 @@ private fun ServerItem(
     labelSize: androidx.compose.ui.unit.TextUnit,
     borderWidth: androidx.compose.ui.unit.Dp,
     tightStyle: TextStyle,
+    showEndpoint: Boolean,
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -388,15 +391,30 @@ private fun ServerItem(
                 )
                 if (displayCountryName.isNotEmpty()) {
                     Text(
-                        displayCountryName,
+                        buildString {
+                            append(displayCountryName)
+                            if (showEndpoint) {
+                                append(" · ")
+                                append(server.address)
+                                append(":")
+                                append(server.port)
+                            }
+                        },
+                        fontSize = bodySize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = tightStyle,
+                    )
+                } else if (showEndpoint) {
+                    Text(
+                        "${server.address}:${server.port}",
                         fontSize = bodySize,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = tightStyle,
                     )
                 }
             }
-            // Ping, unreachable or offline — same precedence as the phone client.
-            if (!server.isOnline) {
+            // Ping, unreachable or unavailable placeholder — same precedence as the phone client.
+            if (!server.isSelectable) {
                 Text(
                     text = stringResource(R.string.server_offline),
                     fontSize = labelSize,
@@ -435,4 +453,24 @@ private fun pingColor(ping: Long) = when {
     ping < 100 -> VpnGreen
     ping < 200 -> VpnOrange
     else -> VpnRed
+}
+
+private fun serverListItemKey(server: Server): String = buildString {
+    append(server.id)
+    append('|')
+    append(server.name)
+    append('|')
+    append(server.country)
+    append('|')
+    append(server.address)
+    append(':')
+    append(server.port)
+    append('|')
+    append(server.uuid)
+    append('|')
+    append(server.sni)
+    append('|')
+    append(server.publicKey)
+    append('|')
+    append(server.shortId)
 }

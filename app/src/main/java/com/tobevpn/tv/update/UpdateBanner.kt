@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +49,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModelStoreOwner
 import com.tobevpn.tv.R
@@ -104,45 +105,50 @@ fun UpdateBannerHost(
 
     if (state is UpdateUiState.Idle) return
 
-    // Scrim swallows clicks behind the dialog. We don't dismiss on outside
-    // click because TV remotes don't have a back-button feel for it; user
-    // explicitly chooses Later/Cancel/Install.
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.55f))
-            .clickable(enabled = false, onClick = {}),
-        contentAlignment = Alignment.Center,
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false,
+        ),
     ) {
-        when (val s = state) {
-            UpdateUiState.Idle -> Unit
-            is UpdateUiState.Available -> AvailableCard(
-                info = s.info,
-                onDownload = viewModel::startDownload,
-                onDismiss = viewModel::dismiss,
-            )
-            is UpdateUiState.Downloading -> DownloadingCard(
-                info = s.info,
-                downloadedBytes = s.downloadedBytes,
-                totalBytes = s.totalBytes,
-                onCancel = viewModel::dismiss,
-            )
-            is UpdateUiState.ReadyToInstall -> ReadyCard(
-                info = s.info,
-                onInstall = {
-                    if (viewModel.installer.canInstallSilently()) {
-                        launchInstall(s.localUri)
-                    } else {
-                        runCatching { context.startActivity(viewModel.installer.buildPermissionIntent()) }
-                    }
-                },
-                onDismiss = viewModel::dismiss,
-            )
-            is UpdateUiState.Failed -> FailedCard(
-                reason = s.reason,
-                onRetry = viewModel::retry,
-                onDismiss = viewModel::dismiss,
-            )
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            when (val s = state) {
+                UpdateUiState.Idle -> Unit
+                is UpdateUiState.Available -> AvailableCard(
+                    info = s.info,
+                    onDownload = viewModel::startDownload,
+                    onDismiss = viewModel::dismiss,
+                )
+                is UpdateUiState.Downloading -> DownloadingCard(
+                    info = s.info,
+                    downloadedBytes = s.downloadedBytes,
+                    totalBytes = s.totalBytes,
+                    onCancel = viewModel::dismiss,
+                )
+                is UpdateUiState.ReadyToInstall -> ReadyCard(
+                    info = s.info,
+                    onInstall = {
+                        if (viewModel.installer.canInstallSilently()) {
+                            launchInstall(s.localUri)
+                        } else {
+                            runCatching { context.startActivity(viewModel.installer.buildPermissionIntent()) }
+                        }
+                    },
+                    onDismiss = viewModel::dismiss,
+                )
+                is UpdateUiState.Failed -> FailedCard(
+                    reason = s.reason,
+                    onRetry = viewModel::retry,
+                    onDismiss = viewModel::dismiss,
+                )
+            }
         }
     }
 }

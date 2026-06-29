@@ -13,6 +13,7 @@ import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.domain.model.UsageInfo
+import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -177,12 +178,14 @@ class MainViewModel @Inject constructor(
                         .getOrNull()
                         .orEmpty()
                         .filter { it.isAvailable }
-                    val server = if (automatic) {
+                    val resolved = if (automatic) {
                         serverQualityRepository.selectBestServer(availableServers, forceProbe = true)
                     } else {
                         availableServers.firstOrNull { it.id == selected.id }
                             ?: availableServers.firstOrNull { it.name == selected.name }
-                    } ?: return@launch
+                    }
+                    val server = resolved ?: selected.takeIf { canUseSelectedServerFallback(it) }
+                        ?: return@launch
                     if (automatic) {
                         prefsDataStore.setAutomaticSelectedServerId(server.id)
                     }
@@ -198,6 +201,12 @@ class MainViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private suspend fun canUseSelectedServerFallback(server: Server): Boolean {
+        if (!server.isAvailable) return false
+        val authState = authRepository.getAuthStateSnapshot()
+        return authState !is AuthState.Authenticated || authState.plan != UserPlan.EXPIRED
     }
 
     /** Re-sync subscription & servers when app returns to foreground (throttled to 5s). */

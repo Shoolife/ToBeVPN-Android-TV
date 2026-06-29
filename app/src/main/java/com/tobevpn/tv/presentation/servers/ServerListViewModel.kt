@@ -6,6 +6,7 @@ import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.data.repository.ServerQualityRepository
 import com.tobevpn.tv.data.repository.VpnRepository
+import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.Server
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -46,6 +48,10 @@ class ServerListViewModel @Inject constructor(
 
     val automaticServerSelection: StateFlow<Boolean> = prefsDataStore.automaticServerSelection
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val isAdminProfile: StateFlow<Boolean> = authRepository.observeAuthState()
+        .map { state -> (state as? AuthState.Authenticated)?.isAdminProfile == true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()

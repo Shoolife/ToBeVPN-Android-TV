@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -252,6 +251,7 @@ fun AppFilterScreen(
                                         app = app,
                                         selected = app.packageName in state.selected,
                                         mode = state.mode,
+                                        provider = viewModel.installedAppsProvider,
                                         onToggle = { viewModel.toggle(app.packageName) },
                                         scale = scale,
                                         titleSize = bodySize,
@@ -365,6 +365,7 @@ private fun AppRow(
     app: InstalledAppItem,
     selected: Boolean,
     mode: AppFilterMode,
+    provider: com.tobevpn.tv.data.InstalledAppsProvider,
     onToggle: () -> Unit,
     scale: Float,
     titleSize: androidx.compose.ui.unit.TextUnit,
@@ -391,28 +392,12 @@ private fun AppRow(
             .padding(horizontal = (14 * scale).dp, vertical = (10 * scale).dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Card(
-            modifier = Modifier.size((42 * scale).dp),
-            shape = CircleShape,
-            colors = CardDefaults.cardColors(
-                containerColor = if (selected) VpnGreen else MaterialTheme.colorScheme.surfaceVariant,
-            ),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = app.label.firstOrNull()?.uppercase() ?: "?",
-                    fontSize = titleSize,
-                    fontWeight = FontWeight.Bold,
-                    color = if (selected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    style = tightStyle,
-                )
-            }
-        }
+        AppIcon(
+            packageName = app.packageName,
+            label = app.label,
+            provider = provider,
+            size = (42 * scale).dp,
+        )
         Spacer(modifier = Modifier.width((14 * scale).dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(

@@ -2,9 +2,19 @@ package com.tobevpn.tv.presentation.subscription
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -69,6 +80,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -80,6 +92,7 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.tobevpn.tv.R
+import com.tobevpn.tv.data.remote.dto.PurchasePlanDto
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
@@ -102,6 +115,12 @@ private data class PurchasePlan(
     val botPaymentUrl: String? = null,
 )
 
+private data class PurchaseTariff(
+    val key: String,
+    val title: String,
+    val periods: List<PurchasePlan>,
+)
+
 private data class CurrentPlanUi(
     val title: String,
     val subtitle: String,
@@ -120,6 +139,7 @@ fun SubscriptionScreen(
     val configuration = LocalConfiguration.current
     val isRussian = configuration.locales[0]?.language == "ru"
 
+    var selectedTariffKey by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedPlanKey by rememberSaveable { mutableStateOf("month") }
     var showQr by rememberSaveable { mutableStateOf(false) }
 
@@ -170,52 +190,66 @@ fun SubscriptionScreen(
             ),
         )
 
-        // Pick the paid plan (with real durations) from backend.
-        // Skip UNLIMITED / free plans that have no days-based durations.
-        val sourcePlan = purchasePlans?.plans
+        val sourcePlans = purchasePlans?.plans
             ?.filter { it.durations.any { d -> d.days > 0 } }
-            ?.maxByOrNull { it.durations.size }
+            ?.sortedWith(compareBy<PurchasePlanDto> { it.orderIndex }.thenBy { it.name })
+            ?: emptyList()
 
         val shouldLoadLimits = (authState as? AuthState.Authenticated)?.let {
             it.plan == UserPlan.PAID || it.plan == UserPlan.ADMIN
         } == true
 
         val displayLimits = currentLimits
-        val planDescription = buildPlanDescription(
-            trafficLimitGb = sourcePlan?.trafficLimit?.toInt(),
-            deviceLimit = sourcePlan?.deviceLimit?.takeIf { it > 0 },
-        )
 
-        val plans: List<PurchasePlan> = if (sourcePlan != null) {
-            sourcePlan.durations
-                .filter { it.days > 0 }
-                .sortedBy { it.orderIndex }
-                .map { d ->
-                    PurchasePlan(
-                        key = planKey(d.days),
-                        title = planTitle(d.days),
-                        priceDisplay = formatDurationPrice(d, isRussian, rubToUsdRate),
-                        description = planDescription,
-                        botPaymentUrl = d.botPaymentUrl,
-                    )
-                }
-        } else {
-            emptyList()
+        val tariffs: List<PurchaseTariff> = sourcePlans.map { sourcePlan ->
+            PurchaseTariff(
+                key = sourcePlan.id.toString(),
+                title = sourcePlan.name,
+                periods = buildList {
+                val planDescription = buildPlanDescription(
+                    trafficLimitGb = sourcePlan.trafficLimit.toInt(),
+                    deviceLimit = sourcePlan.deviceLimit.takeIf { it > 0 },
+                )
+                sourcePlan.durations
+                    .filter { it.days > 0 }
+                    .sortedBy { it.orderIndex }
+                    .forEach { d ->
+                        val durationTitle = planTitle(d.days)
+                        add(PurchasePlan(
+                            key = "${sourcePlan.id}:${planKey(d.days)}",
+                            title = durationTitle,
+                            priceDisplay = formatDurationPrice(d, isRussian, rubToUsdRate),
+                            description = planDescription,
+                            botPaymentUrl = d.botPaymentUrl,
+                        ))
+                    }
+                },
+            )
         }
-        val selectedPlan = plans.firstOrNull { it.key == selectedPlanKey }
-            ?: plans.firstOrNull { it.key == "month" }
-            ?: plans.firstOrNull()
+        val selectedTariff = tariffs.firstOrNull { it.key == selectedTariffKey }
+            ?: tariffs.firstOrNull()
+        val selectedPlan = selectedTariff?.periods?.firstOrNull { it.key == selectedPlanKey }
+            ?: selectedTariff?.periods?.firstOrNull { it.key.endsWith(":month") || it.key == "month" }
+            ?: selectedTariff?.periods?.firstOrNull()
         val currentPlan = currentPlanUi(authState)
+        val currentAuth = authState as? AuthState.Authenticated
+        val isPaidAccount = currentAuth?.plan?.let { it != UserPlan.FREE_TRIAL } == true
+        val selectedTariffIsCurrent = sameTariffName(
+            current = currentAuth?.planDisplayName,
+            selected = selectedTariff?.title,
+        )
+        val isRenewal = isPaidAccount && selectedTariffIsCurrent
         val qrUrl = selectedPlan?.botPaymentUrl
-        val primaryButtonLabel = when (authState) {
-            is AuthState.Authenticated -> {
-                when ((authState as AuthState.Authenticated).plan) {
-                    UserPlan.PAID, UserPlan.EXPIRED -> stringResource(R.string.subscription_renew_in_telegram)
-                    UserPlan.ADMIN -> stringResource(R.string.subscription_renew_in_telegram)
-                    UserPlan.FREE_TRIAL -> stringResource(R.string.subscription_buy_in_telegram)
-                }
-            }
-            AuthState.Unauthenticated -> stringResource(R.string.subscription_buy_in_telegram)
+            ?: displayLimits?.renewalUrl?.takeIf { isRenewal }
+        val selectedActionTitle = selectedTariff
+            ?.takeIf { it.title.isNotBlank() }
+            ?.let { "${it.title} · ${selectedPlan?.title.orEmpty()}" }
+            ?: selectedPlan?.title.orEmpty()
+        val primaryButtonLabel = when {
+            isRenewal && selectedPlan != null -> stringResource(R.string.renew_plan, selectedActionTitle, selectedPlan.priceDisplay)
+            isPaidAccount && selectedTariff != null && selectedPlan != null -> stringResource(R.string.change_plan, selectedActionTitle, selectedPlan.priceDisplay)
+            selectedPlan != null -> stringResource(R.string.buy_plan, selectedActionTitle, selectedPlan.priceDisplay)
+            else -> stringResource(R.string.subscription_buy_in_telegram)
         }
 
         Column(
@@ -279,7 +313,7 @@ fun SubscriptionScreen(
                                     tightStyle = tightStyle,
                                 )
                             }
-                            plans.isEmpty() -> {
+                            tariffs.isEmpty() -> {
                                 EmptyCardBody(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -290,28 +324,146 @@ fun SubscriptionScreen(
                                 )
                             }
                             else -> {
-                                LazyColumn(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .padding(cardPad),
-                                    verticalArrangement = Arrangement.spacedBy(planListGap),
-                                    contentPadding = PaddingValues(bottom = planListGap),
                                 ) {
-                                    items(plans, key = { it.key }) { plan ->
-                                        PlanOptionCard(
-                                            plan = plan,
-                                            selected = selectedPlan?.key == plan.key,
-                                            onClick = {
-                                                selectedPlanKey = plan.key
-                                                showQr = false
-                                            },
-                                            corner = planCardCorner,
-                                            cardPad = planCardPad,
-                                            borderWidth = borderWidth,
-                                            titleSize = bodySize,
-                                            labelSize = labelSize,
-                                            tightStyle = tightStyle,
+                                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                        val selectedTariffIndex = tariffs
+                                            .indexOfFirst { it.key == selectedTariff?.key }
+                                            .takeIf { it >= 0 }
+                                            ?: 0
+                                        val tabWidth = maxWidth / tariffs.size.toFloat()
+                                        val indicatorOffset by animateDpAsState(
+                                            targetValue = tabWidth * selectedTariffIndex.toFloat(),
+                                            animationSpec = tween(
+                                                durationMillis = 360,
+                                                easing = FastOutSlowInEasing,
+                                            ),
+                                            label = "TvTariffTabIndicatorOffset",
                                         )
+
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            Row(modifier = Modifier.fillMaxWidth()) {
+                                                tariffs.forEach { tariff ->
+                                                    val selected = selectedTariff?.key == tariff.key
+                                                    var tabFocused by remember { mutableStateOf(false) }
+                                                    val titleColor by animateColorAsState(
+                                                        targetValue = when {
+                                                            selected -> MaterialTheme.colorScheme.onSurface
+                                                            tabFocused -> MaterialTheme.colorScheme.onSurface
+                                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                        },
+                                                        animationSpec = tween(
+                                                            durationMillis = 220,
+                                                            easing = FastOutSlowInEasing,
+                                                        ),
+                                                        label = "TvTariffTabTitleColor",
+                                                    )
+                                                    val selectTariff = {
+                                                        selectedTariffKey = tariff.key
+                                                        selectedPlanKey = tariff.periods
+                                                            .firstOrNull { it.key.endsWith(":month") || it.key == "month" }
+                                                            ?.key
+                                                            ?: tariff.periods.firstOrNull()?.key
+                                                            ?: selectedPlanKey
+                                                        showQr = false
+                                                    }
+
+                                                    Text(
+                                                        text = tariff.title,
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .clip(RoundedCornerShape(planCardCorner))
+                                                            .clickable { selectTariff() }
+                                                            .onFocusChanged { tabFocused = it.isFocused }
+                                                            .focusable()
+                                                            .onKeyEvent { event ->
+                                                                if (event.type == KeyEventType.KeyUp &&
+                                                                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                                                                ) {
+                                                                    selectTariff()
+                                                                    true
+                                                                } else false
+                                                            }
+                                                            .padding(vertical = planCardPad * 0.65f),
+                                                        textAlign = TextAlign.Center,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        fontSize = bodySize,
+                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                        color = titleColor,
+                                                        style = tightStyle,
+                                                    )
+                                                }
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(3.dp),
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .offset(x = indicatorOffset)
+                                                        .width(tabWidth)
+                                                        .height(3.dp)
+                                                        .clip(RoundedCornerShape(99.dp))
+                                                        .background(MaterialTheme.colorScheme.primary),
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(planListGap))
+                                    AnimatedContent(
+                                        targetState = selectedTariff?.key.orEmpty(),
+                                        transitionSpec = {
+                                            fadeIn(
+                                                animationSpec = tween(
+                                                    durationMillis = 260,
+                                                    delayMillis = 70,
+                                                    easing = FastOutSlowInEasing,
+                                                ),
+                                            ) togetherWith fadeOut(
+                                                animationSpec = tween(
+                                                    durationMillis = 160,
+                                                    easing = FastOutSlowInEasing,
+                                                ),
+                                            )
+                                        },
+                                        label = "TvSubscriptionTariffPeriods",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .animateContentSize(
+                                                animationSpec = tween(
+                                                    durationMillis = 450,
+                                                    easing = FastOutSlowInEasing,
+                                                ),
+                                            ),
+                                    ) { tariffKey ->
+                                        val periods = tariffs.firstOrNull { it.key == tariffKey }?.periods.orEmpty()
+                                        LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            verticalArrangement = Arrangement.spacedBy(planListGap),
+                                            contentPadding = PaddingValues(bottom = planListGap),
+                                        ) {
+                                            items(periods, key = { it.key }) { plan ->
+                                                PlanOptionCard(
+                                                    plan = plan,
+                                                    selected = selectedPlan?.key == plan.key,
+                                                    onClick = {
+                                                        selectedPlanKey = plan.key
+                                                        showQr = false
+                                                    },
+                                                    corner = planCardCorner,
+                                                    cardPad = planCardPad,
+                                                    borderWidth = borderWidth,
+                                                    titleSize = bodySize,
+                                                    labelSize = labelSize,
+                                                    tightStyle = tightStyle,
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -404,7 +556,11 @@ fun SubscriptionScreen(
                                     Spacer(modifier = Modifier.height(cardGap))
                                     SubscriptionActionButton(
                                         text = primaryButtonLabel,
-                                        onClick = { showQr = true },
+                                        onClick = {
+                                            if (qrUrl != null) {
+                                                showQr = true
+                                            }
+                                        },
                                         modifier = Modifier.fillMaxWidth(),
                                         minHeight = buttonHeight,
                                         corner = planCardCorner,
@@ -1016,6 +1172,23 @@ private fun planKey(days: Int): String = when (days) {
     90 -> "3month"
     365 -> "year"
     else -> "d$days"
+}
+
+private fun sameTariffName(current: String?, selected: String?): Boolean {
+    val currentName = normalizeTariffName(current)
+    val selectedName = normalizeTariffName(selected)
+    if (currentName.isBlank() || selectedName.isBlank()) return false
+    return currentName == selectedName ||
+        currentName.startsWith("$selectedName ") ||
+        selectedName.startsWith("$currentName ")
+}
+
+private fun normalizeTariffName(value: String?): String {
+    return value
+        ?.trim()
+        ?.lowercase(Locale.ROOT)
+        ?.replace(Regex("\\s+"), " ")
+        .orEmpty()
 }
 
 @Composable

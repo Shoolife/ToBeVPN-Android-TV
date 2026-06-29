@@ -19,4 +19,5 @@ data class SessionEntity(
     val accessExpiresAt: Long? = null,
     val refreshExpiresAt: Long? = null,
     val isLinked: Boolean = false,
+    val isAdminProfile: Boolean = false,
 )

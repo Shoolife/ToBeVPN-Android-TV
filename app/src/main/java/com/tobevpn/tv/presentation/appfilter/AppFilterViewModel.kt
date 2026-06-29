@@ -32,7 +32,7 @@ data class AppFilterUiState(
 @HiltViewModel
 class AppFilterViewModel @Inject constructor(
     private val repo: AppFilterRepository,
-    private val installedAppsProvider: InstalledAppsProvider,
+    val installedAppsProvider: InstalledAppsProvider,
     private val connectionManager: VpnConnectionManager,
 ) : ViewModel() {
     private val _allApps = MutableStateFlow<List<InstalledAppItem>>(emptyList())

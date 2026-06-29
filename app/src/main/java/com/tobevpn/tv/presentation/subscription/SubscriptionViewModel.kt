@@ -20,6 +20,7 @@ import javax.inject.Inject
 data class CurrentPlanLimits(
     val trafficLimitBytes: Long,
     val deviceLimit: Int,
+    val renewalUrl: String?,
 )
 
 @HiltViewModel
@@ -122,6 +123,7 @@ class SubscriptionViewModel @Inject constructor(
                     CurrentPlanLimits(
                         trafficLimitBytes = it.trafficLimitBytes,
                         deviceLimit = it.deviceLimit,
+                        renewalUrl = it.renewalUrl,
                     )
                 }
             } finally {

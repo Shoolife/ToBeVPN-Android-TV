@@ -4,6 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -67,9 +71,33 @@ class InstalledAppsProvider @Inject constructor(
                 .toList()
         }
 
+    suspend fun loadIcon(packageName: String, sizePx: Int): Bitmap? =
+        withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            try {
+                pm.getApplicationIcon(packageName).toBitmap(sizePx, sizePx)
+            } catch (_: PackageManager.NameNotFoundException) {
+                null
+            } catch (_: Exception) {
+                null
+            }
+        }
+
     private fun ApplicationInfo.isSystemNonUpdated(): Boolean {
         val isSystem = flags and ApplicationInfo.FLAG_SYSTEM != 0
         val isUpdatedSystem = flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0
         return isSystem && !isUpdatedSystem
+    }
+
+    private fun Drawable.toBitmap(width: Int, height: Int): Bitmap {
+        if (this is BitmapDrawable && bitmap != null) {
+            if (bitmap.width == width && bitmap.height == height) return bitmap
+            return Bitmap.createScaledBitmap(bitmap, width, height, true)
+        }
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        setBounds(0, 0, canvas.width, canvas.height)
+        draw(canvas)
+        return bmp
     }
 }

@@ -252,7 +252,7 @@ class VpnConnectionManager @Inject constructor(
      * Reconnects VPN to a different server without user having to
      * manually stop and start. If VPN is not currently active, just starts.
      */
-    fun switchServer(server: Server) {
+    fun switchServer(server: Server, allowStaleOnRefreshMiss: Boolean = true) {
         permittedServiceStartGeneration.set(-1)
         val request = requestedOperation.incrementAndGet()
         scope.launch {
@@ -318,7 +318,10 @@ class VpnConnectionManager @Inject constructor(
 
             if (rejectBlockedConnection(request, restartGeneration)) return@launch
 
-            val serverToStart = refreshServerAfterAccessCheck(server) ?: run {
+            val serverToStart = refreshServerAfterAccessCheck(
+                server = server,
+                allowStaleOnRefreshMiss = allowStaleOnRefreshMiss,
+            ) ?: run {
                 performStop(
                     errorMessage = context.getString(R.string.servers_empty),
                     request = request,
@@ -405,8 +408,9 @@ class VpnConnectionManager @Inject constructor(
     private suspend fun refreshServerAfterAccessCheck(
         server: Server,
         avoidCurrentInAuto: Boolean = false,
+        allowStaleOnRefreshMiss: Boolean = true,
     ): Server? {
-        return vpnRepository.refreshServers(forceRefresh = true)
+        val resolved = vpnRepository.refreshServers(forceRefresh = true)
             .getOrNull()
             .orEmpty()
             .let { refreshed ->
@@ -421,6 +425,17 @@ class VpnConnectionManager @Inject constructor(
                         ?: availableServers.firstOrNull { it.name == server.name }
                 }
             }
+        return resolved ?: server.takeIf {
+            allowStaleOnRefreshMiss && canUseStaleServerAfterRefreshMiss(it)
+        }
+    }
+
+    private suspend fun canUseStaleServerAfterRefreshMiss(server: Server): Boolean {
+        if (!server.isAvailable) return false
+        val session = sessionDao.getSession() ?: return false
+        if (session.userPlan == "EXPIRED") return false
+        val shortUuid = session.shortUuid ?: return false
+        return !prefsDataStore.isSubscriptionUsageBlocked(shortUuid)
     }
 
     private suspend fun persistAutomaticSelectionIfNeeded(server: Server) {

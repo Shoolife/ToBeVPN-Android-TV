@@ -62,6 +62,9 @@
     <string name="plan_month">1 месяц</string>
     <string name="plan_3month">3 месяца</string>
     <string name="plan_year">1 год</string>
+    <string name="buy_plan">Купить «%1$s» за %2$s</string>
+    <string name="renew_plan">Продлить «%1$s» за %2$s</string>
+    <string name="change_plan">Перейти на «%1$s» за %2$s</string>
     <string name="subscription_buy_in_telegram">Купить в Telegram</string>
     <string name="subscription_renew_in_telegram">Продлить в Telegram</string>
     <string name="subscription_qr_hint">Отсканируйте телефоном, чтобы открыть Telegram и продолжить покупку.</string>

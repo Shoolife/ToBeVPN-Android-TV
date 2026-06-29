@@ -49,8 +49,10 @@ data class CurrentSubscriptionPlanInfo(
     val isExpired: Boolean?,
     val isTrial: Boolean?,
     val isUnlimited: Boolean?,
+    val isAdmin: Boolean,
     val hasPlanData: Boolean,
     val subscriptionUrl: String?,
+    val renewalUrl: String?,
 )
 
 @Singleton
@@ -119,6 +121,7 @@ class AuthRepository @Inject constructor(
     data class PlanLimitsInfo(
         val trafficLimitBytes: Long,
         val deviceLimit: Int,
+        val renewalUrl: String?,
     )
 
     private fun normalizedSquadName(name: String): String =
@@ -296,8 +299,10 @@ class AuthRepository @Inject constructor(
             isTrial = subscription?.isTrial ?: snapshot?.isTrial,
             isUnlimited = subscription?.isUnlimited
                 ?: snapshot?.type?.equals("UNLIMITED", ignoreCase = true),
+            isAdmin = isAdmin == true,
             hasPlanData = hasPlanData,
             subscriptionUrl = subscription?.url?.trim()?.takeIf { it.isNotBlank() },
+            renewalUrl = renewalUrl?.trim()?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -350,6 +355,7 @@ class AuthRepository @Inject constructor(
                 plan = plan,
                 planExpiresAt = session.planExpiresAt,
                 planDisplayName = session.planDisplayName,
+                isAdminProfile = session.isAdminProfile,
             )
         } else {
             AuthState.Unauthenticated
@@ -449,6 +455,7 @@ class AuthRepository @Inject constructor(
                 userPlan = resolvedPlan ?: current.userPlan,
                 planDisplayName = planInfo?.displayName ?: current.planDisplayName,
                 planExpiresAt = planInfo?.expiresAtMillis ?: current.planExpiresAt,
+                isAdminProfile = planInfo?.isAdmin ?: current.isAdminProfile,
             )
         }
         planInfo?.trafficLimitBytes?.let { usageRepository.updateLimits(it, 0) }
@@ -506,6 +513,7 @@ class AuthRepository @Inject constructor(
                     planInfo.displayName ?: current.planDisplayName
                 },
                 planExpiresAt = planInfo.expiresAtMillis,
+                isAdminProfile = planInfo.isAdmin,
             )
         }
         planInfo.trafficLimitBytes?.let { usageRepository.updateLimits(it, 0) }
@@ -583,6 +591,7 @@ class AuthRepository @Inject constructor(
                 accessExpiresAt = null,
                 refreshExpiresAt = null,
                 isLinked = false,
+                isAdminProfile = false,
             )
         } ?: return
         usageRepository.updateUsage(0, 0)
@@ -602,6 +611,7 @@ class AuthRepository @Inject constructor(
                 return@withContext PlanLimitsInfo(
                     trafficLimitBytes = plan.trafficLimitBytes ?: 0,
                     deviceLimit = plan.deviceLimit ?: 0,
+                    renewalUrl = plan.renewalUrl,
                 )
             }
             val panelUsers = botApi.getUserByTelegramId(telegramId).response
@@ -613,6 +623,7 @@ class AuthRepository @Inject constructor(
             PlanLimitsInfo(
                 trafficLimitBytes = panelUser.trafficLimitBytes,
                 deviceLimit = panelUser.hwidDeviceLimit ?: 0,
+                renewalUrl = null,
             )
         } catch (_: Exception) {
             null
@@ -819,7 +830,7 @@ class AuthRepository @Inject constructor(
                 when {
                     profileResult.isUsageBlocked -> vpnRepository.clearCachedServers()
                     profileResult.links.isNotEmpty() -> vpnRepository.updateServersFromLinks(shortUuid, profileResult.links)
-                    profileResult.isSuccessful -> vpnRepository.clearCachedServers()
+                    profileResult.isSuccessful -> vpnRepository.updateServersFromLinks(shortUuid, emptyList())
                 }
             }
 
@@ -856,6 +867,7 @@ class AuthRepository @Inject constructor(
                         ?: panelUser?.let { panelPlanDisplayName(it, plan) }
                         ?: session.planDisplayName?.takeIf { session.userPlan == plan && plan != "EXPIRED" },
                     planExpiresAt = currentPlanInfo?.expiresAtMillis ?: panelExpiresAt,
+                    isAdminProfile = currentPlanInfo?.isAdmin ?: current.isAdminProfile,
                 )
             }
 
@@ -913,6 +925,7 @@ class AuthRepository @Inject constructor(
                 accessExpiresAt = null,
                 refreshExpiresAt = null,
                 isLinked = false,
+                isAdminProfile = false,
             )
         }
         bootstrapManager.clear()

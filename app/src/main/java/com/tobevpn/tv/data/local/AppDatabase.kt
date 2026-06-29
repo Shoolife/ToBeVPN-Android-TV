@@ -13,7 +13,7 @@ import com.tobevpn.tv.data.local.entity.UsageEntity
 
 @Database(
     entities = [SessionEntity::class, UsageEntity::class, ServerEntity::class, TrafficLogEntity::class],
-    version = 8,
+    version = 10,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

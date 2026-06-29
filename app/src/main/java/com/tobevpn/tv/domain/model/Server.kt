@@ -35,11 +35,15 @@ data class Server(
             name.contains("EXPIRED", ignoreCase = true) ||
             name.contains("истекла", ignoreCase = true)
 
-    /** Server metadata allows the client to use this entry for a tunnel. */
+    /**
+     * Panel online metadata can lag behind real VLESS/Reality reachability.
+     * Only sentinel/expired placeholders are not connectable; probes and
+     * Xray decide whether a normal server is actually reachable.
+     */
     val isAvailable: Boolean
-        get() = isOnline && !isSentinel
+        get() = !isSentinel
 
-    /** The server can be selected when subscription metadata marks it usable. */
+    /** The server can be selected unless it is a panel placeholder. */
     val isSelectable: Boolean
         get() = isAvailable
 
