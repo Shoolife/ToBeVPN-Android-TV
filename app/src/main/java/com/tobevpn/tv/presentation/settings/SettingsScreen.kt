@@ -54,7 +54,9 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -95,6 +97,8 @@ fun SettingsScreen(
     var pendingLanguage by remember { mutableStateOf<String?>(null) }
     var settingsPage by remember { mutableStateOf(0) }
     var keepPageIndicatorFocus by remember { mutableStateOf(false) }
+    var firstPageLeftHeightPx by remember { mutableStateOf(0) }
+    var firstPageAboutHeightPx by remember { mutableStateOf(0) }
     val pageFocusRequesters = remember { List(2) { FocusRequester() } }
 
     LaunchedEffect(settingsPage, keepPageIndicatorFocus) {
@@ -108,6 +112,7 @@ fun SettingsScreen(
         modifier = Modifier.fillMaxSize(),
     ) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
+        val density = LocalDensity.current
 
         val screenPad = (40 * scale).dp
         val cardPad = (24 * scale).dp
@@ -191,12 +196,14 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .height(IntrinsicSize.Max),
                         verticalAlignment = Alignment.Top,
-                    ) {
+                ) {
                 // Left column: Account + Language
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxHeight(),
+                        .onGloballyPositioned { coordinates ->
+                            firstPageLeftHeightPx = coordinates.size.height
+                        },
                 ) {
                     // Account card
                     Card(
@@ -315,7 +322,11 @@ fun SettingsScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     // About card
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { coordinates ->
+                                firstPageAboutHeightPx = coordinates.size.height
+                            },
                         shape = RoundedCornerShape(cardCorner),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -337,14 +348,25 @@ fun SettingsScreen(
                         }
                     }
 
-                    // Linked devices card, sitting directly under About to fill
-                    // the right column (mirrors the dedicated section on phone/desktop).
+                    // Keep the right column bottom aligned with the left column,
+                    // without stretching the Devices card to the full screen height.
                     if (authState is AuthState.Authenticated) {
+                        val devicesCardHeight = with(density) {
+                            if (firstPageLeftHeightPx > 0 && firstPageAboutHeightPx > 0) {
+                                (
+                                    firstPageLeftHeightPx -
+                                        firstPageAboutHeightPx -
+                                        cardSpacing.roundToPx()
+                                    ).coerceAtLeast(0).toDp()
+                            } else {
+                                (256 * scale).dp
+                            }
+                        }
                         Spacer(modifier = Modifier.height(cardSpacing))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f),
+                                .height(devicesCardHeight),
                             shape = RoundedCornerShape(cardCorner),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,

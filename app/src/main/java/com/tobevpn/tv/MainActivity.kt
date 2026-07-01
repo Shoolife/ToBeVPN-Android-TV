@@ -59,25 +59,30 @@ class MainActivity : AppCompatActivity() {
         var onboardingNeeded by mutableStateOf<Boolean?>(null)
 
         lifecycleScope.launch {
-            startAuthenticated = withContext(Dispatchers.IO) {
-                val authRepository = authRepositoryLazy.get()
+            val authRepository = authRepositoryLazy.get()
+            val cachedAuthenticated = withContext(Dispatchers.IO) {
+                runCatching {
+                    sessionDao.getSession()?.authState == "AUTHENTICATED"
+                }.getOrDefault(false)
+            }
+            // Build navigation from local state immediately. Remote device
+            // validation must not leave the TV on a blank screen while offline.
+            startAuthenticated = cachedAuthenticated
+
+            withContext(Dispatchers.IO) {
                 val linked = authRepository.syncDeviceSessionState().getOrNull()
                 when (linked) {
                     true -> {
                         authRepository.syncSubscription()
-                        true
                     }
                     false -> {
                         connectionManagerLazy.get().stopVpn()
                         authRepository.clearRemoteUnlinkedSession()
-                        false
                     }
                     null -> {
-                        val fallbackLinked = sessionDao.getSession()?.authState == "AUTHENTICATED"
-                        if (fallbackLinked) {
+                        if (cachedAuthenticated) {
                             runCatching { authRepository.syncSubscription() }
                         }
-                        fallbackLinked
                     }
                 }
             }

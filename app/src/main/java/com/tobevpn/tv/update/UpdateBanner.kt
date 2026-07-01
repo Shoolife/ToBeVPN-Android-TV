@@ -98,8 +98,7 @@ fun UpdateBannerHost(
             val contentUri = viewModel.installer.resolveContentUri(localUri)
             viewModel.installer.install(contentUri)
         } catch (_: ActivityNotFoundException) {
-            // Some Android TV launchers expose no PackageInstaller; the user
-            // can still install via the DownloadManager notification panel.
+            // Some Android TV launchers expose no PackageInstaller.
         }
     }
 

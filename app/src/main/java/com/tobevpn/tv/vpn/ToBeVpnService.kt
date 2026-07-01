@@ -203,8 +203,11 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         // Stop routing before completing native teardown.
         vpnInterface?.close()
         vpnInterface = null
+        // Android can revoke this service as soon as another VPN starts.
+        // Release the native loop and its local listener before returning.
+        XRayCore.stopLoop(loopGenerationToStop)
         // Drop our foreground notification; Android removes its VPN key when
-        // native TUN teardown completes below.
+        // native TUN teardown completes above.
         try {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (_: Exception) { }
@@ -214,11 +217,6 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         // Release the current service start request immediately. A later
         // ACTION_STOP request is stopped in onStartCommand as well.
         stopSelf()
-        // Keep native shutdown off the main thread.
-        Thread {
-            XRayCore.stopLoop(loopGenerationToStop)
-            stopSelf()
-        }.start()
     }
 
     private fun registerNetworkCallback() {

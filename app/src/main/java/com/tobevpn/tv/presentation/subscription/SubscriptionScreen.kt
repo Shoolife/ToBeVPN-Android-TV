@@ -7,15 +7,18 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -32,11 +35,14 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,24 +66,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -142,6 +160,7 @@ fun SubscriptionScreen(
     var selectedTariffKey by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedPlanKey by rememberSaveable { mutableStateOf("month") }
     var showQr by rememberSaveable { mutableStateOf(false) }
+    var lastFocusedTariffIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
     BackHandler(enabled = showQr) {
         showQr = false
@@ -228,6 +247,18 @@ fun SubscriptionScreen(
         }
         val selectedTariff = tariffs.firstOrNull { it.key == selectedTariffKey }
             ?: tariffs.firstOrNull()
+        val tariffTabFocusRequesters = remember(tariffs.map { it.key }) {
+            List(tariffs.size) { FocusRequester() }
+        }
+        val selectedTariffIndex = tariffs
+            .indexOfFirst { it.key == selectedTariff?.key }
+            .takeIf { it >= 0 }
+            ?: 0
+        val rememberedTariffFocusIndex = lastFocusedTariffIndex
+            ?.takeIf { it in tariffs.indices }
+            ?: selectedTariffIndex
+        val rememberedTariffFocusRequester = tariffTabFocusRequesters
+            .getOrNull(rememberedTariffFocusIndex)
         val selectedPlan = selectedTariff?.periods?.firstOrNull { it.key == selectedPlanKey }
             ?: selectedTariff?.periods?.firstOrNull { it.key.endsWith(":month") || it.key == "month" }
             ?: selectedTariff?.periods?.firstOrNull()
@@ -262,7 +293,15 @@ fun SubscriptionScreen(
                     onClick = {
                         if (showQr) showQr = false else onBack()
                     },
-                    modifier = Modifier.size(headerButtonSize),
+                    modifier = Modifier
+                        .size(headerButtonSize)
+                        .then(
+                            if (rememberedTariffFocusRequester != null) {
+                                Modifier.focusProperties { down = rememberedTariffFocusRequester }
+                            } else {
+                                Modifier
+                            }
+                        ),
                     shape = RoundedCornerShape(backCorner),
                     borderWidth = borderWidth,
                 ) {
@@ -329,91 +368,29 @@ fun SubscriptionScreen(
                                         .fillMaxSize()
                                         .padding(cardPad),
                                 ) {
-                                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                                        val selectedTariffIndex = tariffs
-                                            .indexOfFirst { it.key == selectedTariff?.key }
-                                            .takeIf { it >= 0 }
-                                            ?: 0
-                                        val tabWidth = maxWidth / tariffs.size.toFloat()
-                                        val indicatorOffset by animateDpAsState(
-                                            targetValue = tabWidth * selectedTariffIndex.toFloat(),
-                                            animationSpec = tween(
-                                                durationMillis = 360,
-                                                easing = FastOutSlowInEasing,
-                                            ),
-                                            label = "TvTariffTabIndicatorOffset",
-                                        )
-
-                                        Column(modifier = Modifier.fillMaxWidth()) {
-                                            Row(modifier = Modifier.fillMaxWidth()) {
-                                                tariffs.forEach { tariff ->
-                                                    val selected = selectedTariff?.key == tariff.key
-                                                    var tabFocused by remember { mutableStateOf(false) }
-                                                    val titleColor by animateColorAsState(
-                                                        targetValue = when {
-                                                            selected -> MaterialTheme.colorScheme.onSurface
-                                                            tabFocused -> MaterialTheme.colorScheme.onSurface
-                                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                                        },
-                                                        animationSpec = tween(
-                                                            durationMillis = 220,
-                                                            easing = FastOutSlowInEasing,
-                                                        ),
-                                                        label = "TvTariffTabTitleColor",
-                                                    )
-                                                    val selectTariff = {
-                                                        selectedTariffKey = tariff.key
-                                                        selectedPlanKey = tariff.periods
-                                                            .firstOrNull { it.key.endsWith(":month") || it.key == "month" }
-                                                            ?.key
-                                                            ?: tariff.periods.firstOrNull()?.key
-                                                            ?: selectedPlanKey
-                                                        showQr = false
-                                                    }
-
-                                                    Text(
-                                                        text = tariff.title,
-                                                        modifier = Modifier
-                                                            .weight(1f)
-                                                            .clip(RoundedCornerShape(planCardCorner))
-                                                            .clickable { selectTariff() }
-                                                            .onFocusChanged { tabFocused = it.isFocused }
-                                                            .focusable()
-                                                            .onKeyEvent { event ->
-                                                                if (event.type == KeyEventType.KeyUp &&
-                                                                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
-                                                                ) {
-                                                                    selectTariff()
-                                                                    true
-                                                                } else false
-                                                            }
-                                                            .padding(vertical = planCardPad * 0.65f),
-                                                        textAlign = TextAlign.Center,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        fontSize = bodySize,
-                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                                        color = titleColor,
-                                                        style = tightStyle,
-                                                    )
-                                                }
-                                            }
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(3.dp),
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .offset(x = indicatorOffset)
-                                                        .width(tabWidth)
-                                                        .height(3.dp)
-                                                        .clip(RoundedCornerShape(99.dp))
-                                                        .background(MaterialTheme.colorScheme.primary),
-                                                )
-                                            }
-                                        }
-                                    }
+                                    TariffTabs(
+                                        tariffs = tariffs,
+                                        selectedTariffKey = selectedTariff?.key,
+                                        tabFocusRequesters = tariffTabFocusRequesters,
+                                        focusedTabIndex = lastFocusedTariffIndex,
+                                        onFocusedTabIndexChange = { lastFocusedTariffIndex = it },
+                                        onSelect = { tariff ->
+                                            selectedTariffKey = tariff.key
+                                            selectedPlanKey = tariff.periods
+                                                .firstOrNull { it.key.endsWith(":month") || it.key == "month" }
+                                                ?.key
+                                                ?: tariff.periods.firstOrNull()?.key
+                                                ?: selectedPlanKey
+                                            showQr = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        tabCorner = planCardCorner,
+                                        tabTextPaddingH = planCardPad * 0.8f,
+                                        tabTextPaddingV = planCardPad * 0.65f,
+                                        minTabWidth = planCardPad * 5.5f,
+                                        textSize = bodySize,
+                                        tightStyle = tightStyle,
+                                    )
                                     Spacer(modifier = Modifier.height(planListGap))
                                     AnimatedContent(
                                         targetState = selectedTariff?.key.orEmpty(),
@@ -451,6 +428,7 @@ fun SubscriptionScreen(
                                                 PlanOptionCard(
                                                     plan = plan,
                                                     selected = selectedPlan?.key == plan.key,
+                                                    upFocusRequester = rememberedTariffFocusRequester,
                                                     onClick = {
                                                         selectedPlanKey = plan.key
                                                         showQr = false
@@ -562,6 +540,8 @@ fun SubscriptionScreen(
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth(),
+                                        leftFocusRequester = rememberedTariffFocusRequester,
+                                        upFocusRequester = rememberedTariffFocusRequester,
                                         minHeight = buttonHeight,
                                         corner = planCardCorner,
                                         padding = PaddingValues(horizontal = buttonPadH, vertical = buttonPadV),
@@ -608,6 +588,375 @@ fun SubscriptionScreen(
             )
         }
     }
+}
+
+@Composable
+private fun TariffTabs(
+    tariffs: List<PurchaseTariff>,
+    selectedTariffKey: String?,
+    tabFocusRequesters: List<FocusRequester>,
+    focusedTabIndex: Int?,
+    onFocusedTabIndexChange: (Int) -> Unit,
+    onSelect: (PurchaseTariff) -> Unit,
+    modifier: Modifier = Modifier,
+    tabCorner: Dp,
+    tabTextPaddingH: Dp,
+    tabTextPaddingV: Dp,
+    minTabWidth: Dp,
+    textSize: androidx.compose.ui.unit.TextUnit,
+    tightStyle: TextStyle,
+) {
+    if (tariffs.isEmpty()) return
+
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val scrollState = rememberScrollState()
+
+    BoxWithConstraints(modifier = modifier) {
+        val tabCount = tariffs.size
+        val horizontalPaddingPx = with(density) { (tabTextPaddingH * 2).roundToPx() }
+        val minTabWidthPx = with(density) { minTabWidth.roundToPx() }
+        val safetyPx = with(density) { 8.dp.roundToPx() }
+        val maxWidthPx = with(density) { maxWidth.roundToPx() }.coerceAtLeast(1)
+        val naturalTabWidthsPx = remember(
+            tariffs,
+            textMeasurer,
+            tightStyle,
+            textSize,
+            horizontalPaddingPx,
+            minTabWidthPx,
+            safetyPx,
+        ) {
+            tariffs.map { tariff ->
+                maxOf(
+                    measureTariffTitleWidthPx(
+                        title = tariff.title,
+                        textMeasurer = textMeasurer,
+                        style = tightStyle,
+                        fontSize = textSize,
+                    ) + horizontalPaddingPx + safetyPx,
+                    minTabWidthPx,
+                )
+            }
+        }
+        val naturalWidthPx = naturalTabWidthsPx.sum()
+        val spareWidthPx = (maxWidthPx - naturalWidthPx).coerceAtLeast(0)
+        val extraPerTabPx = spareWidthPx / tabCount
+        val extraRemainderPx = spareWidthPx % tabCount
+        val tabWidthsPx = naturalTabWidthsPx.mapIndexed { index, width ->
+            width + extraPerTabPx + if (index < extraRemainderPx) 1 else 0
+        }
+        val tabWidths = tabWidthsPx.map { widthPx ->
+            with(density) { widthPx.toDp() }
+        }
+        val tabStripWidthPx = tabWidthsPx.sum()
+        val tabStripWidth = with(density) { tabStripWidthPx.toDp() }
+        val scrollable = tabStripWidthPx > maxWidthPx
+        val startFadeAlpha by animateFloatAsState(
+            targetValue = if (scrollable && scrollState.value > 0) 1f else 0f,
+            animationSpec = tween(
+                durationMillis = 180,
+                easing = FastOutSlowInEasing,
+            ),
+            label = "TvTariffTabsStartFade",
+        )
+        val endFadeAlpha by animateFloatAsState(
+            targetValue = if (scrollable && scrollState.value < scrollState.maxValue) 1f else 0f,
+            animationSpec = tween(
+                durationMillis = 180,
+                easing = FastOutSlowInEasing,
+            ),
+            label = "TvTariffTabsEndFade",
+        )
+        val selectedSafeIndex = tariffs
+            .indexOfFirst { it.key == selectedTariffKey }
+            .takeIf { it >= 0 }
+            ?: 0
+        val selectedOffsetPx = tabWidthsPx.take(selectedSafeIndex).sum()
+        val indicatorOffset by animateDpAsState(
+            targetValue = with(density) { selectedOffsetPx.toDp() },
+            animationSpec = tween(
+                durationMillis = 360,
+                easing = FastOutSlowInEasing,
+            ),
+            label = "TvTariffTabIndicatorOffset",
+        )
+        val indicatorWidth by animateDpAsState(
+            targetValue = tabWidths.getOrElse(selectedSafeIndex) { minTabWidth },
+            animationSpec = tween(
+                durationMillis = 360,
+                easing = FastOutSlowInEasing,
+            ),
+            label = "TvTariffTabIndicatorWidth",
+        )
+
+        val visibleSafeIndex = focusedTabIndex
+            ?.takeIf { it in tariffs.indices }
+            ?: selectedSafeIndex
+
+        LaunchedEffect(scrollable, visibleSafeIndex, tabStripWidthPx, maxWidthPx) {
+            if (!scrollable) return@LaunchedEffect
+            val selectedStart = tabWidthsPx.take(visibleSafeIndex).sum()
+            val selectedWidth = tabWidthsPx[visibleSafeIndex]
+            val selectedEnd = selectedStart + selectedWidth
+            val selectedCenter = selectedStart + selectedWidth / 2
+            val visibleStart = scrollState.value
+            val visibleEnd = visibleStart + maxWidthPx
+            val edgeComfortPx = maxOf(maxWidthPx / 4, selectedWidth / 2)
+            val centeredTarget = selectedCenter - maxWidthPx / 2
+            val target = when {
+                selectedStart < visibleStart -> centeredTarget
+                selectedEnd > visibleEnd -> centeredTarget
+                selectedCenter < visibleStart + edgeComfortPx -> centeredTarget
+                selectedCenter > visibleEnd - edgeComfortPx -> centeredTarget
+                else -> visibleStart
+            }.coerceIn(0, scrollState.maxValue)
+            if (target != visibleStart) {
+                scrollState.animateScrollTo(
+                    value = target,
+                    animationSpec = tween(
+                        durationMillis = 520,
+                        easing = FastOutSlowInEasing,
+                    ),
+                )
+            }
+        }
+
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalFadingEdges(
+                        startAlpha = startFadeAlpha,
+                        endAlpha = endFadeAlpha,
+                        fadeWidth = 38.dp,
+                    ),
+            ) {
+                Box(
+                    modifier = Modifier.then(
+                        if (scrollable) Modifier.horizontalScroll(scrollState) else Modifier,
+                    ),
+                ) {
+                    Column(modifier = Modifier.width(tabStripWidth)) {
+                        Row(modifier = Modifier.width(tabStripWidth)) {
+                            tariffs.forEachIndexed { index, tariff ->
+                                val selected = selectedSafeIndex == index
+                                var tabFocused by remember { mutableStateOf(false) }
+                                val tabShape = RoundedCornerShape(tabCorner)
+                                val titleColor by animateColorAsState(
+                                    targetValue = when {
+                                        selected -> MaterialTheme.colorScheme.onSurface
+                                        tabFocused -> MaterialTheme.colorScheme.onSurface
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    animationSpec = tween(
+                                        durationMillis = 220,
+                                        easing = FastOutSlowInEasing,
+                                    ),
+                                    label = "TvTariffTabTitleColor",
+                                )
+                                val tabBackground by animateColorAsState(
+                                    targetValue = when {
+                                        tabFocused -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+                                        else -> Color.Transparent
+                                    },
+                                    animationSpec = tween(
+                                        durationMillis = 180,
+                                        easing = FastOutSlowInEasing,
+                                    ),
+                                    label = "TvTariffTabFocusBackground",
+                                )
+                                val focusColor = MaterialTheme.colorScheme.onSurface
+                                val borderColor by animateColorAsState(
+                                    targetValue = if (tabFocused) {
+                                        focusColor
+                                    } else {
+                                        Color.Transparent
+                                    },
+                                    animationSpec = tween(
+                                        durationMillis = 120,
+                                        easing = FastOutSlowInEasing,
+                                    ),
+                                    label = "TvTariffTabFocusBorder",
+                                )
+                                val requestNeighbourFocus: (Int) -> Boolean = { nextIndex ->
+                                    if (nextIndex in tariffs.indices) {
+                                        onFocusedTabIndexChange(nextIndex)
+                                        tabFocusRequesters.getOrNull(nextIndex)?.requestFocus()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+
+                                CompositionLocalProvider(
+                                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { onSelect(tariff) },
+                                        modifier = Modifier
+                                            .width(tabWidths[index])
+                                            .focusRequester(tabFocusRequesters[index])
+                                            .onFocusChanged {
+                                                tabFocused = it.isFocused
+                                                if (it.isFocused) onFocusedTabIndexChange(index)
+                                            }
+                                            .onPreviewKeyEvent { event ->
+                                                if (event.type == KeyEventType.KeyDown) {
+                                                    when (event.key) {
+                                                        Key.DirectionLeft -> requestNeighbourFocus(index - 1)
+                                                        Key.DirectionRight -> requestNeighbourFocus(index + 1)
+                                                        else -> false
+                                                    }
+                                                } else {
+                                                    false
+                                                }
+                                            }
+                                            .background(tabBackground, tabShape),
+                                        shape = tabShape,
+                                        border = BorderStroke(2.dp, borderColor),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = Color.Transparent,
+                                            contentColor = titleColor,
+                                        ),
+                                        contentPadding = PaddingValues(
+                                            horizontal = tabTextPaddingH,
+                                            vertical = tabTextPaddingV,
+                                        ),
+                                    ) {
+                                        Text(
+                                            text = tariff.title,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Visible,
+                                            fontSize = textSize,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                            color = titleColor,
+                                            style = tightStyle,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .width(tabStripWidth)
+                                .height(3.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = indicatorOffset)
+                                    .width(indicatorWidth)
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(99.dp))
+                                    .background(MaterialTheme.colorScheme.primary),
+                            )
+                        }
+                    }
+                }
+            }
+
+            ScrollEdgeArrow(
+                alpha = startFadeAlpha,
+                isStart = true,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 2.dp),
+            )
+            ScrollEdgeArrow(
+                alpha = endFadeAlpha,
+                isStart = false,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 2.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScrollEdgeArrow(
+    alpha: Float,
+    isStart: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        imageVector = if (isStart) {
+            Icons.AutoMirrored.Filled.KeyboardArrowLeft
+        } else {
+            Icons.AutoMirrored.Filled.KeyboardArrowRight
+        },
+        contentDescription = null,
+        modifier = modifier
+            .size(22.dp)
+            .graphicsLayer { this.alpha = alpha.coerceIn(0f, 1f) },
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun Modifier.horizontalFadingEdges(
+    startAlpha: Float,
+    endAlpha: Float,
+    fadeWidth: Dp,
+): Modifier = this
+    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+    .drawWithContent {
+        drawContent()
+
+        val fadeWidthPx = fadeWidth.toPx().coerceAtMost(size.width / 2f)
+        if (fadeWidthPx <= 0f) return@drawWithContent
+
+        val coercedStartAlpha = startAlpha.coerceIn(0f, 1f)
+        if (coercedStartAlpha > 0.001f) {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = 1f - coercedStartAlpha),
+                        Color.Black,
+                    ),
+                    startX = 0f,
+                    endX = fadeWidthPx,
+                ),
+                topLeft = Offset.Zero,
+                size = Size(fadeWidthPx, size.height),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+
+        val coercedEndAlpha = endAlpha.coerceIn(0f, 1f)
+        if (coercedEndAlpha > 0.001f) {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        Color.Black,
+                        Color.Black.copy(alpha = 1f - coercedEndAlpha),
+                    ),
+                    startX = size.width - fadeWidthPx,
+                    endX = size.width,
+                ),
+                topLeft = Offset(size.width - fadeWidthPx, 0f),
+                size = Size(fadeWidthPx, size.height),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+    }
+
+private fun measureTariffTitleWidthPx(
+    title: String,
+    textMeasurer: TextMeasurer,
+    style: TextStyle,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+): Int {
+    return textMeasurer.measure(
+        text = title,
+        style = style.copy(
+            fontSize = fontSize,
+            fontWeight = FontWeight.Bold,
+        ),
+        maxLines = 1,
+        softWrap = false,
+    ).size.width
 }
 
 @Composable
@@ -710,6 +1059,8 @@ private fun SubscriptionActionButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    leftFocusRequester: FocusRequester? = null,
+    upFocusRequester: FocusRequester? = null,
     minHeight: Dp,
     corner: Dp,
     padding: PaddingValues,
@@ -728,6 +1079,16 @@ private fun SubscriptionActionButton(
             onClick = onClick,
             modifier = modifier
                 .defaultMinSize(minWidth = 1.dp, minHeight = minHeight)
+                .then(
+                    if (leftFocusRequester != null || upFocusRequester != null) {
+                        Modifier.focusProperties {
+                            if (leftFocusRequester != null) left = leftFocusRequester
+                            if (upFocusRequester != null) up = upFocusRequester
+                        }
+                    } else {
+                        Modifier
+                    }
+                )
                 .then(
                     if (isFocused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, shape)
                     else Modifier
@@ -984,6 +1345,7 @@ private fun LimitStat(
 private fun PlanOptionCard(
     plan: PurchasePlan,
     selected: Boolean,
+    upFocusRequester: FocusRequester?,
     onClick: () -> Unit,
     corner: Dp,
     cardPad: Dp,
@@ -1014,6 +1376,13 @@ private fun PlanOptionCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (upFocusRequester != null) {
+                    Modifier.focusProperties { up = upFocusRequester }
+                } else {
+                    Modifier
+                }
+            )
             .then(
                 if (isFocused || selected) Modifier.border(borderWidth, borderColor, shape)
                 else Modifier

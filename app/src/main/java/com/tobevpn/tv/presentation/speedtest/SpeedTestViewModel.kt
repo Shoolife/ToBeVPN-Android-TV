@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.annotation.StringRes
 import com.tobevpn.tv.R
 import com.tobevpn.tv.domain.model.ConnectionState
+import com.tobevpn.tv.vpn.VpnConfig
 import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +52,7 @@ class SpeedTestViewModel @Inject constructor(
     /**
      * Whether the next test runs through the VPN tunnel. When connected, the
      * app itself is excluded from the TUN, so to measure tunnel speed we route
-     * the test through xray's local SOCKS5 inbound (127.0.0.1:10808).
+     * the test through xray's local SOCKS5 inbound.
      */
     val viaVpn: StateFlow<Boolean> = connectionManager.connectionState
         .map { it is ConnectionState.Connected }
@@ -67,7 +68,12 @@ class SpeedTestViewModel @Inject constructor(
             .readTimeout(60, TimeUnit.SECONDS)
             .followRedirects(true)
         if (throughVpn) {
-            builder.proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", 10808)))
+            builder.proxy(
+                Proxy(
+                    Proxy.Type.SOCKS,
+                    InetSocketAddress("127.0.0.1", VpnConfig.LOCAL_SOCKS_PORT),
+                ),
+            )
         }
         return builder.build()
     }

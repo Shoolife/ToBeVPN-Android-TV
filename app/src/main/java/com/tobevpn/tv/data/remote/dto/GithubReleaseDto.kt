@@ -5,8 +5,8 @@ import com.google.gson.annotations.SerializedName
 /**
  * Subset of the GitHub Releases API response we care about.
  *
- * Endpoint: GET https://api.github.com/repos/{owner}/{repo}/releases/latest
- * Docs:     https://docs.github.com/rest/releases/releases#get-the-latest-release
+ * Endpoint: GET https://api.github.com/repos/{owner}/{repo}/releases
+ * Docs:     https://docs.github.com/rest/releases/releases#list-releases
  *
  * Unauthenticated requests are limited to 60/hour per IP — well above what we
  * need (one check per app launch). Authenticating would just complicate the
