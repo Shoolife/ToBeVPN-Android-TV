@@ -1,6 +1,7 @@
 package com.tobevpn.tv.presentation.main
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.LocalActivity
@@ -74,6 +75,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.Server
@@ -112,7 +114,7 @@ fun MainScreen(
     // Re-sync on every resume (e.g. after payment in Telegram)
     LifecycleResumeEffect(Unit) {
         viewModel.onResume()
-        onPauseOrDispose {}
+        onPauseOrDispose { viewModel.onPause() }
     }
 
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
@@ -358,18 +360,31 @@ fun MainScreen(
 
     if (updateRequired) {
         UpdateRequiredDialog(
-            onUpdate = {
-                runCatching {
-                    activity?.startActivity(
-                        Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://github.com/Shoolife/ToBeVPN-Android-TV/releases/latest"),
-                        )
-                    )
-                }
-            },
+            onUpdate = { activity?.let(::openUpdatePage) },
             onQuit = { activity?.finishAffinity() },
         )
+    }
+}
+
+private fun openUpdatePage(activity: Activity) {
+    val primary = if (BuildConfig.PLAY_DISTRIBUTION) {
+        Uri.parse("market://details?id=${BuildConfig.APPLICATION_ID}")
+    } else {
+        Uri.parse("https://github.com/Shoolife/ToBeVPN-Android-TV/releases/latest")
+    }
+    try {
+        activity.startActivity(Intent(Intent.ACTION_VIEW, primary))
+    } catch (_: ActivityNotFoundException) {
+        if (BuildConfig.PLAY_DISTRIBUTION) {
+            runCatching {
+                activity.startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://play.google.com/store/apps/details?id=${BuildConfig.APPLICATION_ID}"),
+                    ),
+                )
+            }
+        }
     }
 }
 

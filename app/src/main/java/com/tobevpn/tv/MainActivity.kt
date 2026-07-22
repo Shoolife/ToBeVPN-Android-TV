@@ -125,8 +125,17 @@ class MainActivity : AppCompatActivity() {
                             // automatic 7-day GitHub probe; UpdateBannerHost
                             // renders the modal dialog when state != Idle.
                             // Mounted at activity level so it covers any route.
-                            UpdateBannerCheck()
-                            UpdateBannerHost(modifier = Modifier.alpha(mainAlpha))
+                            if (BuildConfig.IN_APP_UPDATES_ENABLED) {
+                                val updateRequired by prefsDataStore.observeUpdateRequired()
+                                    .collectAsStateWithLifecycle(initialValue = false)
+                                UpdateBannerCheck()
+                                // The forced-update dialog on Home owns this
+                                // state and must not be stacked under a second
+                                // update dialog.
+                                if (!updateRequired) {
+                                    UpdateBannerHost(modifier = Modifier.alpha(mainAlpha))
+                                }
+                            }
                         }
                     }
                 }

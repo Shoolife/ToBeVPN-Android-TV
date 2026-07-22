@@ -73,11 +73,21 @@ class UpdateRepositoryTest {
         assertEquals("ToBeVPN-TV-1.0.47-arm64-v8a-test.apk", apk?.name)
     }
 
+    @Test
+    fun pickApkAssetHandlesMissingAssetsKey() {
+        assertNull(
+            pickApkAsset(
+                release = release(tagName = "v1.0.48", assets = null),
+                supportedAbis = listOf("arm64-v8a"),
+            )
+        )
+    }
+
     private fun release(
         tagName: String,
         draft: Boolean = false,
         prerelease: Boolean = false,
-        assets: List<GithubAssetDto> = listOf(asset("ToBeVPN-TV-${tagName.removePrefix("v")}-arm64-v8a-test.apk")),
+        assets: List<GithubAssetDto>? = listOf(asset("ToBeVPN-TV-${tagName.removePrefix("v")}-arm64-v8a-test.apk")),
     ): GithubReleaseDto = GithubReleaseDto(
         tagName = tagName,
         name = tagName,

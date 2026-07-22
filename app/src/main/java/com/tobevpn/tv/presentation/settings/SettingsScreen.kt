@@ -95,6 +95,7 @@ fun SettingsScreen(
     val themeMode = savedThemeMode ?: systemThemeMode
     val context = LocalContext.current
     var pendingLanguage by remember { mutableStateOf<String?>(null) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
     var settingsPage by remember { mutableStateOf(0) }
     var keepPageIndicatorFocus by remember { mutableStateOf(false) }
     var firstPageLeftHeightPx by remember { mutableStateOf(0) }
@@ -261,7 +262,7 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.height(gap))
                                     AccountActionButton(
                                         label = stringResource(R.string.logout),
-                                        onClick = { viewModel.logout() },
+                                        onClick = { showLogoutConfirm = true },
                                         contentColor = MaterialTheme.colorScheme.onBackground,
                                         bodySize = bodySize,
                                         scale = scale,
@@ -494,6 +495,29 @@ fun SettingsScreen(
                             )
                             .onFocusChanged { cancelFocused = it.isFocused },
                     ) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
+        }
+
+        if (showLogoutConfirm) {
+            AlertDialog(
+                onDismissRequest = { showLogoutConfirm = false },
+                title = { Text(stringResource(R.string.logout_confirm_title)) },
+                text = { Text(stringResource(R.string.logout_confirm_message)) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showLogoutConfirm = false
+                            viewModel.logout()
+                        },
+                    ) {
+                        Text(stringResource(R.string.logout))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutConfirm = false }) {
                         Text(stringResource(R.string.cancel))
                     }
                 },

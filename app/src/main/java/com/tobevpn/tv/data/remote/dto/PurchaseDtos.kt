@@ -2,11 +2,17 @@ package com.tobevpn.tv.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
 
-/** Response payload of GET /api/purchase/plans?telegram_id=... */
+/**
+ * Response payload of GET /api/purchase/plans?telegram_id=...
+ *
+ * Collection fields stay nullable because Gson can return null for an
+ * omitted key without running Kotlin default arguments. Call sites use
+ * orEmpty() so a partial backend response cannot crash the TV client.
+ */
 data class PurchasePlansDto(
     @SerializedName("telegram_id") val telegramId: Long,
     @SerializedName("effective_discount_percent") val effectiveDiscountPercent: Int = 0,
-    val plans: List<PurchasePlanDto> = emptyList(),
+    val plans: List<PurchasePlanDto>? = null,
 )
 
 data class PurchasePlanDto(
@@ -26,9 +32,9 @@ data class PurchasePlanDto(
     @SerializedName("device_limit") val deviceLimit: Int = 0,
     val tag: String? = null,
     @SerializedName("order_index") val orderIndex: Int = 0,
-    @SerializedName("internal_squad_uuids") val internalSquadUuids: List<String> = emptyList(),
+    @SerializedName("internal_squad_uuids") val internalSquadUuids: List<String>? = null,
     @SerializedName("external_squad_uuid") val externalSquadUuid: String? = null,
-    val durations: List<PurchaseDurationDto> = emptyList(),
+    val durations: List<PurchaseDurationDto>? = null,
 )
 
 data class PurchaseDurationDto(
@@ -37,8 +43,8 @@ data class PurchaseDurationDto(
     @SerializedName("order_index") val orderIndex: Int = 0,
     @SerializedName("bot_start_param") val botStartParam: String? = null,
     @SerializedName("bot_payment_url") val botPaymentUrl: String? = null,
-    val prices: List<PurchasePriceDto> = emptyList(),
-    @SerializedName("payment_methods") val paymentMethods: List<PurchasePaymentMethodDto> = emptyList(),
+    val prices: List<PurchasePriceDto>? = null,
+    @SerializedName("payment_methods") val paymentMethods: List<PurchasePaymentMethodDto>? = null,
 )
 
 data class PurchasePriceDto(

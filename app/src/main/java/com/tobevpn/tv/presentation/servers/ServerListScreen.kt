@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.presentation.countryFlagForUi
@@ -131,6 +132,11 @@ fun ServerListScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+
+    LifecycleResumeEffect(Unit) {
+        viewModel.setScreenActive(true)
+        onPauseOrDispose { viewModel.setScreenActive(false) }
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)

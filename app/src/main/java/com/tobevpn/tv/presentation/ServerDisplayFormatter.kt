@@ -71,12 +71,14 @@ private val COUNTRY_NAME_TO_CODE = mapOf(
     "belarus" to "BY",
 )
 
+private val WORD_SPLIT_REGEX = Regex("[^\\p{L}]+")
+
 private fun countryCodeFromServerName(serverName: String): String? {
-    val lower = serverName.lowercase()
-    for ((keyword, code) in COUNTRY_NAME_TO_CODE) {
-        if (lower.contains(keyword)) return code
-    }
-    return null
+    // Match complete words only. A substring search mapped "Ukraine" and
+    // "Baku" to GB merely because both contain the key "uk".
+    return serverName.lowercase()
+        .split(WORD_SPLIT_REGEX)
+        .firstNotNullOfOrNull { token -> COUNTRY_NAME_TO_CODE[token] }
 }
 
 @Suppress("UNUSED_PARAMETER")

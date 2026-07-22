@@ -9,6 +9,8 @@ import com.tobevpn.tv.data.repository.VpnRepository
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.Server
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +33,11 @@ class ServerListViewModel @Inject constructor(
 
     private val _pings = MutableStateFlow<Map<String, Long>>(emptyMap())
     private val refreshMutex = Mutex()
+    private val screenActive = MutableStateFlow(false)
+
+    fun setScreenActive(active: Boolean) {
+        screenActive.value = active
+    }
 
     val servers: StateFlow<List<Server>> = vpnRepository.observeServers()
         .combine(_pings) { serverList, pingMap ->
@@ -64,6 +71,7 @@ class ServerListViewModel @Inject constructor(
         viewModelScope.launch {
             while (true) {
                 delay(5000)
+                if (!screenActive.value) continue
                 val serverList = servers.value
                 if (serverList.isNotEmpty()) {
                     measurePings(serverList)
@@ -78,8 +86,11 @@ class ServerListViewModel @Inject constructor(
             try {
                 _isLoading.value = true
                 _error.value = null
-                authRepository.syncSubscription()
-                val result = vpnRepository.refreshServers()
+                val result = coroutineScope {
+                    val serversDeferred = async { vpnRepository.refreshServers() }
+                    authRepository.syncSubscription()
+                    serversDeferred.await()
+                }
                 result.onFailure { _error.value = it.message }
                 result.onSuccess { updatePings(it) }
             } catch (error: Exception) {

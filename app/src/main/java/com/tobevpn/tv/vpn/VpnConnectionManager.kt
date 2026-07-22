@@ -19,6 +19,7 @@ import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.domain.model.UsageInfo
+import com.tobevpn.tv.util.SafeDiagnostics
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -97,42 +102,49 @@ class VpnConnectionManager @Inject constructor(
         .build()
 
     init {
-        scope.launch { usageRepository.ensureInitialized() }
-        scope.launch { observeAppFilterAndReconnect() }
+        scope.launch {
+            try {
+                usageRepository.ensureInitialized()
+            } catch (error: Exception) {
+                SafeDiagnostics.warn(TAG, "Usage init failed: ${SafeDiagnostics.failureCategory(error)}")
+            }
+        }
+        scope.launch {
+            try {
+                observeAppFilterAndReconnect()
+            } catch (error: Exception) {
+                SafeDiagnostics.warn(TAG, "App filter observer failed: ${SafeDiagnostics.failureCategory(error)}")
+            }
+        }
     }
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
     private suspend fun observeAppFilterAndReconnect() {
         val filterEmptyMsg = context.getString(R.string.app_filter_empty_warning)
-        var firstEmission = true
-        var lastSnapshot: com.tobevpn.tv.domain.model.AppFilterState? = null
-        appFilterRepository.observeState().collect { state ->
-            if (firstEmission) {
-                firstEmission = false
-                lastSnapshot = state
-                return@collect
+        appFilterRepository.observeState()
+            .distinctUntilChanged()
+            .drop(1)
+            .onEach {
+                val pre = _connectionState.value
+                if (pre is ConnectionState.Error && pre.message == filterEmptyMsg) {
+                    _connectionState.value = ConnectionState.Disconnected
+                }
             }
-            if (state == lastSnapshot) return@collect
-            lastSnapshot = state
-
-            val pre = _connectionState.value
-            if (pre is ConnectionState.Error && pre.message == filterEmptyMsg) {
-                _connectionState.value = ConnectionState.Disconnected
+            // A delay inside collect processes every checkbox change. A real
+            // debounce collapses a D-pad burst into a single reconnect.
+            .debounce(600)
+            .collect { state ->
+                val current = _connectionState.value
+                if (current !is ConnectionState.Connected && current !is ConnectionState.Connecting) {
+                    return@collect
+                }
+                val server = _currentServer.value ?: return@collect
+                if (state.mode == AppFilterMode.WHITELIST && state.selectedPackages.isEmpty()) {
+                    stopVpn()
+                    return@collect
+                }
+                switchServer(server)
             }
-
-            val current = _connectionState.value
-            if (current !is ConnectionState.Connected && current !is ConnectionState.Connecting) {
-                return@collect
-            }
-
-            delay(600)
-            if (lastSnapshot != state) return@collect
-            val server = _currentServer.value ?: return@collect
-            if (state.mode == AppFilterMode.WHITELIST && state.selectedPackages.isEmpty()) {
-                stopVpn()
-                return@collect
-            }
-            switchServer(server)
-        }
     }
 
     private suspend fun isPaidUser(): Boolean {
@@ -244,7 +256,28 @@ class VpnConnectionManager @Inject constructor(
                 putExtra(ToBeVpnService.EXTRA_SERVER_CONFIG, VpnConfig.buildConfigJson(serverToStart))
                 putExtra(ToBeVpnService.EXTRA_GENERATION, gen)
             }
+            launchTunnelService(intent, request, gen)
+        }
+    }
+
+    /**
+     * Android 12+ can reject a foreground-service start while the app is in
+     * the background (notably during watchdog recovery). Surface an error
+     * instead of crashing the whole process.
+     */
+    private suspend fun launchTunnelService(intent: Intent, request: Int, generation: Int) {
+        try {
             context.startForegroundService(intent)
+        } catch (error: Exception) {
+            SafeDiagnostics.warn(
+                TAG,
+                "VPN service start rejected: ${SafeDiagnostics.failureCategory(error)}",
+            )
+            performStop(
+                errorMessage = context.getString(R.string.error_generic),
+                request = request,
+                expectedGeneration = generation,
+            )
         }
     }
 
@@ -306,7 +339,7 @@ class VpnConnectionManager @Inject constructor(
                 action = ToBeVpnService.ACTION_STOP
                 putExtra(ToBeVpnService.EXTRA_STOP_BEFORE_GENERATION, restartGeneration)
             }
-            context.startService(stopIntent)
+            startServiceSafely(stopIntent)
             // Give the service a short window to close the old TUN before
             // establishing a new one, but keep UI state as Connecting the
             // whole time so the power button cannot interleave a manual
@@ -346,7 +379,7 @@ class VpnConnectionManager @Inject constructor(
                 putExtra(ToBeVpnService.EXTRA_SERVER_CONFIG, VpnConfig.buildConfigJson(serverToStart))
                 putExtra(ToBeVpnService.EXTRA_GENERATION, restartGeneration)
             }
-            context.startForegroundService(startIntent)
+            launchTunnelService(startIntent, request, restartGeneration)
         }
     }
 
@@ -446,10 +479,10 @@ class VpnConnectionManager @Inject constructor(
     fun requestTunnelHealthCheck() {
         scope.launch {
             networkRecheckJob?.cancel()
-            val gen = connectionGeneration
+            val gen = latestConnectionGeneration.get()
             networkRecheckJob = scope.launch {
                 delay(TUNNEL_HEALTH_NETWORK_CHANGE_DELAY_MS)
-                if (gen != connectionGeneration || _connectionState.value !is ConnectionState.Connected) {
+                if (gen != latestConnectionGeneration.get() || _connectionState.value !is ConnectionState.Connected) {
                     return@launch
                 }
                 if (!hasUnderlyingInternet()) return@launch
@@ -484,11 +517,17 @@ class VpnConnectionManager @Inject constructor(
         }
     }
 
-    fun handleServiceDestroyed() {
+    fun handleServiceDestroyed(generation: Int = -1) {
         scope.launch {
             var failedServer: Server? = null
             mutex.withLock {
-                val hasActiveSession = connectionStartTime > 0L || _connectionState.value is ConnectionState.Connected
+                // A delayed destroy callback from an old service instance
+                // must not tear down a newer connection attempt.
+                if (generation != -1 && generation != connectionGeneration) return@launch
+                val state = _connectionState.value
+                val hasActiveSession = connectionStartTime > 0L ||
+                    state is ConnectionState.Connected ||
+                    state is ConnectionState.Connecting
                 if (!hasActiveSession) return@withLock
 
                 failedServer = _currentServer.value
@@ -546,7 +585,21 @@ class VpnConnectionManager @Inject constructor(
             putExtra(ToBeVpnService.EXTRA_STOP_BEFORE_GENERATION, stopBeforeGeneration)
             putExtra(ToBeVpnService.EXTRA_FORCE_STOP, force)
         }
-        context.startService(intent)
+        startServiceSafely(intent)
+    }
+
+    private fun startServiceSafely(intent: Intent) {
+        try {
+            context.startService(intent)
+        } catch (error: Exception) {
+            SafeDiagnostics.warn(
+                TAG,
+                "VPN stop intent rejected: ${SafeDiagnostics.failureCategory(error)}",
+            )
+            // cleanupActiveInstance() still closes the live TUN even if the
+            // operating system refuses this extra stop intent.
+            ToBeVpnService.cleanupActiveInstance()
+        }
     }
 
     private fun advanceGeneration(): Int {
@@ -639,10 +692,10 @@ class VpnConnectionManager @Inject constructor(
             // device's "Last active" in the device list freezes at the moment
             // the app was last foregrounded.
             var heartbeatCounter = 0
-            while (gen == connectionGeneration) {
+            while (gen == latestConnectionGeneration.get()) {
                 delay(1000)
                 if (_connectionState.value !is ConnectionState.Connected) break
-                if (gen != connectionGeneration) break
+                if (gen != latestConnectionGeneration.get()) break
 
                 // Wall-clock-based session time is independent of counter resets.
                 _sessionTimeSeconds.value = (System.currentTimeMillis() - connectionStartTime) / 1000
@@ -731,7 +784,7 @@ class VpnConnectionManager @Inject constructor(
         healthCheckJob = scope.launch {
             delay(TUNNEL_HEALTH_INITIAL_DELAY_MS)
             var failedCycles = 0
-            while (gen == connectionGeneration && _connectionState.value is ConnectionState.Connected) {
+            while (gen == latestConnectionGeneration.get() && _connectionState.value is ConnectionState.Connected) {
                 if (!hasUnderlyingInternet()) {
                     failedCycles = 0
                     delay(TUNNEL_HEALTH_INTERVAL_MS)
@@ -761,7 +814,7 @@ class VpnConnectionManager @Inject constructor(
                     return@launch
                 }
 
-                if (gen != connectionGeneration || _connectionState.value !is ConnectionState.Connected) {
+                if (gen != latestConnectionGeneration.get() || _connectionState.value !is ConnectionState.Connected) {
                     return@launch
                 }
 
@@ -821,7 +874,7 @@ class VpnConnectionManager @Inject constructor(
             )
             return
         }
-        if (gen != connectionGeneration || _connectionState.value !is ConnectionState.Connected) {
+        if (gen != latestConnectionGeneration.get() || _connectionState.value !is ConnectionState.Connected) {
             return
         }
         mutex.withLock {
@@ -921,6 +974,7 @@ class VpnConnectionManager @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "VpnConnectionManager"
         private const val HEARTBEAT_TICKS = 60
         private const val TUNNEL_HEALTH_INITIAL_DELAY_MS = 2_500L
         private const val TUNNEL_HEALTH_INTERVAL_MS = 30_000L

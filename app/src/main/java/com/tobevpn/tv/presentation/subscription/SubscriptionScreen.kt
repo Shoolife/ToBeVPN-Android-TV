@@ -210,7 +210,7 @@ fun SubscriptionScreen(
         )
 
         val sourcePlans = purchasePlans?.plans
-            ?.filter { it.durations.any { d -> d.days > 0 } }
+            ?.filter { it.durations.orEmpty().any { d -> d.days > 0 } }
             ?.sortedWith(compareBy<PurchasePlanDto> { it.orderIndex }.thenBy { it.name })
             ?: emptyList()
 
@@ -229,7 +229,7 @@ fun SubscriptionScreen(
                     trafficLimitGb = sourcePlan.trafficLimit.toInt(),
                     deviceLimit = sourcePlan.deviceLimit.takeIf { it > 0 },
                 )
-                sourcePlan.durations
+                sourcePlan.durations.orEmpty()
                     .filter { it.days > 0 }
                     .sortedBy { it.orderIndex }
                     .forEach { d ->
@@ -1496,7 +1496,7 @@ private fun formatDurationPrice(
     isRussian: Boolean,
     rubToUsdRate: Double?,
 ): String {
-    val prices = duration.prices.associateBy { it.currency }
+    val prices = duration.prices.orEmpty().associateBy { it.currency }
 
     fun formatRub(amount: String): String {
         val value = amount.toDoubleOrNull() ?: return "$amount\u20BD"

@@ -30,6 +30,10 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -153,7 +157,7 @@ class AuthRepository @Inject constructor(
             name.contains("БЕЗЛИМИТ")
 
     private fun planForPanelUser(panelUser: com.tobevpn.tv.data.remote.dto.PanelUserDto): String {
-        val squads = panelUser.activeInternalSquads.map { normalizedSquadName(it.name) }
+        val squads = panelUser.activeInternalSquads.orEmpty().map { normalizedSquadName(it.name) }
         return when {
             squads.any(::isAdminSquadName) -> "ADMIN"
             squads.any(::isPaidSquadName) -> "PAID"
@@ -167,7 +171,7 @@ class AuthRepository @Inject constructor(
         plan: String,
     ): String? {
         if (plan != "PAID") return null
-        return panelUser.activeInternalSquads
+        return panelUser.activeInternalSquads.orEmpty()
             .map { it.name.trim() }
             .firstOrNull { it.isNotBlank() && isPaidSquadName(normalizedSquadName(it)) }
     }
@@ -202,12 +206,18 @@ class AuthRepository @Inject constructor(
 
     private fun parsePanelExpireAtMillis(value: String?): Long {
         if (value.isNullOrBlank()) return Long.MIN_VALUE
-        return try {
-            val normalized = value.replace("Z", "+00:00")
-            java.time.OffsetDateTime.parse(normalized).toInstant().toEpochMilli()
-        } catch (_: Exception) {
-            Long.MIN_VALUE
-        }
+        val trimmed = value.trim()
+        return runCatching {
+            // Honour real offsets such as +03:00, -05:00 and Z.
+            OffsetDateTime.parse(trimmed).toInstant().toEpochMilli()
+        }.recoverCatching {
+            Instant.parse(trimmed).toEpochMilli()
+        }.recoverCatching {
+            // The panel also emits offset-less timestamps; those are UTC.
+            LocalDateTime.parse(trimmed.substringBefore('.'))
+                .toInstant(ZoneOffset.UTC)
+                .toEpochMilli()
+        }.getOrDefault(Long.MIN_VALUE)
     }
 
     private fun selectBestPanelUser(
@@ -835,7 +845,7 @@ class AuthRepository @Inject constructor(
             }
 
             val panelPlan = panelUser?.let { panel ->
-                if (panel.status.uppercase(Locale.US) != "ACTIVE") "EXPIRED" else planForPanelUser(panel)
+                if (!panel.status.equals("ACTIVE", ignoreCase = true)) "EXPIRED" else planForPanelUser(panel)
             }
             val plan = if (currentPlanInfo != null) {
                 mergeCurrentAndPanelPlan(
@@ -845,9 +855,9 @@ class AuthRepository @Inject constructor(
                 )
             } else if (panelUser != null) {
                 when {
-                    panelUser.status.uppercase(Locale.US) != "ACTIVE" -> "EXPIRED"
+                    !panelUser.status.equals("ACTIVE", ignoreCase = true) -> "EXPIRED"
                     panelPlan != "FREE_TRIAL" -> panelPlan ?: "FREE_TRIAL"
-                    panelUser.trafficLimitStrategy.uppercase(Locale.US) == "MONTH" -> "PAID"
+                    panelUser.trafficLimitStrategy.equals("MONTH", ignoreCase = true) -> "PAID"
                     session.userPlan == "PAID" || session.userPlan == "ADMIN" -> session.userPlan
                     else -> "FREE_TRIAL"
                 }

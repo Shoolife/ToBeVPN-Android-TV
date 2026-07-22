@@ -51,7 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModelStoreOwner
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.repository.UpdateCheckResult
@@ -219,7 +219,7 @@ private fun DownloadingCard(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            text = formatProgress(downloadedBytes, totalBytes),
+            text = formatProgressText(downloadedBytes, totalBytes),
             style = MaterialTheme.typography.bodyMedium,
             color = bannerContentColor().copy(alpha = 0.7f),
         )
@@ -443,13 +443,14 @@ private fun FocusableOutlinedButton(
     }
 }
 
-private fun formatProgress(downloaded: Long, total: Long): String {
+@Composable
+private fun formatProgressText(downloaded: Long, total: Long): String {
     val mb = 1024.0 * 1024.0
     val left = String.format("%.1f", downloaded / mb)
     return if (total > 0) {
         val right = String.format("%.1f", total / mb)
-        "$left МБ / $right МБ"
+        stringResource(R.string.update_banner_progress_of, left, right)
     } else {
-        "$left МБ"
+        stringResource(R.string.update_banner_progress, left)
     }
 }

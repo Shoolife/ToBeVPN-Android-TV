@@ -48,10 +48,15 @@ class StatsViewModel @Inject constructor(
                     cal.set(Calendar.MINUTE, 0)
                     cal.set(Calendar.SECOND, 0)
                     cal.set(Calendar.MILLISECOND, 0)
+                    // In Sunday-first locales, resolving MONDAY without this
+                    // can jump into the following week when today is Sunday.
+                    cal.firstDayOfWeek = Calendar.MONDAY
                     cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
                     val weekStart = cal.timeInMillis / 1000
                     val weekEnd = weekStart + 7 * 86400
-                    val tzOffsetSec = TimeZone.getDefault().rawOffset.toLong() / 1000
+                    // rawOffset excludes daylight-saving time.
+                    val tzOffsetSec = TimeZone.getDefault()
+                        .getOffset(System.currentTimeMillis()).toLong() / 1000
                     trafficLogDao.getDailyStats(weekStart, weekEnd, tzOffsetSec)
                 }
                 StatsPeriod.MONTH -> {

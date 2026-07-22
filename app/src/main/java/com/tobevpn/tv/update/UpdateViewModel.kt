@@ -2,6 +2,7 @@ package com.tobevpn.tv.update
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.data.repository.UpdateCheckResult
 import com.tobevpn.tv.data.repository.UpdateRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,6 +36,7 @@ class UpdateViewModel @Inject constructor(
     fun checkOnce() {
         if (checked) return
         checked = true
+        if (!BuildConfig.IN_APP_UPDATES_ENABLED) return
         viewModelScope.launch {
             val result = repository.checkForUpdate()
             if (result is UpdateCheckResult.Available) {
@@ -50,6 +52,7 @@ class UpdateViewModel @Inject constructor(
      * weekly cache expiry.
      */
     fun forceCheck() {
+        if (!BuildConfig.IN_APP_UPDATES_ENABLED) return
         if (_manualCheckInFlight.value) return
         viewModelScope.launch {
             _manualCheckInFlight.value = true
@@ -72,6 +75,7 @@ class UpdateViewModel @Inject constructor(
     }
 
     fun startDownload() {
+        if (!BuildConfig.IN_APP_UPDATES_ENABLED) return
         val available = (_state.value as? UpdateUiState.Available) ?: return
         val info = available.info
         val id = downloader.start(info.apkUrl, info.apkFileName)

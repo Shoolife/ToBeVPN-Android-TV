@@ -33,6 +33,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.R
 
 /**
@@ -75,43 +76,45 @@ fun SettingsUpdateCheckRow(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.width(12.dp))
-        OutlinedButton(
-            onClick = { viewModel.forceCheck() },
-            enabled = !inFlight,
-            shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = buttonTextColor,
-                disabledContentColor = buttonTextColor.copy(alpha = 0.82f),
-            ),
-            border = BorderStroke(1.dp, buttonBorderColor),
-            modifier = Modifier
-                .then(
-                    if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
-                    else Modifier
+        if (BuildConfig.IN_APP_UPDATES_ENABLED) {
+            Spacer(Modifier.width(12.dp))
+            OutlinedButton(
+                onClick = { viewModel.forceCheck() },
+                enabled = !inFlight,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = buttonTextColor,
+                    disabledContentColor = buttonTextColor.copy(alpha = 0.82f),
+                ),
+                border = BorderStroke(1.dp, buttonBorderColor),
+                modifier = Modifier
+                    .then(
+                        if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
+                        else Modifier
+                    )
+                    .onFocusChanged { isFocused = it.isFocused }
+                    .focusable()
+                    .onKeyEvent { e ->
+                        if (e.type == KeyEventType.KeyUp &&
+                            (e.key == Key.DirectionCenter || e.key == Key.Enter)
+                        ) {
+                            viewModel.forceCheck(); true
+                        } else false
+                    },
+            ) {
+                if (inFlight) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    text = stringResource(R.string.update_check_button),
+                    fontSize = fontSize,
+                    fontWeight = FontWeight.SemiBold,
                 )
-                .onFocusChanged { isFocused = it.isFocused }
-                .focusable()
-                .onKeyEvent { e ->
-                    if (e.type == KeyEventType.KeyUp &&
-                        (e.key == Key.DirectionCenter || e.key == Key.Enter)
-                    ) {
-                        viewModel.forceCheck(); true
-                    } else false
-                },
-        ) {
-            if (inFlight) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                )
-                Spacer(Modifier.width(8.dp))
             }
-            Text(
-                text = stringResource(R.string.update_check_button),
-                fontSize = fontSize,
-                fontWeight = FontWeight.SemiBold,
-            )
         }
     }
 }

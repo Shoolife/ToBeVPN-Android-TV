@@ -16,6 +16,8 @@ import com.tobevpn.tv.domain.model.UsageInfo
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -79,17 +81,23 @@ class MainViewModel @Inject constructor(
     val updateRequired: StateFlow<Boolean> = authRepository.observeUpdateRequired()
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    private val screenActive = MutableStateFlow(false)
+
     private var initialized = false
     private var lastSyncTime = 0L
 
     init {
         viewModelScope.launch {
             authRepository.getOrCreateDeviceId()
-            authRepository.syncSubscription()
-            // Force a block-state check on startup so a banned device can't
-            // connect before the first throttled sync lands.
-            runCatching { authRepository.pingHwidOnly() }
-            val servers = vpnRepository.refreshServers().getOrNull().orEmpty()
+            // Start the subscription/server request immediately. Bot account
+            // sync may be slow or unavailable and must not postpone learning
+            // which VPN endpoints are usable.
+            val servers = coroutineScope {
+                val serversDeferred = async { vpnRepository.refreshServers() }
+                authRepository.syncSubscription()
+                runCatching { authRepository.pingHwidOnly() }
+                serversDeferred.await().getOrNull().orEmpty()
+            }
             ensureAutomaticServerSelected(servers, forceSelection = true)
             lastSyncTime = System.currentTimeMillis()
             initialized = true
@@ -99,6 +107,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             while (true) {
                 delay(30_000)
+                if (!screenActive.value) continue
                 runCatching { authRepository.pingHwidOnly() }
             }
         }
@@ -131,6 +140,7 @@ class MainViewModel @Inject constructor(
                 // app firing two TCP probes per minute on a TV that's just sitting on
                 // the home screen all day.
                 delay(60_000)
+                if (!screenActive.value) continue
                 if (connectionState.value is ConnectionState.Connected) continue
                 val server = currentServer.value ?: continue
                 val ping = serverQualityRepository.measurePing(server, force = true)
@@ -173,11 +183,13 @@ class MainViewModel @Inject constructor(
                     val selected = currentServer.value ?: return@launch
                     val automatic = prefsDataStore.isAutomaticServerSelection()
                     if (!automatic && !selected.isAvailable) return@launch
-                    authRepository.syncSubscription()
-                    val availableServers = vpnRepository.refreshServers(forceRefresh = true)
-                        .getOrNull()
-                        .orEmpty()
-                        .filter { it.isAvailable }
+                    val availableServers = coroutineScope {
+                        val serversDeferred = async {
+                            vpnRepository.refreshServers(forceRefresh = true)
+                        }
+                        authRepository.syncSubscription()
+                        serversDeferred.await().getOrNull().orEmpty()
+                    }.filter { it.isAvailable }
                     val resolved = if (automatic) {
                         serverQualityRepository.selectBestServer(availableServers, forceProbe = true)
                     } else {
@@ -209,20 +221,32 @@ class MainViewModel @Inject constructor(
         return authState !is AuthState.Authenticated || authState.plan != UserPlan.EXPIRED
     }
 
+    fun onPause() {
+        screenActive.value = false
+    }
+
     /** Re-sync subscription & servers when app returns to foreground (throttled to 5s). */
     fun onResume() {
+        screenActive.value = true
         if (!initialized) return
         val now = System.currentTimeMillis()
         if (now - lastSyncTime < 5_000) return
         lastSyncTime = now
         viewModelScope.launch {
-            val isConnected = connectionState.value is ConnectionState.Connected
-            authRepository.syncSubscription(overwriteUsage = !isConnected)
-            runCatching { authRepository.pingHwidOnly() }
-            val servers = vpnRepository.refreshServers().getOrNull().orEmpty()
-            if (!isConnected) {
-                ensureAutomaticServerSelected(servers)
+            val isActive = connectionState.value is ConnectionState.Connected ||
+                connectionState.value is ConnectionState.Connecting
+            if (isActive) {
+                authRepository.syncSubscription(overwriteUsage = false)
+                runCatching { authRepository.pingHwidOnly() }
+                return@launch
             }
+            val servers = coroutineScope {
+                val serversDeferred = async { vpnRepository.refreshServers() }
+                authRepository.syncSubscription(overwriteUsage = true)
+                runCatching { authRepository.pingHwidOnly() }
+                serversDeferred.await().getOrNull().orEmpty()
+            }
+            ensureAutomaticServerSelected(servers)
         }
     }
 

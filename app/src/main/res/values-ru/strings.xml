@@ -90,6 +90,8 @@
     <string name="plan">Тариф</string>
     <string name="expires">Действует до</string>
     <string name="logout">Выйти</string>
+    <string name="logout_confirm_title">Выйти из аккаунта?</string>
+    <string name="logout_confirm_message">Потребуется повторно привязать телевизор через Telegram.</string>
     <string name="about">О приложении</string>
     <string name="version">Версия</string>
     <string name="xray">XRay</string>
@@ -239,6 +241,8 @@
     <string name="update_banner_install">Установить</string>
     <string name="update_banner_failed_title">Не удалось обновить</string>
     <string name="update_banner_retry">Повторить</string>
+    <string name="update_banner_progress_of">%1$s МБ / %2$s МБ</string>
+    <string name="update_banner_progress">%1$s МБ</string>
     <!-- Settings → О приложении → строка "Проверить обновления" -->
     <string name="update_check_button">Проверить</string>
     <string name="update_check_uptodate">Версия %1$s</string>

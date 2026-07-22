@@ -133,7 +133,9 @@ data class LinkedDeviceDto(
 data class LinkedDevicesDto(
     @SerializedName("current_count") val currentCount: Int? = null,
     @SerializedName("max_devices") val maxDevices: Int,
-    val devices: List<LinkedDeviceDto>,
+    // Gson bypasses Kotlin default arguments. An omitted key can therefore
+    // arrive as null even when a Kotlin property is declared non-null.
+    val devices: List<LinkedDeviceDto>? = null,
 )
 
 data class DeviceUnlinkRequestDto(

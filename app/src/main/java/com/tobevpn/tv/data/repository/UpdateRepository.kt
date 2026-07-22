@@ -203,7 +203,7 @@ internal fun pickApkAsset(
     release: GithubReleaseDto,
     supportedAbis: List<String>,
 ): GithubAssetDto? {
-    val apks = release.assets.filter { it.name.endsWith(".apk", ignoreCase = true) }
+    val apks = release.assets.orEmpty().filter { it.name.endsWith(".apk", ignoreCase = true) }
     if (apks.isEmpty()) return null
 
     for (abi in supportedAbis) {

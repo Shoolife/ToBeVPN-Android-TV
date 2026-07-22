@@ -90,6 +90,8 @@
     <string name="plan">Plan</string>
     <string name="expires">Expires</string>
     <string name="logout">Sign out</string>
+    <string name="logout_confirm_title">Sign out?</string>
+    <string name="logout_confirm_message">You will need to link this TV to Telegram again.</string>
     <string name="about">About</string>
     <string name="version">Version</string>
     <string name="xray">XRay</string>
@@ -238,6 +240,8 @@
     <string name="update_banner_install">Install</string>
     <string name="update_banner_failed_title">Update failed</string>
     <string name="update_banner_retry">Retry</string>
+    <string name="update_banner_progress_of">%1$s MB / %2$s MB</string>
+    <string name="update_banner_progress">%1$s MB</string>
     <!-- Settings → About → "Check for updates" row -->
     <string name="update_check_button">Check</string>
     <string name="update_check_uptodate">Version %1$s</string>

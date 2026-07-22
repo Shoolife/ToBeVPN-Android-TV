@@ -39,13 +39,14 @@ object LocaleManager {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             } ?: return
 
+        // Recreate only the task. Killing the whole process here also kills
+        // the foreground VPN service and silently drops the tunnel.
         if (activity != null) {
             activity.startActivity(launchIntent)
             activity.finishAffinity()
         } else {
             context.startActivity(launchIntent)
         }
-        Runtime.getRuntime().exit(0)
     }
 
     private tailrec fun Context.findActivity(): Activity? = when (this) {

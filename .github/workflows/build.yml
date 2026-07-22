@@ -77,7 +77,7 @@ jobs:
           FALLBACK_SUBS_DOMAIN: ${{ secrets.FALLBACK_SUBS_DOMAIN }}
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Build release AAB (no splits)
+      - name: Build Google Play AAB (no splits, no self-updater)
         # AAB ships every ABI inside one bundle; -PdisableAbiSplits flips
         # splits.abi.isEnable to false for this run.
         env:
@@ -85,7 +85,7 @@ jobs:
           SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
           FALLBACK_BOT_DOMAIN: ${{ secrets.FALLBACK_BOT_DOMAIN }}
           FALLBACK_SUBS_DOMAIN: ${{ secrets.FALLBACK_SUBS_DOMAIN }}
-        run: ./gradlew bundleRelease -PdisableAbiSplits --no-daemon
+        run: ./gradlew bundlePlayRelease -PdisableAbiSplits --no-daemon
 
       - name: Locate and rename artifacts
         # splits {} produces one APK per ABI plus a universal fallback. Rename
@@ -105,13 +105,13 @@ jobs:
             cp "$apk" "artifacts/ToBeVPN-TV-${VERSION}-${abi}-${SHA}.apk"
           done
 
-          AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -1)
+          AAB=$(find app/build/outputs/bundle/playRelease -name "*.aab" | head -1)
           if [ -z "$AAB" ]; then
             echo "::error::AAB missing"
             ls -R app/build/outputs/
             exit 1
           fi
-          cp "$AAB" "artifacts/ToBeVPN-TV-${VERSION}-${SHA}.aab"
+          cp "$AAB" "artifacts/ToBeVPN-TV-${VERSION}-GooglePlay-${SHA}.aab"
 
           echo "--- artifacts/ ---"
           ls -la artifacts/
@@ -132,7 +132,7 @@ jobs:
       - name: Upload AAB
         uses: actions/upload-artifact@v5
         with:
-          name: ToBeVPN-TV-aab
+          name: ToBeVPN-TV-GooglePlay-aab
           path: artifacts/*.aab
           if-no-files-found: error
 
@@ -157,5 +157,5 @@ jobs:
         with:
           files: |
             dist/ToBeVPN-TV-apk/*.apk
-            dist/ToBeVPN-TV-aab/*.aab
+            dist/ToBeVPN-TV-GooglePlay-aab/*.aab
           generate_release_notes: true

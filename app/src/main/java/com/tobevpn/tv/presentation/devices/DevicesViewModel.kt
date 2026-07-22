@@ -64,7 +64,7 @@ class DevicesViewModel @Inject constructor(
                         currentDeviceAliases = currentDeviceAliases,
                         currentCount = data.currentCount,
                         maxDevices = data.maxDevices,
-                        devices = data.devices,
+                        devices = data.devices.orEmpty(),
                     )
                 } else {
                     _state.value.copy(

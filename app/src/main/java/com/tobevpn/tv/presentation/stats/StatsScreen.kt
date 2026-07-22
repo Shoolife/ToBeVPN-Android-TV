@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -536,9 +537,10 @@ private fun EnhancedTrafficChart(
     scale: Float,
 ) {
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val labelColorArgb = labelColor.hashCode()
+    // Color.hashCode() is not an Android ARGB integer.
+    val labelColorArgb = labelColor.toArgb()
     val scaleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-    val scaleColorArgb = scaleColor.hashCode()
+    val scaleColorArgb = scaleColor.toArgb()
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     val weekPrefixFormat = stringResource(R.string.stats_week_short)
 
@@ -717,6 +719,7 @@ private fun buildSlots(stats: List<TrafficStat>, period: StatsPeriod): List<Traf
             cal.set(Calendar.MINUTE, 0)
             cal.set(Calendar.SECOND, 0)
             cal.set(Calendar.MILLISECOND, 0)
+            cal.firstDayOfWeek = Calendar.MONDAY
             cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
             val weekStart = cal.timeInMillis / 1000
             val statsMap = stats.associateBy { it.period }
@@ -745,8 +748,9 @@ private fun slotLabel(
     return when (period) {
         StatsPeriod.DAY -> {
             // Show every 3rd hour
-            val hour = ((slot.period % 86400) / 3600).toInt()
-            if (hour % 3 == 0) "${hour}:00" else ""
+            // The slot index is the local hour. Deriving it from epoch
+            // seconds prints UTC hours in non-UTC time zones.
+            if (index % 3 == 0) "${index}:00" else ""
         }
         StatsPeriod.WEEK -> {
             val sdf = SimpleDateFormat("EE", Locale.getDefault())

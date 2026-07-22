@@ -57,9 +57,24 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val config = intent.getStringExtra(EXTRA_SERVER_CONFIG) ?: return START_NOT_STICKY
+                val config = intent.getStringExtra(EXTRA_SERVER_CONFIG)
                 val generation = intent.getIntExtra(EXTRA_GENERATION, -1)
-                if (!connectionManager.mayServiceStart(generation)) return START_NOT_STICKY
+                if (config == null || !connectionManager.mayServiceStart(generation)) {
+                    // startForegroundService() always requires a matching
+                    // startForeground(), even if this request became stale
+                    // while the user was pressing Stop. Briefly satisfy that
+                    // contract and then close this start request.
+                    val hasActiveSession = vpnInterface != null || XRayCore.isRunning
+                    if (!hasActiveSession) {
+                        startForeground(
+                            NOTIFICATION_ID,
+                            createNotification(getString(R.string.state_disconnected)),
+                        )
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf(startId)
+                    }
+                    return START_NOT_STICKY
+                }
                 cleanedUp = false
                 activeConnectionGeneration = generation
                 startVpn(config, generation)
@@ -296,10 +311,11 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
 
     override fun onDestroy() {
         activeInstance.compareAndSet(this, null)
+        val generationAtDestroy = activeConnectionGeneration
         val hadActiveSession = !cleanedUp && (vpnInterface != null || XRayCore.isRunning)
         if (hadActiveSession) {
             cleanupVpn()
-            connectionManager.handleServiceDestroyed()
+            connectionManager.handleServiceDestroyed(generationAtDestroy)
         }
         unregisterNetworkCallback()
         serviceScope.cancel()
