@@ -2,6 +2,7 @@ package com.tobevpn.tv.update
 
 import android.content.ActivityNotFoundException
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -348,16 +349,17 @@ private fun FocusablePrimaryButton(
     Button(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
+        border = if (isFocused) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface)
+        } else {
+            null
+        },
         colors = ButtonDefaults.buttonColors(
             containerColor = VpnGreen,
             contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
         modifier = Modifier
             .focusRequester(focusRequester)
-            .then(
-                if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
-                else Modifier
-            )
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
             .onKeyEvent { e ->
@@ -386,15 +388,16 @@ private fun FocusableTextButton(
     TextButton(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
+        border = if (isFocused) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface)
+        } else {
+            null
+        },
         colors = ButtonDefaults.textButtonColors(
             contentColor = bannerContentColor().copy(alpha = 0.85f),
         ),
         modifier = Modifier
             .focusRequester(focusRequester)
-            .then(
-                if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
-                else Modifier
-            )
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
             .onKeyEvent { e ->
@@ -423,12 +426,13 @@ private fun FocusableOutlinedButton(
     OutlinedButton(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
+        border = if (isFocused) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface)
+        } else {
+            ButtonDefaults.outlinedButtonBorder(enabled = true)
+        },
         modifier = Modifier
             .focusRequester(focusRequester)
-            .then(
-                if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(10.dp))
-                else Modifier
-            )
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
             .onKeyEvent { e ->

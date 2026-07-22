@@ -1,5 +1,6 @@
 package com.tobevpn.tv.presentation.appfilter
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,7 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,9 +34,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -57,14 +61,32 @@ import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppFilterScreen(
     onBack: () -> Unit,
+    onLongBack: () -> Unit = onBack,
     viewModel: AppFilterViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val reconnectBanner by viewModel.reconnectBanner.collectAsStateWithLifecycle()
+    val focusScope = rememberCoroutineScope()
+    val offModeFocusRequester = remember { FocusRequester() }
+    val whitelistModeFocusRequester = remember { FocusRequester() }
+    val blacklistModeFocusRequester = remember { FocusRequester() }
+    val showSystemFocusRequester = remember { FocusRequester() }
+    val selectAllFocusRequester = remember { FocusRequester() }
+    val clearAllFocusRequester = remember { FocusRequester() }
+
+    fun runKeepingFocus(focusRequester: FocusRequester, action: () -> Unit) {
+        action()
+        focusScope.launch {
+            withFrameNanos { }
+            withFrameNanos { }
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
@@ -97,6 +119,7 @@ fun AppFilterScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TvHeaderIconButton(
                     onClick = onBack,
+                    onLongClick = onLongBack,
                     modifier = Modifier.size(headerButtonSize),
                     shape = RoundedCornerShape((8 * scale).dp),
                     borderWidth = borderWidth,
@@ -124,7 +147,12 @@ fun AppFilterScreen(
                 ModeButton(
                     label = stringResource(R.string.app_filter_mode_off),
                     selected = state.mode == AppFilterMode.OFF,
-                    onClick = { viewModel.setMode(AppFilterMode.OFF) },
+                    onClick = {
+                        runKeepingFocus(offModeFocusRequester) {
+                            viewModel.setMode(AppFilterMode.OFF)
+                        }
+                    },
+                    focusRequester = offModeFocusRequester,
                     bodySize = bodySize,
                     scale = scale,
                 )
@@ -132,7 +160,12 @@ fun AppFilterScreen(
                 ModeButton(
                     label = stringResource(R.string.app_filter_mode_whitelist),
                     selected = state.mode == AppFilterMode.WHITELIST,
-                    onClick = { viewModel.setMode(AppFilterMode.WHITELIST) },
+                    onClick = {
+                        runKeepingFocus(whitelistModeFocusRequester) {
+                            viewModel.setMode(AppFilterMode.WHITELIST)
+                        }
+                    },
+                    focusRequester = whitelistModeFocusRequester,
                     bodySize = bodySize,
                     scale = scale,
                 )
@@ -140,7 +173,12 @@ fun AppFilterScreen(
                 ModeButton(
                     label = stringResource(R.string.app_filter_mode_blacklist),
                     selected = state.mode == AppFilterMode.BLACKLIST,
-                    onClick = { viewModel.setMode(AppFilterMode.BLACKLIST) },
+                    onClick = {
+                        runKeepingFocus(blacklistModeFocusRequester) {
+                            viewModel.setMode(AppFilterMode.BLACKLIST)
+                        }
+                    },
+                    focusRequester = blacklistModeFocusRequester,
                     bodySize = bodySize,
                     scale = scale,
                 )
@@ -197,7 +235,12 @@ fun AppFilterScreen(
                             SmallActionButton(
                                 label = stringResource(R.string.app_filter_show_system),
                                 selected = state.showSystem,
-                                onClick = viewModel::toggleShowSystem,
+                                onClick = {
+                                    runKeepingFocus(showSystemFocusRequester) {
+                                        viewModel.toggleShowSystem()
+                                    }
+                                },
+                                focusRequester = showSystemFocusRequester,
                                 bodySize = secondarySize,
                                 scale = scale,
                             )
@@ -205,7 +248,12 @@ fun AppFilterScreen(
                             SmallActionButton(
                                 label = stringResource(R.string.app_filter_select_all),
                                 selected = false,
-                                onClick = viewModel::selectAllVisible,
+                                onClick = {
+                                    runKeepingFocus(selectAllFocusRequester) {
+                                        viewModel.selectAllVisible()
+                                    }
+                                },
+                                focusRequester = selectAllFocusRequester,
                                 bodySize = secondarySize,
                                 scale = scale,
                             )
@@ -213,7 +261,12 @@ fun AppFilterScreen(
                             SmallActionButton(
                                 label = stringResource(R.string.app_filter_clear_all),
                                 selected = false,
-                                onClick = viewModel::clearAll,
+                                onClick = {
+                                    runKeepingFocus(clearAllFocusRequester) {
+                                        viewModel.clearAll()
+                                    }
+                                },
+                                focusRequester = clearAllFocusRequester,
                                 bodySize = secondarySize,
                                 scale = scale,
                             )
@@ -247,12 +300,20 @@ fun AppFilterScreen(
                                 contentPadding = PaddingValues(bottom = (8 * scale).dp),
                             ) {
                                 items(state.visibleApps, key = { it.packageName }) { app ->
+                                    val focusRequester = remember(app.packageName) {
+                                        FocusRequester()
+                                    }
                                     AppRow(
                                         app = app,
                                         selected = app.packageName in state.selected,
                                         mode = state.mode,
                                         provider = viewModel.installedAppsProvider,
-                                        onToggle = { viewModel.toggle(app.packageName) },
+                                        onToggle = {
+                                            runKeepingFocus(focusRequester) {
+                                                viewModel.toggle(app.packageName)
+                                            }
+                                        },
+                                        focusRequester = focusRequester,
                                         scale = scale,
                                         titleSize = bodySize,
                                         secondarySize = secondarySize,
@@ -282,6 +343,7 @@ private fun ModeButton(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    focusRequester: FocusRequester,
     bodySize: androidx.compose.ui.unit.TextUnit,
     scale: Float,
 ) {
@@ -289,40 +351,31 @@ private fun ModeButton(
     val shape = RoundedCornerShape((10 * scale).dp)
     val modifier = Modifier
         .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-        .then(
-            if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
-            else Modifier
-        )
+        .focusRequester(focusRequester)
         .onFocusChanged { focused = it.isFocused }
     val padding = PaddingValues(horizontal = (18 * scale).dp, vertical = (7 * scale).dp)
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
     ) {
-        if (selected) {
-            Button(
-                onClick = onClick,
-                modifier = modifier,
-                shape = shape,
-                contentPadding = padding,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = VpnGreen,
-                    contentColor = Color.Black,
-                ),
-            ) {
-                Text(label, fontSize = bodySize)
-            }
-        } else {
-            OutlinedButton(
-                onClick = onClick,
-                modifier = modifier,
-                shape = shape,
-                contentPadding = padding,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onBackground,
-                ),
-            ) {
-                Text(label, fontSize = bodySize)
-            }
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+            shape = shape,
+            contentPadding = padding,
+            border = when {
+                focused -> BorderStroke(
+                    (2 * scale).dp,
+                    MaterialTheme.colorScheme.onSurface,
+                )
+                selected -> null
+                else -> ButtonDefaults.outlinedButtonBorder(enabled = true)
+            },
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (selected) VpnGreen else Color.Transparent,
+                contentColor = if (selected) Color.Black else MaterialTheme.colorScheme.onBackground,
+            ),
+        ) {
+            Text(label, fontSize = bodySize)
         }
     }
 }
@@ -332,6 +385,7 @@ private fun SmallActionButton(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    focusRequester: FocusRequester,
     bodySize: androidx.compose.ui.unit.TextUnit,
     scale: Float,
 ) {
@@ -344,12 +398,14 @@ private fun SmallActionButton(
             onClick = onClick,
             modifier = Modifier
                 .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                .then(
-                    if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
-                    else Modifier
-                )
+                .focusRequester(focusRequester)
                 .onFocusChanged { focused = it.isFocused },
             shape = shape,
+            border = if (focused) {
+                BorderStroke((2 * scale).dp, MaterialTheme.colorScheme.onSurface)
+            } else {
+                ButtonDefaults.outlinedButtonBorder(enabled = true)
+            },
             contentPadding = PaddingValues(horizontal = (14 * scale).dp, vertical = (6 * scale).dp),
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = if (selected) VpnGreen else MaterialTheme.colorScheme.onBackground,
@@ -367,6 +423,7 @@ private fun AppRow(
     mode: AppFilterMode,
     provider: com.tobevpn.tv.data.InstalledAppsProvider,
     onToggle: () -> Unit,
+    focusRequester: FocusRequester,
     scale: Float,
     titleSize: androidx.compose.ui.unit.TextUnit,
     secondarySize: androidx.compose.ui.unit.TextUnit,
@@ -387,6 +444,7 @@ private fun AppRow(
                 color = if (focused) MaterialTheme.colorScheme.onSurface else Color.Transparent,
                 shape = shape,
             )
+            .focusRequester(focusRequester)
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onToggle)
             .padding(horizontal = (14 * scale).dp, vertical = (10 * scale).dp),

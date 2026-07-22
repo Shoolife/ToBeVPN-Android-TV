@@ -22,8 +22,11 @@ class ToBeVpnApplication : Application() {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
-        super.onCreate()
+        // Hilt injects application fields from super.onCreate(), and building
+        // those dependencies probes the encrypted database. Register SQLCipher
+        // JNI first so that probe cannot race native library initialization.
         System.loadLibrary("sqlcipher")
+        super.onCreate()
         // Hydrate cached tokens from the encrypted DB and obtain a fresh access token
         // before the UI starts hitting the API. If we're offline this fails silently
         // and TokenAuthenticator will re-try on the first 401.

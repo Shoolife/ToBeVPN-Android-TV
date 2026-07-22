@@ -123,6 +123,7 @@ private fun serverListMetrics(scale: Float): ServerListMetrics = ServerListMetri
 @Composable
 fun ServerListScreen(
     onBack: () -> Unit,
+    onLongBack: () -> Unit = onBack,
     viewModel: ServerListViewModel = hiltViewModel(),
 ) {
     val servers by viewModel.servers.collectAsStateWithLifecycle()
@@ -174,6 +175,7 @@ fun ServerListScreen(
             ) {
                 TvHeaderIconButton(
                     onClick = onBack,
+                    onLongClick = onLongBack,
                     modifier = Modifier.size(headerButtonSize),
                     shape = RoundedCornerShape(backCorner),
                     borderWidth = borderWidth,

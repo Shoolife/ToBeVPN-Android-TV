@@ -7,7 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,8 +27,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,15 +36,17 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -66,6 +66,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.tobevpn.tv.R
 import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.domain.model.AppFilterState
@@ -79,10 +82,12 @@ import com.tobevpn.tv.util.LocaleManager
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onLongBack: () -> Unit = onBack,
     onNavigateToDevices: () -> Unit = {},
     onNavigateToAppFilter: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -96,17 +101,92 @@ fun SettingsScreen(
     val context = LocalContext.current
     var pendingLanguage by remember { mutableStateOf<String?>(null) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
-    var settingsPage by remember { mutableStateOf(0) }
+    var showWhatsNew by remember { mutableStateOf(false) }
+    var settingsPage by rememberSaveable { mutableStateOf(0) }
+    var navigationReturnFocus by rememberSaveable { mutableStateOf<String?>(null) }
     var keepPageIndicatorFocus by remember { mutableStateOf(false) }
     var firstPageLeftHeightPx by remember { mutableStateOf(0) }
     var firstPageAboutHeightPx by remember { mutableStateOf(0) }
+    val backFocusRequester = remember { FocusRequester() }
+    val logoutFocusRequester = remember { FocusRequester() }
+    val englishFocusRequester = remember { FocusRequester() }
+    val russianFocusRequester = remember { FocusRequester() }
+    val whatsNewFocusRequester = remember { FocusRequester() }
+    val checkUpdateFocusRequester = remember { FocusRequester() }
+    val devicesFocusRequester = remember { FocusRequester() }
+    val appFilterFocusRequester = remember { FocusRequester() }
+    val darkThemeFocusRequester = remember { FocusRequester() }
+    val lightThemeFocusRequester = remember { FocusRequester() }
     val pageFocusRequesters = remember { List(2) { FocusRequester() } }
+    var dialogReturnFocusRequester by remember { mutableStateOf<FocusRequester?>(null) }
+    var initialFocusApplied by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val focusRestoreScope = rememberCoroutineScope()
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            val returnTarget = navigationReturnFocus
+            if (
+                returnTarget != null &&
+                (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_RESUME)
+            ) {
+                val requester = when (returnTarget) {
+                    "devices" -> devicesFocusRequester
+                    "app_filter" -> appFilterFocusRequester
+                    else -> backFocusRequester
+                }
+                // The Settings destination stays composed under its child
+                // screen, so its focus nodes are already available. Restore
+                // focus before the pop transition becomes visible instead of
+                // waiting two frames and visibly jumping from Back.
+                val restored = runCatching { requester.requestFocus() }
+                    .getOrDefault(false)
+                if (restored) {
+                    initialFocusApplied = true
+                    navigationReturnFocus = null
+                }
+                return@LifecycleEventObserver
+            }
+
+            if (event != Lifecycle.Event.ON_RESUME || initialFocusApplied) {
+                return@LifecycleEventObserver
+            }
+            focusRestoreScope.launch {
+                // Only the very first Settings composition needs to wait for
+                // its focus nodes to be attached.
+                withFrameNanos { }
+                runCatching { backFocusRequester.requestFocus() }
+                initialFocusApplied = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(settingsPage, keepPageIndicatorFocus) {
         if (keepPageIndicatorFocus) {
             withFrameNanos { }
             runCatching { pageFocusRequesters.getOrNull(settingsPage)?.requestFocus() }
         }
+    }
+
+    LaunchedEffect(
+        pendingLanguage,
+        showLogoutConfirm,
+        showWhatsNew,
+        dialogReturnFocusRequester,
+    ) {
+        val requester = dialogReturnFocusRequester ?: return@LaunchedEffect
+        if (pendingLanguage != null || showLogoutConfirm || showWhatsNew) {
+            return@LaunchedEffect
+        }
+        // A Dialog owns a separate focus window. Wait until it is detached,
+        // then return focus to the control that opened it instead of allowing
+        // Compose to fall back to the first focusable item (the Back button).
+        withFrameNanos { }
+        withFrameNanos { }
+        runCatching { requester.requestFocus() }
+        dialogReturnFocusRequester = null
     }
 
     BoxWithConstraints(
@@ -150,7 +230,22 @@ fun SettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TvHeaderIconButton(
                     onClick = onBack,
-                    modifier = Modifier.size(headerButtonSize),
+                    onLongClick = onLongBack,
+                    modifier = Modifier
+                        .size(headerButtonSize)
+                        .focusRequester(backFocusRequester)
+                        .focusProperties {
+                            down = if (settingsPage == 0) {
+                                logoutFocusRequester
+                            } else {
+                                appFilterFocusRequester
+                            }
+                            right = if (settingsPage == 0) {
+                                whatsNewFocusRequester
+                            } else {
+                                darkThemeFocusRequester
+                            }
+                        },
                     shape = RoundedCornerShape(backCorner),
                     borderWidth = borderWidth,
                 ) {
@@ -262,12 +357,19 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.height(gap))
                                     AccountActionButton(
                                         label = stringResource(R.string.logout),
-                                        onClick = { showLogoutConfirm = true },
+                                        onClick = {
+                                            dialogReturnFocusRequester = logoutFocusRequester
+                                            showLogoutConfirm = true
+                                        },
                                         contentColor = MaterialTheme.colorScheme.onBackground,
                                         bodySize = bodySize,
                                         scale = scale,
                                         buttonPadH = buttonPadH,
                                         buttonPadV = buttonPadV,
+                                        focusRequester = logoutFocusRequester,
+                                        upFocusRequester = backFocusRequester,
+                                        downFocusRequester = englishFocusRequester,
+                                        rightFocusRequester = whatsNewFocusRequester,
                                     )
                                 }
                             }
@@ -297,20 +399,35 @@ fun SettingsScreen(
                                     label = stringResource(R.string.language_english),
                                     selected = language == LocaleManager.LANG_EN,
                                     onClick = {
-                                        if (language != LocaleManager.LANG_EN) pendingLanguage = LocaleManager.LANG_EN
+                                        if (language != LocaleManager.LANG_EN) {
+                                            dialogReturnFocusRequester = englishFocusRequester
+                                            pendingLanguage = LocaleManager.LANG_EN
+                                        }
                                     },
                                     bodySize = bodySize,
                                     scale = scale,
+                                    focusRequester = englishFocusRequester,
+                                    upFocusRequester = logoutFocusRequester,
+                                    downFocusRequester = pageFocusRequesters[0],
+                                    rightFocusRequester = russianFocusRequester,
                                 )
                                 Spacer(modifier = Modifier.width((12 * scale).dp))
                                 SettingsChoiceChip(
                                     label = stringResource(R.string.language_russian),
                                     selected = language == LocaleManager.LANG_RU,
                                     onClick = {
-                                        if (language != LocaleManager.LANG_RU) pendingLanguage = LocaleManager.LANG_RU
+                                        if (language != LocaleManager.LANG_RU) {
+                                            dialogReturnFocusRequester = russianFocusRequester
+                                            pendingLanguage = LocaleManager.LANG_RU
+                                        }
                                     },
                                     bodySize = bodySize,
                                     scale = scale,
+                                    focusRequester = russianFocusRequester,
+                                    upFocusRequester = logoutFocusRequester,
+                                    downFocusRequester = pageFocusRequesters[0],
+                                    leftFocusRequester = englishFocusRequester,
+                                    rightFocusRequester = devicesFocusRequester,
                                 )
                             }
                         }
@@ -343,7 +460,28 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.height(gap))
                             // Version + "Check for updates" merged into a single
                             // row to stop duplicating the current version.
-                            com.tobevpn.tv.update.SettingsUpdateCheckRow(fontSize = bodySize)
+                            com.tobevpn.tv.update.SettingsUpdateCheckRow(
+                                fontSize = bodySize,
+                                onWhatsNew = {
+                                    dialogReturnFocusRequester = whatsNewFocusRequester
+                                    showWhatsNew = true
+                                },
+                                whatsNewFocusModifier = Modifier
+                                    .focusRequester(whatsNewFocusRequester)
+                                    .focusProperties {
+                                        up = backFocusRequester
+                                        down = devicesFocusRequester
+                                        left = logoutFocusRequester
+                                        right = checkUpdateFocusRequester
+                                    },
+                                checkFocusModifier = Modifier
+                                    .focusRequester(checkUpdateFocusRequester)
+                                    .focusProperties {
+                                        up = backFocusRequester
+                                        down = devicesFocusRequester
+                                        left = whatsNewFocusRequester
+                                    },
+                            )
                             Spacer(modifier = Modifier.height(gap))
                             InfoRow(stringResource(R.string.xray), viewModel.xrayVersion, bodySize = bodySize, rowPadV = rowPadV, tightStyle = tightStyle)
                         }
@@ -399,12 +537,19 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.height(gap))
                                     AccountActionButton(
                                         label = stringResource(R.string.devices_manage),
-                                        onClick = onNavigateToDevices,
+                                        onClick = {
+                                            navigationReturnFocus = "devices"
+                                            onNavigateToDevices()
+                                        },
                                         contentColor = MaterialTheme.colorScheme.onBackground,
                                         bodySize = bodySize,
                                         scale = scale,
                                         buttonPadH = buttonPadH,
                                         buttonPadV = buttonPadV,
+                                        focusRequester = devicesFocusRequester,
+                                        upFocusRequester = whatsNewFocusRequester,
+                                        downFocusRequester = pageFocusRequesters[1],
+                                        leftFocusRequester = russianFocusRequester,
                                     )
                                 }
                             }
@@ -415,7 +560,10 @@ fun SettingsScreen(
                 } else {
                     SettingsAppsPage(
                         appFilterState = appFilterState,
-                        onNavigateToAppFilter = onNavigateToAppFilter,
+                        onNavigateToAppFilter = {
+                            navigationReturnFocus = "app_filter"
+                            onNavigateToAppFilter()
+                        },
                         themeMode = themeMode,
                         onThemeSelected = viewModel::setThemeMode,
                         cardPad = cardPad,
@@ -427,6 +575,12 @@ fun SettingsScreen(
                         buttonPadV = buttonPadV,
                         scale = scale,
                         tightStyle = tightStyle,
+                        backFocusRequester = backFocusRequester,
+                        appFilterFocusRequester = appFilterFocusRequester,
+                        darkThemeFocusRequester = darkThemeFocusRequester,
+                        lightThemeFocusRequester = lightThemeFocusRequester,
+                        firstPageIndicatorFocusRequester = pageFocusRequesters[0],
+                        secondPageIndicatorFocusRequester = pageFocusRequesters[1],
                     )
                 }
             }
@@ -437,6 +591,11 @@ fun SettingsScreen(
             currentPage = settingsPage,
             pageCount = 2,
             focusRequesters = pageFocusRequesters,
+            upFocusRequesters = if (settingsPage == 0) {
+                listOf(englishFocusRequester, devicesFocusRequester)
+            } else {
+                listOf(appFilterFocusRequester, darkThemeFocusRequester)
+            },
             onPageSelected = {
                 keepPageIndicatorFocus = true
                 settingsPage = it
@@ -450,77 +609,42 @@ fun SettingsScreen(
 
         val pending = pendingLanguage
         if (pending != null) {
-            AlertDialog(
+            TvConfirmationDialog(
                 onDismissRequest = { pendingLanguage = null },
-                title = { Text(stringResource(R.string.language_restart_title)) },
-                text = { Text(stringResource(R.string.language_restart_message)) },
-                confirmButton = {
-                    var confirmFocused by remember { mutableStateOf(false) }
-                    val confirmShape = RoundedCornerShape((10 * scale).dp)
-                    Button(
-                        onClick = {
-                            viewModel.setLanguage(pending)
-                            pendingLanguage = null
-                            LocaleManager.restartApp(context)
-                        },
-                        shape = confirmShape,
-                        modifier = Modifier
-                            .then(
-                                if (confirmFocused) Modifier.border(
-                                    (2 * scale).dp,
-                                    MaterialTheme.colorScheme.onSurface,
-                                    confirmShape,
-                                )
-                                else Modifier
-                            )
-                            .onFocusChanged { confirmFocused = it.isFocused },
-                    ) {
-                        Text(stringResource(R.string.language_restart_button))
-                    }
-                },
-                dismissButton = {
-                    var cancelFocused by remember { mutableStateOf(false) }
-                    val cancelShape = RoundedCornerShape((10 * scale).dp)
-                    TextButton(
-                        onClick = { pendingLanguage = null },
-                        shape = cancelShape,
-                        modifier = Modifier
-                            .then(
-                                if (cancelFocused) Modifier.border(
-                                    (2 * scale).dp,
-                                    MaterialTheme.colorScheme.onSurface,
-                                    cancelShape,
-                                )
-                                else Modifier
-                            )
-                            .onFocusChanged { cancelFocused = it.isFocused },
-                    ) {
-                        Text(stringResource(R.string.cancel))
-                    }
+                title = stringResource(R.string.language_restart_title),
+                message = stringResource(R.string.language_restart_message),
+                confirmLabel = stringResource(R.string.language_restart_button),
+                cancelLabel = stringResource(R.string.cancel),
+                darkTheme = themeMode == AppThemeMode.DARK,
+                onConfirm = {
+                    viewModel.setLanguage(pending)
+                    pendingLanguage = null
+                    LocaleManager.restartApp(context)
                 },
             )
         }
 
         if (showLogoutConfirm) {
-            AlertDialog(
+            TvConfirmationDialog(
                 onDismissRequest = { showLogoutConfirm = false },
-                title = { Text(stringResource(R.string.logout_confirm_title)) },
-                text = { Text(stringResource(R.string.logout_confirm_message)) },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showLogoutConfirm = false
-                            viewModel.logout()
-                        },
-                    ) {
-                        Text(stringResource(R.string.logout))
-                    }
+                title = stringResource(R.string.logout_confirm_title),
+                message = stringResource(R.string.logout_confirm_message),
+                confirmLabel = stringResource(R.string.logout),
+                cancelLabel = stringResource(R.string.cancel),
+                darkTheme = themeMode == AppThemeMode.DARK,
+                destructive = true,
+                onConfirm = {
+                    dialogReturnFocusRequester = englishFocusRequester
+                    showLogoutConfirm = false
+                    viewModel.logout()
                 },
-                dismissButton = {
-                    TextButton(onClick = { showLogoutConfirm = false }) {
-                        Text(stringResource(R.string.cancel))
-                    }
-                },
+            )
+        }
+
+        if (showWhatsNew) {
+            WhatsNewDialog(
+                darkTheme = themeMode == AppThemeMode.DARK,
+                onDismiss = { showWhatsNew = false },
             )
         }
     }
@@ -541,11 +665,13 @@ private fun SettingsAppsPage(
     buttonPadV: androidx.compose.ui.unit.Dp,
     scale: Float,
     tightStyle: TextStyle,
+    backFocusRequester: FocusRequester,
+    appFilterFocusRequester: FocusRequester,
+    darkThemeFocusRequester: FocusRequester,
+    lightThemeFocusRequester: FocusRequester,
+    firstPageIndicatorFocusRequester: FocusRequester,
+    secondPageIndicatorFocusRequester: FocusRequester,
 ) {
-    val appFilterFocusRequester = remember { FocusRequester() }
-    val darkThemeFocusRequester = remember { FocusRequester() }
-    val lightThemeFocusRequester = remember { FocusRequester() }
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
@@ -590,6 +716,8 @@ private fun SettingsAppsPage(
                         buttonPadH = buttonPadH,
                         buttonPadV = buttonPadV,
                         focusRequester = appFilterFocusRequester,
+                        upFocusRequester = backFocusRequester,
+                        downFocusRequester = firstPageIndicatorFocusRequester,
                         rightFocusRequester = darkThemeFocusRequester,
                     )
                 }
@@ -627,6 +755,8 @@ private fun SettingsAppsPage(
                             bodySize = bodySize,
                             scale = scale,
                             focusRequester = darkThemeFocusRequester,
+                            upFocusRequester = backFocusRequester,
+                            downFocusRequester = secondPageIndicatorFocusRequester,
                             leftFocusRequester = appFilterFocusRequester,
                             rightFocusRequester = lightThemeFocusRequester,
                         )
@@ -638,6 +768,8 @@ private fun SettingsAppsPage(
                             bodySize = bodySize,
                             scale = scale,
                             focusRequester = lightThemeFocusRequester,
+                            upFocusRequester = backFocusRequester,
+                            downFocusRequester = secondPageIndicatorFocusRequester,
                             leftFocusRequester = darkThemeFocusRequester,
                         )
                     }
@@ -660,6 +792,7 @@ private fun SettingsPageIndicator(
     currentPage: Int,
     pageCount: Int,
     focusRequesters: List<FocusRequester>,
+    upFocusRequesters: List<FocusRequester>,
     onPageSelected: (Int) -> Unit,
     scale: Float,
     bodySize: androidx.compose.ui.unit.TextUnit,
@@ -676,6 +809,9 @@ private fun SettingsPageIndicator(
                 label = "${index + 1}",
                 selected = index == currentPage,
                 focusRequester = focusRequesters.getOrNull(index),
+                upFocusRequester = upFocusRequesters.getOrNull(index),
+                leftFocusRequester = focusRequesters.getOrNull(index - 1),
+                rightFocusRequester = focusRequesters.getOrNull(index + 1),
                 onClick = { onPageSelected(index) },
                 scale = scale,
                 bodySize = bodySize,
@@ -689,6 +825,9 @@ private fun PageIndicatorButton(
     label: String,
     selected: Boolean,
     focusRequester: FocusRequester?,
+    upFocusRequester: FocusRequester?,
+    leftFocusRequester: FocusRequester?,
+    rightFocusRequester: FocusRequester?,
     onClick: () -> Unit,
     scale: Float,
     bodySize: androidx.compose.ui.unit.TextUnit,
@@ -698,40 +837,35 @@ private fun PageIndicatorButton(
     val size = (42 * scale).dp
     val modifier = Modifier
         .size(size)
-        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-        .then(
-            if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
-            else Modifier
+        .settingsChoiceFocus(
+            focusRequester = focusRequester,
+            upFocusRequester = upFocusRequester,
+            leftFocusRequester = leftFocusRequester,
+            rightFocusRequester = rightFocusRequester,
         )
         .onFocusChanged { focused = it.isFocused }
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
     ) {
-        if (selected) {
-            Button(
-                onClick = onClick,
-                modifier = modifier,
-                shape = shape,
-                contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = VpnGreen,
-                    contentColor = Color.Black,
-                ),
-            ) {
-                Text(label, fontSize = bodySize, fontWeight = FontWeight.SemiBold)
-            }
-        } else {
-            OutlinedButton(
-                onClick = onClick,
-                modifier = modifier,
-                shape = shape,
-                contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onBackground,
-                ),
-            ) {
-                Text(label, fontSize = bodySize, fontWeight = FontWeight.SemiBold)
-            }
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+            shape = shape,
+            contentPadding = PaddingValues(0.dp),
+            border = when {
+                focused -> BorderStroke(
+                    (2 * scale).dp,
+                    MaterialTheme.colorScheme.onSurface,
+                )
+                selected -> null
+                else -> ButtonDefaults.outlinedButtonBorder(enabled = true)
+            },
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (selected) VpnGreen else Color.Transparent,
+                contentColor = if (selected) Color.Black else MaterialTheme.colorScheme.onBackground,
+            ),
+        ) {
+            Text(label, fontSize = bodySize, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -746,6 +880,9 @@ private fun AccountActionButton(
     buttonPadH: androidx.compose.ui.unit.Dp,
     buttonPadV: androidx.compose.ui.unit.Dp,
     focusRequester: FocusRequester? = null,
+    upFocusRequester: FocusRequester? = null,
+    downFocusRequester: FocusRequester? = null,
+    leftFocusRequester: FocusRequester? = null,
     rightFocusRequester: FocusRequester? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -757,21 +894,20 @@ private fun AccountActionButton(
             onClick = onClick,
             modifier = Modifier
                 .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                .then(
-                    if (focusRequester != null) Modifier.focusRequester(focusRequester)
-                    else Modifier
-                )
-                .then(
-                    if (rightFocusRequester != null) {
-                        Modifier.focusProperties { right = rightFocusRequester }
-                    } else Modifier
-                )
-                .then(
-                    if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
-                    else Modifier
+                .settingsChoiceFocus(
+                    focusRequester = focusRequester,
+                    upFocusRequester = upFocusRequester,
+                    downFocusRequester = downFocusRequester,
+                    leftFocusRequester = leftFocusRequester,
+                    rightFocusRequester = rightFocusRequester,
                 )
                 .onFocusChanged { focused = it.isFocused },
             shape = shape,
+            border = if (focused) {
+                BorderStroke((2 * scale).dp, MaterialTheme.colorScheme.onSurface)
+            } else {
+                ButtonDefaults.outlinedButtonBorder(enabled = true)
+            },
             contentPadding = PaddingValues(horizontal = buttonPadH, vertical = buttonPadV),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
         ) {
@@ -788,6 +924,8 @@ private fun SettingsChoiceChip(
     bodySize: androidx.compose.ui.unit.TextUnit,
     scale: Float,
     focusRequester: FocusRequester? = null,
+    upFocusRequester: FocusRequester? = null,
+    downFocusRequester: FocusRequester? = null,
     leftFocusRequester: FocusRequester? = null,
     rightFocusRequester: FocusRequester? = null,
 ) {
@@ -796,59 +934,42 @@ private fun SettingsChoiceChip(
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
     ) {
-        if (selected) {
-            Button(
-                onClick = onClick,
-                modifier = Modifier
-                    .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                    .settingsChoiceFocus(
-                        focusRequester = focusRequester,
-                        leftFocusRequester = leftFocusRequester,
-                        rightFocusRequester = rightFocusRequester,
-                    )
-                    .then(
-                        if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
-                        else Modifier
-                    )
-                    .onFocusChanged { focused = it.isFocused },
-                shape = shape,
-                contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = VpnGreen,
-                    contentColor = Color.Black,
-                ),
-            ) {
-                Text(label, fontSize = bodySize)
-            }
-        } else {
-            OutlinedButton(
-                onClick = onClick,
-                modifier = Modifier
-                    .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                    .settingsChoiceFocus(
-                        focusRequester = focusRequester,
-                        leftFocusRequester = leftFocusRequester,
-                        rightFocusRequester = rightFocusRequester,
-                    )
-                    .then(
-                        if (focused) Modifier.border((2 * scale).dp, MaterialTheme.colorScheme.onSurface, shape)
-                        else Modifier
-                    )
-                    .onFocusChanged { focused = it.isFocused },
-                shape = shape,
-                contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onBackground,
-                ),
-            ) {
-                Text(label, fontSize = bodySize)
-            }
+        OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier
+                .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                .settingsChoiceFocus(
+                    focusRequester = focusRequester,
+                    upFocusRequester = upFocusRequester,
+                    downFocusRequester = downFocusRequester,
+                    leftFocusRequester = leftFocusRequester,
+                    rightFocusRequester = rightFocusRequester,
+                )
+                .onFocusChanged { focused = it.isFocused },
+            shape = shape,
+            border = when {
+                focused -> BorderStroke(
+                    (2 * scale).dp,
+                    MaterialTheme.colorScheme.onSurface,
+                )
+                selected -> null
+                else -> ButtonDefaults.outlinedButtonBorder(enabled = true)
+            },
+            contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (selected) VpnGreen else Color.Transparent,
+                contentColor = if (selected) Color.Black else MaterialTheme.colorScheme.onBackground,
+            ),
+        ) {
+            Text(label, fontSize = bodySize)
         }
     }
 }
 
 private fun Modifier.settingsChoiceFocus(
     focusRequester: FocusRequester?,
+    upFocusRequester: FocusRequester? = null,
+    downFocusRequester: FocusRequester? = null,
     leftFocusRequester: FocusRequester?,
     rightFocusRequester: FocusRequester?,
 ): Modifier = this
@@ -857,8 +978,15 @@ private fun Modifier.settingsChoiceFocus(
         else Modifier
     )
     .then(
-        if (leftFocusRequester != null || rightFocusRequester != null) {
+        if (
+            upFocusRequester != null ||
+            downFocusRequester != null ||
+            leftFocusRequester != null ||
+            rightFocusRequester != null
+        ) {
             Modifier.focusProperties {
+                if (upFocusRequester != null) up = upFocusRequester
+                if (downFocusRequester != null) down = downFocusRequester
                 if (leftFocusRequester != null) left = leftFocusRequester
                 if (rightFocusRequester != null) right = rightFocusRequester
             }

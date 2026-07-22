@@ -89,6 +89,7 @@ import java.util.TimeZone
 @Composable
 fun StatsScreen(
     onBack: () -> Unit,
+    onLongBack: () -> Unit = onBack,
     viewModel: StatsViewModel = hiltViewModel(),
 ) {
     val period by viewModel.period.collectAsStateWithLifecycle()
@@ -153,6 +154,7 @@ fun StatsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                     TvHeaderIconButton(
                         onClick = onBack,
+                        onLongClick = onLongBack,
                         modifier = Modifier.size(headerButtonSize),
                         shape = RoundedCornerShape(backCorner),
                         borderWidth = borderWidth,

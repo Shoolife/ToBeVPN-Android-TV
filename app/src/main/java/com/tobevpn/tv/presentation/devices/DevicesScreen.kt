@@ -1,6 +1,6 @@
 package com.tobevpn.tv.presentation.devices
 
-import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,12 +35,17 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -61,9 +67,55 @@ import com.tobevpn.tv.presentation.theme.VpnGreen
 @Composable
 fun DevicesScreen(
     onBack: () -> Unit,
+    onLongBack: () -> Unit = onBack,
     viewModel: DevicesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val currentDevice = state.devices.firstOrNull {
+        it.matchesDeviceAliases(state.currentDeviceAliases)
+    }
+    val otherDevices = state.devices.filterNot {
+        it.matchesDeviceAliases(state.currentDeviceAliases)
+    }
+    val otherDeviceIds = otherDevices.map { it.deviceId }
+    val backFocusRequester = remember { FocusRequester() }
+    val refreshFocusRequester = remember { FocusRequester() }
+    val deviceFocusRequesters = remember(otherDeviceIds) {
+        otherDeviceIds.associateWith { FocusRequester() }
+    }
+    var pendingDisconnect by remember { mutableStateOf<PendingDeviceFocus?>(null) }
+    var disconnectRefreshObserved by remember { mutableStateOf(false) }
+
+    LaunchedEffect(
+        state.isLoading,
+        state.busyDeviceId,
+        otherDeviceIds,
+        pendingDisconnect,
+        disconnectRefreshObserved,
+    ) {
+        val pending = pendingDisconnect ?: return@LaunchedEffect
+        if (state.isLoading) {
+            disconnectRefreshObserved = true
+            return@LaunchedEffect
+        }
+        if (!disconnectRefreshObserved || state.busyDeviceId != null) {
+            return@LaunchedEffect
+        }
+
+        val targetRequester = when {
+            pending.deviceId in otherDeviceIds -> deviceFocusRequesters[pending.deviceId]
+            otherDeviceIds.isNotEmpty() -> {
+                val targetIndex = pending.index.coerceAtMost(otherDeviceIds.lastIndex)
+                deviceFocusRequesters[otherDeviceIds[targetIndex]]
+            }
+            else -> refreshFocusRequester
+        }
+        withFrameNanos { }
+        withFrameNanos { }
+        runCatching { targetRequester?.requestFocus() }
+        pendingDisconnect = null
+        disconnectRefreshObserved = false
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
@@ -107,7 +159,16 @@ fun DevicesScreen(
             ) {
                 TvHeaderIconButton(
                     onClick = onBack,
-                    modifier = Modifier.size(headerButtonSize),
+                    onLongClick = onLongBack,
+                    modifier = Modifier
+                        .size(headerButtonSize)
+                        .focusRequester(backFocusRequester)
+                        .focusProperties {
+                            right = refreshFocusRequester
+                            down = otherDevices.firstOrNull()
+                                ?.let { deviceFocusRequesters[it.deviceId] }
+                                ?: refreshFocusRequester
+                        },
                     shape = RoundedCornerShape(backCorner),
                     borderWidth = borderWidth,
                 ) {
@@ -128,9 +189,18 @@ fun DevicesScreen(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 TvHeaderIconButton(
-                    onClick = { viewModel.refresh() },
-                    enabled = !state.isLoading,
-                    modifier = Modifier.size(headerButtonSize),
+                    onClick = {
+                        if (!state.isLoading) viewModel.refresh()
+                    },
+                    modifier = Modifier
+                        .size(headerButtonSize)
+                        .focusRequester(refreshFocusRequester)
+                        .focusProperties {
+                            left = backFocusRequester
+                            down = otherDevices.firstOrNull()
+                                ?.let { deviceFocusRequesters[it.deviceId] }
+                                ?: backFocusRequester
+                        },
                     shape = RoundedCornerShape(backCorner),
                     borderWidth = borderWidth,
                 ) {
@@ -186,13 +256,6 @@ fun DevicesScreen(
 
             Spacer(modifier = Modifier.height(gap))
 
-            val currentDevice = state.devices.firstOrNull {
-                it.matchesDeviceAliases(state.currentDeviceAliases)
-            }
-            val otherDevices = state.devices.filterNot {
-                it.matchesDeviceAliases(state.currentDeviceAliases)
-            }
-
             // This device
             if (currentDevice != null) {
                 SectionTitle(stringResource(R.string.devices_this_device), titleSize, tightStyle)
@@ -220,7 +283,7 @@ fun DevicesScreen(
             when {
                 // Match the desktop client: any (re)load shows a centered
                 // accent spinner in place of the list, not only the first load.
-                state.isLoading -> {
+                state.isLoading && otherDevices.isEmpty() -> {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = gap),
                         horizontalArrangement = Arrangement.Center,
@@ -237,12 +300,27 @@ fun DevicesScreen(
                     )
                 }
                 else -> {
-                    otherDevices.forEach { device ->
+                    otherDevices.forEachIndexed { index, device ->
+                        val focusRequester = deviceFocusRequesters.getValue(device.deviceId)
                         DeviceCard(
                             device = device,
                             isCurrent = false,
-                            busy = state.busyDeviceId == device.deviceId,
-                            onDisconnect = { viewModel.disconnectDevice(device.deviceId) },
+                            busy = state.busyDeviceId == device.deviceId ||
+                                (pendingDisconnect?.deviceId == device.deviceId && state.isLoading),
+                            onDisconnect = {
+                                if (!state.isLoading && state.busyDeviceId == null) {
+                                    pendingDisconnect = PendingDeviceFocus(device.deviceId, index)
+                                    disconnectRefreshObserved = false
+                                    viewModel.disconnectDevice(device.deviceId)
+                                }
+                            },
+                            focusRequester = focusRequester,
+                            upFocusRequester = otherDevices.getOrNull(index - 1)
+                                ?.let { deviceFocusRequesters[it.deviceId] }
+                                ?: refreshFocusRequester,
+                            downFocusRequester = otherDevices.getOrNull(index + 1)
+                                ?.let { deviceFocusRequesters[it.deviceId] }
+                                ?: refreshFocusRequester,
                             scale = scale,
                             cardCorner = cardCorner,
                             cardPad = cardPad,
@@ -292,6 +370,11 @@ private enum class DeviceKind {
     Desktop,
     Tv,
 }
+
+private data class PendingDeviceFocus(
+    val deviceId: String,
+    val index: Int,
+)
 
 private val technicalDesktopNameRegex = Regex("^[a-z0-9][a-z0-9._-]{1,31}$")
 
@@ -358,6 +441,9 @@ private fun DeviceCard(
     isCurrent: Boolean,
     busy: Boolean,
     onDisconnect: (() -> Unit)?,
+    focusRequester: FocusRequester? = null,
+    upFocusRequester: FocusRequester? = null,
+    downFocusRequester: FocusRequester? = null,
     scale: Float,
     cardCorner: androidx.compose.ui.unit.Dp,
     cardPad: androidx.compose.ui.unit.Dp,
@@ -418,16 +504,23 @@ private fun DeviceCard(
                 var focused by remember { mutableStateOf(false) }
                 val shape = RoundedCornerShape((10 * scale).dp)
                 OutlinedButton(
-                    onClick = onDisconnect,
-                    enabled = !busy,
+                    onClick = {
+                        if (!busy) onDisconnect()
+                    },
                     modifier = Modifier
                         .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                        .then(
-                            if (focused) Modifier.border(borderWidth, MaterialTheme.colorScheme.onSurface, shape)
-                            else Modifier
-                        )
+                        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                        .focusProperties {
+                            if (upFocusRequester != null) up = upFocusRequester
+                            if (downFocusRequester != null) down = downFocusRequester
+                        }
                         .onFocusChanged { focused = it.isFocused },
                     shape = shape,
+                    border = if (focused) {
+                        BorderStroke(borderWidth, MaterialTheme.colorScheme.onSurface)
+                    } else {
+                        ButtonDefaults.outlinedButtonBorder(enabled = true)
+                    },
                     contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
                     colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,

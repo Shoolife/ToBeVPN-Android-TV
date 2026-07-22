@@ -148,6 +148,7 @@ private data class CurrentPlanUi(
 @Composable
 fun SubscriptionScreen(
     onBack: () -> Unit,
+    onLongBack: () -> Unit = onBack,
     viewModel: SubscriptionViewModel = hiltViewModel(),
 ) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
@@ -293,6 +294,7 @@ fun SubscriptionScreen(
                     onClick = {
                         if (showQr) showQr = false else onBack()
                     },
+                    onLongClick = onLongBack,
                     modifier = Modifier
                         .size(headerButtonSize)
                         .then(

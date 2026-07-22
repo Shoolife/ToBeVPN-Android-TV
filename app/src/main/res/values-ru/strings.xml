@@ -247,6 +247,17 @@
     <string name="update_check_button">Проверить</string>
     <string name="update_check_uptodate">Версия %1$s</string>
     <string name="update_available_short">Версия %1$s · доступна v%2$s</string>
+    <string name="about_whats_new_current">Что нового в этой версии</string>
+    <string name="whats_new_title">Что нового</string>
+    <string name="whats_new_version">Версия %1$s</string>
+    <string name="whats_new_intro">Главные улучшения установленной ТВ-версии</string>
+    <string name="whats_new_done">Понятно</string>
+    <string name="whats_new_stability_title">Надёжнее запуск и VPN</string>
+    <string name="whats_new_stability_desc">Зашифрованная сессия теперь корректно восстанавливается при запуске. Запуск, остановка и переподключение VPN защищены от устаревших событий сервиса.</string>
+    <string name="whats_new_servers_title">Серверы обновляются быстрее</string>
+    <string name="whats_new_servers_desc">Список серверов больше не ждёт синхронизацию с ботом. Ссылки с пробелами и эмодзи разбираются корректно, а флаги стран определяются точнее.</string>
+    <string name="whats_new_interface_title">Исправления управления и статистики</string>
+    <string name="whats_new_interface_desc">Смена языка больше не прерывает VPN, выход требует подтверждения, исправлены диапазоны недель, часовые пояса и подписи трафика.</string>
 
     <!-- Блокировка подписки / принудительное обновление -->
     <string name="error_subscription_expired">Подписка истекла. Продлите, чтобы подключиться.</string>

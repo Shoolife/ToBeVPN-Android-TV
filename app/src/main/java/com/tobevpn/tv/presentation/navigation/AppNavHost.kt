@@ -34,6 +34,7 @@ fun AppNavHost(
     modifier: Modifier = Modifier,
     startFromOnboarding: Boolean = false,
     startAuthenticated: Boolean = false,
+    onScreenBackActivated: () -> Unit = {},
 ) {
     val sessionViewModel: AppSessionViewModel = hiltViewModel()
     val authState by sessionViewModel.authState.collectAsStateWithLifecycle()
@@ -70,6 +71,21 @@ fun AppNavHost(
 
     val navAnim = tween<Float>(durationMillis = 320)
     val slideAnim = tween<androidx.compose.ui.unit.IntOffset>(durationMillis = 320)
+    val navigateBackSafely: () -> Unit = {
+        // An on-screen Back button can emit several clicks when OK/Enter is
+        // held on some TV remotes. Never allow those repeats to remove the
+        // graph root (Home for an authenticated session).
+        onScreenBackActivated()
+        if (navController.previousBackStackEntry != null) {
+            navController.popBackStack()
+        }
+    }
+    val navigateHomeSafely: () -> Unit = {
+        onScreenBackActivated()
+        while (navController.previousBackStackEntry != null) {
+            if (!navController.popBackStack()) break
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -131,39 +147,46 @@ fun AppNavHost(
         }
         composable<ServerListRoute> {
             ServerListScreen(
-                onBack = { navController.popBackStack() },
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
             )
         }
         composable<StatsRoute> {
             StatsScreen(
-                onBack = { navController.popBackStack() },
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
             )
         }
         composable<SpeedTestRoute> {
             SpeedTestScreen(
-                onBack = { navController.popBackStack() },
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
             )
         }
         composable<SubscriptionRoute> {
             SubscriptionScreen(
-                onBack = { navController.popBackStack() },
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
             )
         }
         composable<SettingsRoute> {
             SettingsScreen(
-                onBack = { navController.popBackStack() },
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
                 onNavigateToDevices = { navController.navigate(DevicesRoute) },
                 onNavigateToAppFilter = { navController.navigate(AppFilterRoute) },
             )
         }
         composable<AppFilterRoute> {
             AppFilterScreen(
-                onBack = { navController.popBackStack() },
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
             )
         }
         composable<DevicesRoute> {
             DevicesScreen(
-                onBack = { navController.popBackStack() },
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
             )
         }
     }

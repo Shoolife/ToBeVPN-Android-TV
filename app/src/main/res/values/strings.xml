@@ -246,6 +246,17 @@
     <string name="update_check_button">Check</string>
     <string name="update_check_uptodate">Version %1$s</string>
     <string name="update_available_short">Version %1$s · v%2$s available</string>
+    <string name="about_whats_new_current">What\'s new in this version</string>
+    <string name="whats_new_title">What\'s new</string>
+    <string name="whats_new_version">Version %1$s</string>
+    <string name="whats_new_intro">The main improvements in the installed TV version</string>
+    <string name="whats_new_done">Got it</string>
+    <string name="whats_new_stability_title">More reliable startup and VPN</string>
+    <string name="whats_new_stability_desc">The encrypted session now restores correctly at startup. VPN start, stop and reconnect are protected from stale service events.</string>
+    <string name="whats_new_servers_title">Servers update faster</string>
+    <string name="whats_new_servers_desc">The server list no longer waits for bot sync. Links containing spaces and emoji are parsed correctly, and country flags are more accurate.</string>
+    <string name="whats_new_interface_title">Control and statistics fixes</string>
+    <string name="whats_new_interface_desc">Changing language no longer interrupts VPN, logout asks for confirmation, and week ranges, time zones and traffic labels are corrected.</string>
 
     <!-- Subscription block / forced update -->
     <string name="error_subscription_expired">Subscription expired. Renew it to connect.</string>

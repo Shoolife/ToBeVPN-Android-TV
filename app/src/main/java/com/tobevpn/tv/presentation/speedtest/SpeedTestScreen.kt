@@ -69,6 +69,7 @@ import kotlin.math.sin
 @Composable
 fun SpeedTestScreen(
     onBack: () -> Unit,
+    onLongBack: () -> Unit = onBack,
     viewModel: SpeedTestViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -121,6 +122,7 @@ fun SpeedTestScreen(
             ) {
                 TvHeaderIconButton(
                     onClick = onBack,
+                    onLongClick = onLongBack,
                     modifier = Modifier.size(headerButtonSize),
                     shape = RoundedCornerShape(backCorner),
                     borderWidth = borderWidth,
