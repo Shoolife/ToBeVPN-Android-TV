@@ -22,6 +22,7 @@ import com.tobevpn.tv.presentation.devices.DevicesScreen
 import com.tobevpn.tv.presentation.main.MainScreen
 import com.tobevpn.tv.presentation.onboarding.OnboardingScreen
 import com.tobevpn.tv.presentation.pairing.PairingScreen
+import com.tobevpn.tv.presentation.referrals.ReferralsScreen
 import com.tobevpn.tv.presentation.servers.ServerListScreen
 import com.tobevpn.tv.presentation.settings.SettingsScreen
 import com.tobevpn.tv.presentation.speedtest.SpeedTestScreen
@@ -175,6 +176,7 @@ fun AppNavHost(
                 onLongBack = navigateHomeSafely,
                 onNavigateToDevices = { navController.navigate(DevicesRoute) },
                 onNavigateToAppFilter = { navController.navigate(AppFilterRoute) },
+                onNavigateToReferrals = { navController.navigate(ReferralsRoute) },
             )
         }
         composable<AppFilterRoute> {
@@ -185,6 +187,12 @@ fun AppNavHost(
         }
         composable<DevicesRoute> {
             DevicesScreen(
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
+            )
+        }
+        composable<ReferralsRoute> {
+            ReferralsScreen(
                 onBack = navigateBackSafely,
                 onLongBack = navigateHomeSafely,
             )

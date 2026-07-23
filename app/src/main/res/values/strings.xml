@@ -108,6 +108,9 @@
     <string name="settings_app_filter_manage">Configure</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_hint">Choose the app appearance</string>
+    <string name="settings_referrals">Referrals</string>
+    <string name="settings_referrals_hint">Invite friends and view referral statistics</string>
+    <string name="settings_referrals_manage">Open</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="app_filter_title">VPN apps</string>
@@ -146,6 +149,53 @@
     <string name="devices_load_error">Could not load devices</string>
     <string name="error_devices_disconnect">Could not disconnect the device</string>
     <string name="error_auth_required">Sign in to manage devices</string>
+
+    <!-- Referrals -->
+    <string name="referrals_title">Referrals</string>
+    <string name="referrals_hero_title">Invite friends</string>
+    <string name="referrals_hero_description">Share your personal link and keep track of invitations in one place.</string>
+    <string name="referrals_your_link">Your referral link</string>
+    <string name="referrals_link_unavailable">Link is temporarily unavailable</string>
+    <string name="referrals_copy">Copy</string>
+    <string name="referrals_link_copied">Referral link copied</string>
+    <string name="referrals_show_qr">QR code</string>
+    <string name="referrals_qr_title">Invite from your TV</string>
+    <string name="referrals_qr_description">Scan the QR code with your phone to open and share your personal link.</string>
+    <string name="referrals_clipboard_label">ToBeVPN referral link</string>
+    <string name="referrals_referred_by">Invited by</string>
+    <string name="referrals_referrer_input_title">Did someone invite you?</string>
+    <string name="referrals_referrer_input_description">Enter the inviter\'s Telegram ID. It can be assigned only once.</string>
+    <string name="referrals_referrer_id_label">Inviter Telegram ID</string>
+    <string name="referrals_referrer_id_value">Telegram ID: %1$d</string>
+    <string name="referrals_referrer_id_invalid">Enter a valid Telegram ID.</string>
+    <string name="referrals_referrer_assign">Assign inviter</string>
+    <string name="referrals_referrer_assigning">Assigning…</string>
+    <string name="referrals_referrer_confirm_title">Assign this inviter?</string>
+    <string name="referrals_referrer_confirm_description">This Telegram ID will be saved as your inviter. You will not be able to change it later.</string>
+    <string name="referrals_referrer_confirm">Assign</string>
+    <string name="referrals_referrer_error_network">Check your internet connection and try again.</string>
+    <string name="referrals_referrer_error_not_found">No ToBeVPN user with this Telegram ID was found.</string>
+    <string name="referrals_referrer_error_conflict">This ID cannot be assigned. An inviter may already be set, this may be your own ID, or referrals may be unavailable.</string>
+    <string name="referrals_referrer_error_unavailable">Link this TV to your account again and retry.</string>
+    <string name="referrals_referrer_error_unknown">Couldn\'t assign the inviter. Try again.</string>
+    <string name="referrals_invited_title">Invited friends</string>
+    <string name="referrals_open_list">View friends</string>
+    <string name="referrals_unknown_user">ToBeVPN user</string>
+    <string name="referrals_joined">Invited: %1$s</string>
+    <string name="referrals_level">Level %1$d</string>
+    <string name="referrals_empty_title">No invitations yet</string>
+    <string name="referrals_empty_description">Share your link with friends — new invitations will appear here.</string>
+    <string name="referrals_load_more">Show more</string>
+    <string name="referrals_auth_title">Link your account to view referrals</string>
+    <string name="referrals_auth_description">Your personal link, invited friends and referral status are tied to your Telegram account.</string>
+    <string name="referrals_error_title">Couldn\'t load referrals</string>
+    <string name="referrals_error_network">Check your internet connection and try again.</string>
+    <string name="referrals_error_unavailable">The referral program is temporarily unavailable.</string>
+    <string name="referrals_error_unknown">Something went wrong. Try again.</string>
+    <plurals name="referrals_invited_count">
+        <item quantity="one">%1$d invited friend</item>
+        <item quantity="other">%1$d invited friends</item>
+    </plurals>
 
     <!-- Stats -->
     <string name="stats_title">Statistics</string>
@@ -200,6 +250,7 @@
     <string name="pairing_done">Done!</string>
     <string name="error_generic">Error</string>
     <string name="retry">Try again</string>
+    <string name="close">Close</string>
 
     <!-- Onboarding -->
     <string name="onboarding_subtitle">Fast and secure VPN powered by XRay</string>
@@ -257,6 +308,12 @@
     <string name="whats_new_servers_desc">The server list no longer waits for bot sync. Links containing spaces and emoji are parsed correctly, and country flags are more accurate.</string>
     <string name="whats_new_interface_title">Control and statistics fixes</string>
     <string name="whats_new_interface_desc">Changing language no longer interrupts VPN, logout asks for confirmation, and week ranges, time zones and traffic labels are corrected.</string>
+    <string name="whats_new_referrals_title">Referral program</string>
+    <string name="whats_new_referrals_desc">The new Referrals card brings your personal link and friend-invitation actions together in one TV-friendly screen.</string>
+    <string name="whats_new_invited_friends_title">Invited friends</string>
+    <string name="whats_new_invited_friends_desc">See your invitation count and open the detailed list. Refreshing reloads both the summary and the list.</string>
+    <string name="whats_new_assign_inviter_title">Assign your inviter</string>
+    <string name="whats_new_assign_inviter_desc">If no inviter is set yet, enter their Telegram ID once and confirm the assignment.</string>
 
     <!-- Subscription block / forced update -->
     <string name="error_subscription_expired">Subscription expired. Renew it to connect.</string>

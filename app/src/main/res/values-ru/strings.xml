@@ -108,6 +108,9 @@
     <string name="settings_app_filter_manage">Настроить</string>
     <string name="settings_theme">Тема</string>
     <string name="settings_theme_hint">Выберите оформление приложения</string>
+    <string name="settings_referrals">Рефералы</string>
+    <string name="settings_referrals_hint">Приглашения и реферальная статистика</string>
+    <string name="settings_referrals_manage">Открыть</string>
     <string name="theme_dark">Тёмная</string>
     <string name="theme_light">Светлая</string>
     <string name="app_filter_title">Приложения VPN</string>
@@ -146,6 +149,55 @@
     <string name="devices_load_error">Не удалось загрузить устройства</string>
     <string name="error_devices_disconnect">Не удалось отвязать устройство</string>
     <string name="error_auth_required">Войдите, чтобы управлять устройствами</string>
+
+    <!-- Рефералы -->
+    <string name="referrals_title">Рефералы</string>
+    <string name="referrals_hero_title">Приглашайте друзей</string>
+    <string name="referrals_hero_description">Делитесь личной ссылкой и следите за приглашениями в одном месте.</string>
+    <string name="referrals_your_link">Ваша реферальная ссылка</string>
+    <string name="referrals_link_unavailable">Ссылка временно недоступна</string>
+    <string name="referrals_copy">Копировать</string>
+    <string name="referrals_link_copied">Реферальная ссылка скопирована</string>
+    <string name="referrals_show_qr">QR-код</string>
+    <string name="referrals_qr_title">Пригласить с телевизора</string>
+    <string name="referrals_qr_description">Отсканируйте QR-код телефоном, чтобы открыть и отправить свою личную ссылку.</string>
+    <string name="referrals_clipboard_label">Реферальная ссылка ToBeVPN</string>
+    <string name="referrals_referred_by">Вас пригласил</string>
+    <string name="referrals_referrer_input_title">Вас кто-то пригласил?</string>
+    <string name="referrals_referrer_input_description">Введите Telegram ID пригласившего. Назначить его можно только один раз.</string>
+    <string name="referrals_referrer_id_label">Telegram ID пригласившего</string>
+    <string name="referrals_referrer_id_value">Telegram ID: %1$d</string>
+    <string name="referrals_referrer_id_invalid">Введите корректный Telegram ID.</string>
+    <string name="referrals_referrer_assign">Привязать</string>
+    <string name="referrals_referrer_assigning">Привязываем…</string>
+    <string name="referrals_referrer_confirm_title">Привязать пригласившего?</string>
+    <string name="referrals_referrer_confirm_description">Этот Telegram ID будет сохранён как ваш пригласивший. Изменить его позже нельзя.</string>
+    <string name="referrals_referrer_confirm">Привязать</string>
+    <string name="referrals_referrer_error_network">Проверьте подключение к интернету и попробуйте снова.</string>
+    <string name="referrals_referrer_error_not_found">Пользователь ToBeVPN с таким Telegram ID не найден.</string>
+    <string name="referrals_referrer_error_conflict">Этот ID нельзя привязать. Возможно, пригласивший уже указан, введён ваш собственный ID или реферальная программа недоступна.</string>
+    <string name="referrals_referrer_error_unavailable">Привяжите телевизор к аккаунту заново и повторите попытку.</string>
+    <string name="referrals_referrer_error_unknown">Не удалось привязать пригласившего. Попробуйте ещё раз.</string>
+    <string name="referrals_invited_title">Приглашённые друзья</string>
+    <string name="referrals_open_list">Посмотреть друзей</string>
+    <string name="referrals_unknown_user">Пользователь ToBeVPN</string>
+    <string name="referrals_joined">Дата приглашения: %1$s</string>
+    <string name="referrals_level">Уровень %1$d</string>
+    <string name="referrals_empty_title">Приглашений пока нет</string>
+    <string name="referrals_empty_description">Поделитесь ссылкой с друзьями — новые приглашения появятся здесь.</string>
+    <string name="referrals_load_more">Показать ещё</string>
+    <string name="referrals_auth_title">Привяжите аккаунт, чтобы увидеть рефералов</string>
+    <string name="referrals_auth_description">Личная ссылка, приглашённые друзья и статус реферальной программы привязаны к вашему Telegram-аккаунту.</string>
+    <string name="referrals_error_title">Не удалось загрузить рефералов</string>
+    <string name="referrals_error_network">Проверьте подключение к интернету и попробуйте снова.</string>
+    <string name="referrals_error_unavailable">Реферальная программа временно недоступна.</string>
+    <string name="referrals_error_unknown">Что-то пошло не так. Попробуйте ещё раз.</string>
+    <plurals name="referrals_invited_count">
+        <item quantity="one">%1$d приглашённый друг</item>
+        <item quantity="few">%1$d приглашённых друга</item>
+        <item quantity="many">%1$d приглашённых друзей</item>
+        <item quantity="other">%1$d приглашённых друзей</item>
+    </plurals>
 
     <!-- Stats -->
     <string name="stats_title">Статистика</string>
@@ -202,6 +254,7 @@
     <string name="pairing_done">Готово!</string>
     <string name="error_generic">Ошибка</string>
     <string name="retry">Попробовать снова</string>
+    <string name="close">Закрыть</string>
 
     <!-- Onboarding -->
     <string name="onboarding_subtitle">Быстрый и безопасный VPN на базе XRay</string>
@@ -258,6 +311,12 @@
     <string name="whats_new_servers_desc">Список серверов больше не ждёт синхронизацию с ботом. Ссылки с пробелами и эмодзи разбираются корректно, а флаги стран определяются точнее.</string>
     <string name="whats_new_interface_title">Исправления управления и статистики</string>
     <string name="whats_new_interface_desc">Смена языка больше не прерывает VPN, выход требует подтверждения, исправлены диапазоны недель, часовые пояса и подписи трафика.</string>
+    <string name="whats_new_referrals_title">Реферальная программа</string>
+    <string name="whats_new_referrals_desc">Новая карточка «Рефералы» открывает личную ссылку и действия для приглашения друзей на отдельном ТВ-экране.</string>
+    <string name="whats_new_invited_friends_title">Приглашённые друзья</string>
+    <string name="whats_new_invited_friends_desc">Смотрите количество приглашённых и открывайте подробный список. Обновление перезагружает и сводку, и сам список.</string>
+    <string name="whats_new_assign_inviter_title">Привязка пригласившего</string>
+    <string name="whats_new_assign_inviter_desc">Если пригласивший ещё не указан, введите его Telegram ID один раз и подтвердите привязку.</string>
 
     <!-- Блокировка подписки / принудительное обновление -->
     <string name="error_subscription_expired">Подписка истекла. Продлите, чтобы подключиться.</string>

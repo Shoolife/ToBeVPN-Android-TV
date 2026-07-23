@@ -18,6 +18,9 @@ object AppFilterRoute
 object DevicesRoute
 
 @Serializable
+object ReferralsRoute
+
+@Serializable
 object StatsRoute
 
 @Serializable

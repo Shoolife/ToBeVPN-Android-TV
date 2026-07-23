@@ -90,6 +90,7 @@ fun SettingsScreen(
     onLongBack: () -> Unit = onBack,
     onNavigateToDevices: () -> Unit = {},
     onNavigateToAppFilter: () -> Unit = {},
+    onNavigateToReferrals: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
@@ -115,6 +116,7 @@ fun SettingsScreen(
     val checkUpdateFocusRequester = remember { FocusRequester() }
     val devicesFocusRequester = remember { FocusRequester() }
     val appFilterFocusRequester = remember { FocusRequester() }
+    val referralsFocusRequester = remember { FocusRequester() }
     val darkThemeFocusRequester = remember { FocusRequester() }
     val lightThemeFocusRequester = remember { FocusRequester() }
     val pageFocusRequesters = remember { List(2) { FocusRequester() } }
@@ -133,6 +135,7 @@ fun SettingsScreen(
                 val requester = when (returnTarget) {
                     "devices" -> devicesFocusRequester
                     "app_filter" -> appFilterFocusRequester
+                    "referrals" -> referralsFocusRequester
                     else -> backFocusRequester
                 }
                 // The Settings destination stays composed under its child
@@ -243,7 +246,7 @@ fun SettingsScreen(
                             right = if (settingsPage == 0) {
                                 whatsNewFocusRequester
                             } else {
-                                darkThemeFocusRequester
+                                referralsFocusRequester
                             }
                         },
                     shape = RoundedCornerShape(backCorner),
@@ -564,6 +567,10 @@ fun SettingsScreen(
                             navigationReturnFocus = "app_filter"
                             onNavigateToAppFilter()
                         },
+                        onNavigateToReferrals = {
+                            navigationReturnFocus = "referrals"
+                            onNavigateToReferrals()
+                        },
                         themeMode = themeMode,
                         onThemeSelected = viewModel::setThemeMode,
                         cardPad = cardPad,
@@ -577,6 +584,7 @@ fun SettingsScreen(
                         tightStyle = tightStyle,
                         backFocusRequester = backFocusRequester,
                         appFilterFocusRequester = appFilterFocusRequester,
+                        referralsFocusRequester = referralsFocusRequester,
                         darkThemeFocusRequester = darkThemeFocusRequester,
                         lightThemeFocusRequester = lightThemeFocusRequester,
                         firstPageIndicatorFocusRequester = pageFocusRequesters[0],
@@ -654,6 +662,7 @@ fun SettingsScreen(
 private fun SettingsAppsPage(
     appFilterState: AppFilterState,
     onNavigateToAppFilter: () -> Unit,
+    onNavigateToReferrals: () -> Unit,
     themeMode: AppThemeMode,
     onThemeSelected: (AppThemeMode) -> Unit,
     cardPad: androidx.compose.ui.unit.Dp,
@@ -667,6 +676,7 @@ private fun SettingsAppsPage(
     tightStyle: TextStyle,
     backFocusRequester: FocusRequester,
     appFilterFocusRequester: FocusRequester,
+    referralsFocusRequester: FocusRequester,
     darkThemeFocusRequester: FocusRequester,
     lightThemeFocusRequester: FocusRequester,
     firstPageIndicatorFocusRequester: FocusRequester,
@@ -718,13 +728,53 @@ private fun SettingsAppsPage(
                         focusRequester = appFilterFocusRequester,
                         upFocusRequester = backFocusRequester,
                         downFocusRequester = firstPageIndicatorFocusRequester,
-                        rightFocusRequester = darkThemeFocusRequester,
+                        rightFocusRequester = referralsFocusRequester,
                     )
                 }
             }
         }
         Spacer(modifier = Modifier.width(cardSpacing))
         Column(modifier = Modifier.weight(1f)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(cardCorner),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(cardPad)) {
+                    Text(
+                        stringResource(R.string.settings_referrals),
+                        fontSize = titleSize,
+                        fontWeight = FontWeight.SemiBold,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((8 * scale).dp))
+                    Text(
+                        stringResource(R.string.settings_referrals_hint),
+                        fontSize = bodySize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((18 * scale).dp))
+                    AccountActionButton(
+                        label = stringResource(R.string.settings_referrals_manage),
+                        onClick = onNavigateToReferrals,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        bodySize = bodySize,
+                        scale = scale,
+                        buttonPadH = buttonPadH,
+                        buttonPadV = buttonPadV,
+                        focusRequester = referralsFocusRequester,
+                        upFocusRequester = backFocusRequester,
+                        downFocusRequester = darkThemeFocusRequester,
+                        leftFocusRequester = appFilterFocusRequester,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(cardSpacing))
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(cardCorner),
@@ -755,7 +805,7 @@ private fun SettingsAppsPage(
                             bodySize = bodySize,
                             scale = scale,
                             focusRequester = darkThemeFocusRequester,
-                            upFocusRequester = backFocusRequester,
+                            upFocusRequester = referralsFocusRequester,
                             downFocusRequester = secondPageIndicatorFocusRequester,
                             leftFocusRequester = appFilterFocusRequester,
                             rightFocusRequester = lightThemeFocusRequester,
@@ -768,7 +818,7 @@ private fun SettingsAppsPage(
                             bodySize = bodySize,
                             scale = scale,
                             focusRequester = lightThemeFocusRequester,
-                            upFocusRequester = backFocusRequester,
+                            upFocusRequester = referralsFocusRequester,
                             downFocusRequester = secondPageIndicatorFocusRequester,
                             leftFocusRequester = darkThemeFocusRequester,
                         )
