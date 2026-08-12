@@ -86,9 +86,9 @@ class SubscriptionViewModel @Inject constructor(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                if (_purchasePlans.value == null) {
-                    loadPurchasePlans()
-                }
+                // Prices can change after a promocode is applied in the bot;
+                // always refresh server-calculated final_amount as well.
+                loadPurchasePlans()
                 authRepository.syncSubscription()
                 loadCurrentLimits()
             } finally {

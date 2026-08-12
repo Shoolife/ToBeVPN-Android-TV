@@ -4,25 +4,33 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -36,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -43,14 +52,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -66,6 +81,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.theme.VpnGreen
+import kotlinx.coroutines.launch
 
 private data class WhatsNewHighlight(
     val icon: ImageVector,
@@ -76,18 +92,23 @@ private data class WhatsNewHighlight(
 private val currentHighlights = listOf(
     WhatsNewHighlight(
         icon = Icons.Filled.CardGiftcard,
-        titleRes = R.string.whats_new_referrals_title,
-        descriptionRes = R.string.whats_new_referrals_desc,
+        titleRes = R.string.whats_new_promocodes_title,
+        descriptionRes = R.string.whats_new_promocodes_desc,
     ),
     WhatsNewHighlight(
-        icon = Icons.Filled.Groups,
-        titleRes = R.string.whats_new_invited_friends_title,
-        descriptionRes = R.string.whats_new_invited_friends_desc,
+        icon = Icons.Filled.Shield,
+        titleRes = R.string.whats_new_vpn_stability_title,
+        descriptionRes = R.string.whats_new_vpn_stability_desc,
     ),
     WhatsNewHighlight(
-        icon = Icons.Filled.PersonAdd,
-        titleRes = R.string.whats_new_assign_inviter_title,
-        descriptionRes = R.string.whats_new_assign_inviter_desc,
+        icon = Icons.Filled.BugReport,
+        titleRes = R.string.whats_new_diagnostics_title,
+        descriptionRes = R.string.whats_new_diagnostics_desc,
+    ),
+    WhatsNewHighlight(
+        icon = Icons.Filled.SystemUpdateAlt,
+        titleRes = R.string.whats_new_updates_title,
+        descriptionRes = R.string.whats_new_updates_desc,
     ),
 )
 
@@ -103,6 +124,9 @@ fun WhatsNewDialog(
 ) {
     val doneFocusRequester = remember { FocusRequester() }
     val closeFocusRequester = remember { FocusRequester() }
+    val highlightsFocusRequester = remember { FocusRequester() }
+    val highlightsScrollState = rememberScrollState()
+    val scrollScope = rememberCoroutineScope()
     var doneFocused by remember { mutableStateOf(false) }
     var closeFocused by remember { mutableStateOf(false) }
     var visible by remember { mutableStateOf(false) }
@@ -126,6 +150,16 @@ fun WhatsNewDialog(
         animationSpec = tween(durationMillis = 220),
         label = "whatsNewIn",
     )
+    val topCueAlpha by animateFloatAsState(
+        targetValue = if (highlightsScrollState.value > 0) 1f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "whatsNewTopCue",
+    )
+    val bottomCueAlpha by animateFloatAsState(
+        targetValue = if (highlightsScrollState.value < highlightsScrollState.maxValue) 1f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "whatsNewBottomCue",
+    )
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -140,6 +174,8 @@ fun WhatsNewDialog(
             Card(
                 modifier = Modifier
                     .fillMaxWidth(0.70f)
+                    .heightIn(max = 680.dp)
+                    .fillMaxHeight(0.92f)
                     .widthIn(max = 720.dp)
                     .scale(0.97f + 0.03f * progress),
                 shape = RoundedCornerShape(22.dp),
@@ -224,16 +260,85 @@ fun WhatsNewDialog(
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            currentHighlights.forEach { highlight ->
-                                WhatsNewHighlightCard(
-                                    highlight = highlight,
-                                    containerColor = itemBackground,
-                                    outlineColor = outlineColor,
-                                    primaryText = primaryText,
-                                    secondaryText = secondaryText,
-                                )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalFadingEdges(
+                                        topAlpha = topCueAlpha,
+                                        bottomAlpha = bottomCueAlpha,
+                                        fadeHeight = 34.dp,
+                                    )
+                                    .verticalScroll(highlightsScrollState)
+                                    .focusRequester(highlightsFocusRequester)
+                                    .focusProperties {
+                                        up = closeFocusRequester
+                                        down = doneFocusRequester
+                                    }
+                                    .focusable()
+                                    .onPreviewKeyEvent { event ->
+                                        if (event.type != KeyEventType.KeyDown) {
+                                            return@onPreviewKeyEvent false
+                                        }
+                                        when (event.key) {
+                                            Key.DirectionDown -> {
+                                                if (highlightsScrollState.value < highlightsScrollState.maxValue) {
+                                                    scrollScope.launch {
+                                                        highlightsScrollState.animateScrollTo(
+                                                            (highlightsScrollState.value + 120)
+                                                                .coerceAtMost(highlightsScrollState.maxValue),
+                                                        )
+                                                    }
+                                                    true
+                                                } else {
+                                                    doneFocusRequester.requestFocus()
+                                                    true
+                                                }
+                                            }
+                                            Key.DirectionUp -> {
+                                                if (highlightsScrollState.value > 0) {
+                                                    scrollScope.launch {
+                                                        highlightsScrollState.animateScrollTo(
+                                                            (highlightsScrollState.value - 120).coerceAtLeast(0),
+                                                        )
+                                                    }
+                                                    true
+                                                } else {
+                                                    closeFocusRequester.requestFocus()
+                                                    true
+                                                }
+                                            }
+                                            else -> false
+                                        }
+                                    },
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Spacer(modifier = Modifier.height(3.dp))
+                                currentHighlights.forEach { highlight ->
+                                    WhatsNewHighlightCard(
+                                        highlight = highlight,
+                                        containerColor = itemBackground,
+                                        outlineColor = outlineColor,
+                                        primaryText = primaryText,
+                                        secondaryText = secondaryText,
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
                             }
+                            ScrollCue(
+                                isTop = true,
+                                alpha = topCueAlpha,
+                                modifier = Modifier.align(Alignment.TopCenter),
+                            )
+                            ScrollCue(
+                                isTop = false,
+                                alpha = bottomCueAlpha,
+                                modifier = Modifier.align(Alignment.BottomCenter),
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -244,13 +349,13 @@ fun WhatsNewDialog(
                                 .fillMaxWidth()
                                 .height(46.dp)
                                 .focusRequester(doneFocusRequester)
-                                .focusProperties { up = closeFocusRequester }
+                                .focusProperties { up = highlightsFocusRequester }
                                 .onPreviewKeyEvent { event ->
                                     if (
                                         event.type == KeyEventType.KeyDown &&
                                         event.key == Key.DirectionUp
                                     ) {
-                                        closeFocusRequester.requestFocus()
+                                        highlightsFocusRequester.requestFocus()
                                         true
                                     } else {
                                         false
@@ -284,13 +389,13 @@ fun WhatsNewDialog(
                             .padding(10.dp)
                             .size(38.dp)
                             .focusRequester(closeFocusRequester)
-                            .focusProperties { down = doneFocusRequester }
+                            .focusProperties { down = highlightsFocusRequester }
                             .onPreviewKeyEvent { event ->
                                 if (
                                     event.type == KeyEventType.KeyDown &&
                                     event.key == Key.DirectionDown
                                 ) {
-                                    doneFocusRequester.requestFocus()
+                                    highlightsFocusRequester.requestFocus()
                                     true
                                 } else {
                                     false
@@ -319,6 +424,62 @@ fun WhatsNewDialog(
         }
     }
 }
+
+@Composable
+private fun ScrollCue(
+    isTop: Boolean,
+    alpha: Float,
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        imageVector = if (isTop) {
+            Icons.Filled.KeyboardArrowUp
+        } else {
+            Icons.Filled.KeyboardArrowDown
+        },
+        contentDescription = null,
+        modifier = modifier
+            .size(22.dp)
+            .graphicsLayer { this.alpha = alpha.coerceIn(0f, 1f) },
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun Modifier.verticalFadingEdges(
+    topAlpha: Float,
+    bottomAlpha: Float,
+    fadeHeight: androidx.compose.ui.unit.Dp,
+): Modifier = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+    .drawWithContent {
+        drawContent()
+        val fadeHeightPx = fadeHeight.toPx().coerceAtMost(size.height / 2f)
+        if (fadeHeightPx <= 0f) return@drawWithContent
+
+        if (topAlpha > 0.001f) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(Color.Black.copy(alpha = 1f - topAlpha.coerceIn(0f, 1f)), Color.Black),
+                    startY = 0f,
+                    endY = fadeHeightPx,
+                ),
+                topLeft = Offset.Zero,
+                size = Size(size.width, fadeHeightPx),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+        if (bottomAlpha > 0.001f) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    listOf(Color.Black, Color.Black.copy(alpha = 1f - bottomAlpha.coerceIn(0f, 1f))),
+                    startY = size.height - fadeHeightPx,
+                    endY = size.height,
+                ),
+                topLeft = Offset(0f, size.height - fadeHeightPx),
+                size = Size(size.width, fadeHeightPx),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+    }
 
 @Composable
 private fun WhatsNewHighlightCard(

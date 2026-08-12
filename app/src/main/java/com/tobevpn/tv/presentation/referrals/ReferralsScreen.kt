@@ -42,13 +42,17 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Diamond
+import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -83,6 +87,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -139,6 +144,7 @@ fun ReferralsScreen(
     val copyFocusRequester = remember { FocusRequester() }
     val qrFocusRequester = remember { FocusRequester() }
     val invitedFocusRequester = remember { FocusRequester() }
+    val rewardsInfoFocusRequester = remember { FocusRequester() }
     val inputFocusRequester = remember { FocusRequester() }
     val assignFocusRequester = remember { FocusRequester() }
     val retryFocusRequester = remember { FocusRequester() }
@@ -147,6 +153,7 @@ fun ReferralsScreen(
     var referrerIdInput by rememberSaveable { mutableStateOf("") }
     var pendingReferrerId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showInvitedFriends by rememberSaveable { mutableStateOf(false) }
+    var showRewardsInfo by rememberSaveable { mutableStateOf(false) }
     var showReferralQr by rememberSaveable { mutableStateOf(false) }
     var copyEvent by remember { mutableIntStateOf(0) }
     var showCopyNotice by remember { mutableStateOf(false) }
@@ -324,10 +331,12 @@ fun ReferralsScreen(
                         onCopy = ::copyReferralLink,
                         onShowQr = { showReferralQr = true },
                         onShowInvited = { showInvitedFriends = true },
+                        onShowRewards = { showRewardsInfo = true },
                         onRetry = viewModel::refresh,
                         copyFocusRequester = copyFocusRequester,
                         qrFocusRequester = qrFocusRequester,
                         invitedFocusRequester = invitedFocusRequester,
+                        rewardsInfoFocusRequester = rewardsInfoFocusRequester,
                         inputFocusRequester = inputFocusRequester,
                         assignFocusRequester = assignFocusRequester,
                         inlineRetryFocusRequester = inlineRetryFocusRequester,
@@ -379,6 +388,17 @@ fun ReferralsScreen(
                 onDismiss = {
                     showInvitedFriends = false
                     restoreFocus(invitedFocusRequester)
+                },
+                scale = scale,
+                tightStyle = tightStyle,
+            )
+        }
+
+        if (showRewardsInfo) {
+            ReferralRewardsDialog(
+                onDismiss = {
+                    showRewardsInfo = false
+                    restoreFocus(rewardsInfoFocusRequester)
                 },
                 scale = scale,
                 tightStyle = tightStyle,
@@ -655,10 +675,12 @@ private fun ReferralDashboard(
     onCopy: () -> Unit,
     onShowQr: () -> Unit,
     onShowInvited: () -> Unit,
+    onShowRewards: () -> Unit,
     onRetry: () -> Unit,
     copyFocusRequester: FocusRequester,
     qrFocusRequester: FocusRequester,
     invitedFocusRequester: FocusRequester,
+    rewardsInfoFocusRequester: FocusRequester,
     inputFocusRequester: FocusRequester,
     assignFocusRequester: FocusRequester,
     inlineRetryFocusRequester: FocusRequester,
@@ -709,7 +731,9 @@ private fun ReferralDashboard(
                 total = data.total,
                 isRefreshing = isRefreshing,
                 onOpenList = onShowInvited,
+                onOpenRewards = onShowRewards,
                 focusRequester = invitedFocusRequester,
+                infoFocusRequester = rewardsInfoFocusRequester,
                 upFocusRequester = refreshFocusRequester,
                 downFocusRequester = if (data.referrer == null) {
                     inputFocusRequester
@@ -913,11 +937,301 @@ private fun ReferralHeroCard(
 }
 
 @Composable
+private fun ReferralRewardsDialog(
+    onDismiss: () -> Unit,
+    scale: Float,
+    tightStyle: TextStyle,
+) {
+    val closeFocusRequester = remember { FocusRequester() }
+    var closeFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        withFrameNanos { }
+        runCatching { closeFocusRequester.requestFocus() }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.62f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.46f)
+                    .widthIn(max = (620 * scale).dp),
+                shape = RoundedCornerShape((21 * scale).dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
+                border = BorderStroke(
+                    (1 * scale).dp,
+                    MaterialTheme.colorScheme.outlineVariant,
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = (12 * scale).dp,
+                ),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding((23 * scale).dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.referrals_rewards_dialog_title),
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = (21 * scale).sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        style = tightStyle,
+                    )
+
+                    Spacer(modifier = Modifier.height((16 * scale).dp))
+
+                    ReferralRewardsPanel(
+                        scale = scale,
+                        tightStyle = tightStyle,
+                    )
+
+                    Spacer(modifier = Modifier.height((18 * scale).dp))
+
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height((46 * scale).dp)
+                            .focusRequester(closeFocusRequester)
+                            .referralDirectionalFocus(
+                                up = FocusRequester.Cancel,
+                                down = FocusRequester.Cancel,
+                                left = FocusRequester.Cancel,
+                                right = FocusRequester.Cancel,
+                            )
+                            .onFocusChanged { closeFocused = it.isFocused },
+                        shape = RoundedCornerShape((13 * scale).dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = VpnGreen,
+                            contentColor = Color.Black,
+                        ),
+                        border = if (closeFocused) {
+                            BorderStroke(
+                                (2 * scale).dp,
+                                MaterialTheme.colorScheme.onSurface,
+                            )
+                        } else {
+                            null
+                        },
+                    ) {
+                        Text(
+                            text = stringResource(R.string.referrals_rewards_close),
+                            fontSize = (14 * scale).sp,
+                            fontWeight = FontWeight.Bold,
+                            style = tightStyle,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReferralRewardsPanel(
+    scale: Float,
+    tightStyle: TextStyle,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape((12 * scale).dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
+    ) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = (14 * scale).dp,
+                vertical = (12 * scale).dp,
+            ),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = (11 * scale).dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size((27 * scale).dp)
+                        .clip(RoundedCornerShape((8 * scale).dp))
+                        .background(RewardSparkleColor.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        tint = RewardSparkleColor,
+                        modifier = Modifier.size((16 * scale).dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width((8 * scale).dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.referrals_rewards_how_title),
+                        fontSize = (11.5f * scale).sp,
+                        fontWeight = FontWeight.SemiBold,
+                        style = tightStyle,
+                    )
+                    Text(
+                        text = stringResource(R.string.referrals_rewards_description),
+                        fontSize = (10.5f * scale).sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        style = tightStyle,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height((6 * scale).dp))
+            Row(
+                modifier = Modifier.padding(horizontal = (11 * scale).dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size((27 * scale).dp)
+                        .clip(CircleShape)
+                        .background(VpnBlue.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Diamond,
+                        contentDescription = null,
+                        tint = VpnBlue,
+                        modifier = Modifier.size((16 * scale).dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width((8 * scale).dp))
+                Text(
+                    text = stringResource(R.string.referrals_rewards_what_title),
+                    fontSize = (11.5f * scale).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    style = tightStyle,
+                )
+            }
+            Spacer(modifier = Modifier.height((6 * scale).dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy((7 * scale).dp),
+            ) {
+                ReferralRewardMetric(
+                    icon = Icons.Filled.Groups,
+                    iconColor = VpnBlue,
+                    label = stringResource(R.string.referrals_rewards_direct),
+                    value = stringResource(R.string.referrals_rewards_direct_value),
+                    scale = scale,
+                    tightStyle = tightStyle,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                ReferralRewardMetric(
+                    icon = Icons.Filled.GroupAdd,
+                    iconColor = RewardSecondLevelColor,
+                    label = stringResource(R.string.referrals_rewards_indirect),
+                    value = stringResource(R.string.referrals_rewards_indirect_value),
+                    scale = scale,
+                    tightStyle = tightStyle,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(modifier = Modifier.height((8 * scale).dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = (11 * scale).dp),
+            ) {
+                Spacer(modifier = Modifier.width((35 * scale).dp))
+                Text(
+                    text = stringResource(R.string.referrals_rewards_note),
+                    modifier = Modifier.weight(1f),
+                    fontSize = (11 * scale).sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = tightStyle,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReferralRewardMetric(
+    icon: ImageVector,
+    iconColor: Color,
+    label: String,
+    value: String,
+    scale: Float,
+    tightStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape((10 * scale).dp),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = (11 * scale).dp,
+                vertical = (8 * scale).dp,
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size((27 * scale).dp)
+                    .clip(CircleShape)
+                    .background(iconColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size((16 * scale).dp),
+                )
+            }
+            Spacer(modifier = Modifier.width((8 * scale).dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    fontSize = (10.5f * scale).sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = tightStyle,
+                )
+                Spacer(modifier = Modifier.height((2 * scale).dp))
+                Text(
+                    text = value,
+                    fontSize = (13 * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                    color = VpnGreen,
+                    maxLines = 1,
+                    style = tightStyle,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ReferralSummaryCard(
     total: Int,
     isRefreshing: Boolean,
     onOpenList: () -> Unit,
+    onOpenRewards: () -> Unit,
     focusRequester: FocusRequester,
+    infoFocusRequester: FocusRequester,
     upFocusRequester: FocusRequester,
     downFocusRequester: FocusRequester,
     leftFocusRequester: FocusRequester,
@@ -931,57 +1245,118 @@ private fun ReferralSummaryCard(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
         ),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding((18 * scale).dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size((48 * scale).dp)
-                    .clip(CircleShape)
-                    .background(VpnBlue.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Groups,
-                    contentDescription = null,
-                    tint = VpnBlue,
-                    modifier = Modifier.size((27 * scale).dp),
+                Box(
+                    modifier = Modifier
+                        .size((48 * scale).dp)
+                        .clip(CircleShape)
+                        .background(VpnBlue.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Groups,
+                        contentDescription = null,
+                        tint = VpnBlue,
+                        modifier = Modifier.size((27 * scale).dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width((14 * scale).dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isRefreshing) "…" else total.toString(),
+                        fontSize = (28 * scale).sp,
+                        fontWeight = FontWeight.Bold,
+                        style = tightStyle,
+                    )
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.referrals_invited_label,
+                            total,
+                        ),
+                        fontSize = (14 * scale).sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = tightStyle,
+                    )
+                }
+                ReferralInfoButton(
+                    onClick = onOpenRewards,
+                    focusRequester = infoFocusRequester,
+                    upFocusRequester = upFocusRequester,
+                    downFocusRequester = focusRequester,
+                    leftFocusRequester = leftFocusRequester,
+                    scale = scale,
                 )
             }
-            Spacer(modifier = Modifier.width((14 * scale).dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (isRefreshing) "…" else total.toString(),
-                    fontSize = (28 * scale).sp,
-                    fontWeight = FontWeight.Bold,
-                    style = tightStyle,
-                )
-                Text(
-                    text = pluralStringResource(
-                        R.plurals.referrals_invited_count,
-                        total,
-                        total,
-                    ),
-                    fontSize = (14 * scale).sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = tightStyle,
-                )
-            }
+
+            Spacer(modifier = Modifier.height((12 * scale).dp))
             ReferralActionButton(
                 text = stringResource(R.string.referrals_open_list),
                 onClick = onOpenList,
                 focusRequester = focusRequester,
-                upFocusRequester = upFocusRequester,
+                upFocusRequester = infoFocusRequester,
                 downFocusRequester = downFocusRequester,
                 leftFocusRequester = leftFocusRequester,
                 rightFocusRequester = FocusRequester.Cancel,
                 scale = scale,
                 tightStyle = tightStyle,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+@Composable
+private fun ReferralInfoButton(
+    onClick: () -> Unit,
+    focusRequester: FocusRequester,
+    upFocusRequester: FocusRequester,
+    downFocusRequester: FocusRequester,
+    leftFocusRequester: FocusRequester,
+    scale: Float,
+) {
+    var focused by remember { mutableStateOf(false) }
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .size((40 * scale).dp)
+            .focusRequester(focusRequester)
+            .referralDirectionalFocus(
+                up = upFocusRequester,
+                down = downFocusRequester,
+                left = leftFocusRequester,
+                right = FocusRequester.Cancel,
+            )
+            .onFocusChanged { focused = it.isFocused },
+        shape = CircleShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = VpnBlue,
+        ),
+        border = if (focused) {
+            BorderStroke(
+                (2 * scale).dp,
+                MaterialTheme.colorScheme.onSurface,
+            )
+        } else {
+            null
+        },
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Info,
+            contentDescription = stringResource(
+                R.string.referrals_rewards_info_button,
+            ),
+            modifier = Modifier.size((23 * scale).dp),
+        )
     }
 }
 
@@ -2000,5 +2375,7 @@ private fun rememberTightTextStyle(): TextStyle = TextStyle(
     ),
 )
 
+private val RewardSparkleColor = Color(0xFFF5A623)
+private val RewardSecondLevelColor = Color(0xFF8B5CF6)
 private const val MAX_TELEGRAM_ID_DIGITS = 19
 private const val COPY_NOTICE_DURATION_MS = 1_800L

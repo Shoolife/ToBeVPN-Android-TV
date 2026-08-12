@@ -13,6 +13,9 @@ import com.tobevpn.tv.data.remote.dto.PanelNodeDto
 import com.tobevpn.tv.data.remote.dto.PanelResponse
 import com.tobevpn.tv.data.remote.dto.PanelUserDto
 import com.tobevpn.tv.data.remote.dto.PurchasePlansDto
+import com.tobevpn.tv.data.remote.dto.PromocodeActivateRequestDto
+import com.tobevpn.tv.data.remote.dto.PromocodeActivationResultDto
+import com.tobevpn.tv.data.remote.dto.PromocodeHistoryDto
 import com.tobevpn.tv.data.remote.dto.ReferralsDto
 import com.tobevpn.tv.data.remote.dto.SetReferrerRequestDto
 import com.tobevpn.tv.data.remote.dto.SetReferrerResponseDto
@@ -86,6 +89,17 @@ interface BotApi {
 
     @GET("api/purchase/plans")
     suspend fun getPurchasePlans(): ApiResponse<PurchasePlansDto>
+
+    @POST("api/user/promocodes/activate")
+    suspend fun activatePromocode(
+        @Body request: PromocodeActivateRequestDto,
+    ): ApiResponse<PromocodeActivationResultDto>
+
+    @GET("api/user/promocodes")
+    suspend fun getAppliedPromocodes(
+        @Query("limit") limit: Int = 20,
+        @Query("offset") offset: Int = 0,
+    ): ApiResponse<PromocodeHistoryDto>
 
     // Referral program — identity is resolved from the current device session.
 

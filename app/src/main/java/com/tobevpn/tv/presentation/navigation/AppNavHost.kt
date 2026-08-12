@@ -23,8 +23,11 @@ import com.tobevpn.tv.presentation.main.MainScreen
 import com.tobevpn.tv.presentation.onboarding.OnboardingScreen
 import com.tobevpn.tv.presentation.pairing.PairingScreen
 import com.tobevpn.tv.presentation.referrals.ReferralsScreen
+import com.tobevpn.tv.presentation.promocodes.PromocodesScreen
 import com.tobevpn.tv.presentation.servers.ServerListScreen
 import com.tobevpn.tv.presentation.settings.SettingsScreen
+import com.tobevpn.tv.presentation.settings.AboutScreen
+import com.tobevpn.tv.presentation.settings.SupportScreen
 import com.tobevpn.tv.presentation.speedtest.SpeedTestScreen
 import com.tobevpn.tv.presentation.stats.StatsScreen
 import com.tobevpn.tv.presentation.subscription.SubscriptionScreen
@@ -177,6 +180,8 @@ fun AppNavHost(
                 onNavigateToDevices = { navController.navigate(DevicesRoute) },
                 onNavigateToAppFilter = { navController.navigate(AppFilterRoute) },
                 onNavigateToReferrals = { navController.navigate(ReferralsRoute) },
+                onNavigateToPromocodes = { navController.navigate(PromocodesRoute) },
+                onNavigateToSupport = { navController.navigate(SupportRoute) },
             )
         }
         composable<AppFilterRoute> {
@@ -193,6 +198,24 @@ fun AppNavHost(
         }
         composable<ReferralsRoute> {
             ReferralsScreen(
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
+            )
+        }
+        composable<PromocodesRoute> {
+            PromocodesScreen(
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
+            )
+        }
+        composable<AboutRoute> {
+            AboutScreen(
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
+            )
+        }
+        composable<SupportRoute> {
+            SupportScreen(
                 onBack = navigateBackSafely,
                 onLongBack = navigateHomeSafely,
             )

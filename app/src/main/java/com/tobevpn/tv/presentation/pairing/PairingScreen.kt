@@ -19,12 +19,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -42,7 +48,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -72,6 +81,36 @@ fun PairingScreen(
         if (state is PairingUiState.Success) {
             onAuthenticated()
         }
+    }
+
+    // Hidden entry point for Google Play review: 5 rapid presses on the
+    // "own account" mode button (within 3s) opens a PIN-gated demo login
+    // that never touches the real backend. Not discoverable through normal
+    // use — regular users only ever tap this button once per session.
+    var secretClickTimestamps by remember { mutableStateOf(emptyList<Long>()) }
+    var showDemoLoginDialog by remember { mutableStateOf(false) }
+    val onOwnAccountSecretCheck: () -> Unit = {
+        val now = System.currentTimeMillis()
+        secretClickTimestamps = (secretClickTimestamps + now).filter { now - it <= 3000L }
+        if (secretClickTimestamps.size >= 5) {
+            secretClickTimestamps = emptyList()
+            showDemoLoginDialog = true
+        }
+    }
+
+    if (showDemoLoginDialog) {
+        DemoLoginDialog(
+            onDismiss = { showDemoLoginDialog = false },
+            onSubmit = { pin ->
+                if (pin == DEMO_LOGIN_PIN) {
+                    showDemoLoginDialog = false
+                    viewModel.completeDemoLogin()
+                    true
+                } else {
+                    false
+                }
+            },
+        )
     }
 
     BoxWithConstraints(
@@ -199,7 +238,10 @@ fun PairingScreen(
                 PairingModeSelector(
                     mode = mode,
                     fontSize = instructionSize,
-                    onOwnAccount = { viewModel.selectMode(PairingMode.OWN_ACCOUNT) },
+                    onOwnAccount = {
+                        viewModel.selectMode(PairingMode.OWN_ACCOUNT)
+                        onOwnAccountSecretCheck()
+                    },
                     onOtherDevice = { viewModel.selectMode(PairingMode.OTHER_DEVICE) },
                 )
 
@@ -377,4 +419,74 @@ private fun QrCode(
             )
         }
     }
+}
+
+// Not a real secret — this only gates a local-only stub session used for
+// Google Play review, never a backend account. See AuthRepository.completeDemoLogin.
+private const val DEMO_LOGIN_PIN = "483920"
+
+@Composable
+private fun DemoLoginDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Boolean,
+) {
+    var pin by remember { mutableStateOf("") }
+    var showError by remember { mutableStateOf(false) }
+    val fieldFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        runCatching { fieldFocusRequester.requestFocus() }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.demo_login_title)) },
+        text = {
+            Column {
+                Text(text = stringResource(R.string.demo_login_description))
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = {
+                        pin = it
+                        showError = false
+                    },
+                    modifier = Modifier.focusRequester(fieldFocusRequester),
+                    singleLine = true,
+                    isError = showError,
+                    label = { Text(text = stringResource(R.string.demo_login_pin_label)) },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.NumberPassword,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { showError = !onSubmit(pin) },
+                    ),
+                    textStyle = TextStyle(fontSize = 18.sp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        cursorColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                )
+                if (showError) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.demo_login_error),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { showError = !onSubmit(pin) }) {
+                Text(text = stringResource(R.string.demo_login_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.demo_login_cancel))
+            }
+        },
+    )
 }

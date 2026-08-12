@@ -1,5 +1,7 @@
 package com.tobevpn.tv.presentation.settings
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -17,7 +19,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -82,7 +84,11 @@ import com.tobevpn.tv.util.LocaleManager
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
+import com.tobevpn.tv.util.DiagnosticLogFileInfo
+import com.tobevpn.tv.util.DiagnosticLogState
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsScreen(
@@ -91,39 +97,105 @@ fun SettingsScreen(
     onNavigateToDevices: () -> Unit = {},
     onNavigateToAppFilter: () -> Unit = {},
     onNavigateToReferrals: () -> Unit = {},
+    onNavigateToPromocodes: () -> Unit = {},
+    onNavigateToSupport: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
+    diagnosticViewModel: AboutViewModel = hiltViewModel(),
 ) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
     val appFilterState by viewModel.appFilterState.collectAsStateWithLifecycle()
     val savedThemeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val diagnosticState by diagnosticViewModel.diagnosticState.collectAsStateWithLifecycle()
+    val diagnosticHistoryState by diagnosticViewModel.history.collectAsStateWithLifecycle()
     val systemThemeMode = if (isSystemInDarkTheme()) AppThemeMode.DARK else AppThemeMode.LIGHT
     val themeMode = savedThemeMode ?: systemThemeMode
     val context = LocalContext.current
     var pendingLanguage by remember { mutableStateOf<String?>(null) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showWhatsNew by remember { mutableStateOf(false) }
+    var showDiagnosticInfo by remember { mutableStateOf(false) }
+    var showDiagnosticHistory by remember { mutableStateOf(false) }
+    var diagnosticDeleteCandidate by remember { mutableStateOf<DiagnosticLogFileInfo?>(null) }
+    var diagnosticModeToast by remember { mutableStateOf<Toast?>(null) }
     var settingsPage by rememberSaveable { mutableStateOf(0) }
     var navigationReturnFocus by rememberSaveable { mutableStateOf<String?>(null) }
     var keepPageIndicatorFocus by remember { mutableStateOf(false) }
     var firstPageLeftHeightPx by remember { mutableStateOf(0) }
-    var firstPageAboutHeightPx by remember { mutableStateOf(0) }
     val backFocusRequester = remember { FocusRequester() }
     val logoutFocusRequester = remember { FocusRequester() }
     val englishFocusRequester = remember { FocusRequester() }
     val russianFocusRequester = remember { FocusRequester() }
     val whatsNewFocusRequester = remember { FocusRequester() }
     val checkUpdateFocusRequester = remember { FocusRequester() }
+    val diagnosticLogoFocusRequester = remember { FocusRequester() }
+    val diagnosticInfoFocusRequester = remember { FocusRequester() }
+    val diagnosticStartFocusRequester = remember { FocusRequester() }
+    val diagnosticHistoryFocusRequester = remember { FocusRequester() }
+    val supportFocusRequester = remember { FocusRequester() }
     val devicesFocusRequester = remember { FocusRequester() }
     val appFilterFocusRequester = remember { FocusRequester() }
     val referralsFocusRequester = remember { FocusRequester() }
+    val promocodesFocusRequester = remember { FocusRequester() }
     val darkThemeFocusRequester = remember { FocusRequester() }
     val lightThemeFocusRequester = remember { FocusRequester() }
-    val pageFocusRequesters = remember { List(2) { FocusRequester() } }
+    val pageFocusRequesters = remember { List(3) { FocusRequester() } }
     var dialogReturnFocusRequester by remember { mutableStateOf<FocusRequester?>(null) }
     var initialFocusApplied by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val focusRestoreScope = rememberCoroutineScope()
+
+    val diagnosticShareSubject = stringResource(R.string.diagnostics_share_subject)
+    val diagnosticShareTitle = stringResource(R.string.diagnostics_share_title)
+    val diagnosticExportSaved = stringResource(R.string.diagnostics_export_saved)
+    LaunchedEffect(
+        diagnosticViewModel,
+        diagnosticShareSubject,
+        diagnosticShareTitle,
+        diagnosticExportSaved,
+    ) {
+        diagnosticViewModel.events.collect { event ->
+            when (event) {
+                is DiagnosticUiEvent.ModeChanged -> {
+                    diagnosticModeToast?.cancel()
+                    diagnosticModeToast = Toast.makeText(
+                        context,
+                        if (event.enabled) {
+                            R.string.diagnostics_mode_enabled
+                        } else {
+                            R.string.diagnostics_mode_disabled
+                        },
+                        Toast.LENGTH_SHORT,
+                    ).also(Toast::show)
+                }
+                is DiagnosticUiEvent.ShareLog -> {
+                    event.intent.putExtra(Intent.EXTRA_SUBJECT, diagnosticShareSubject)
+                    runCatching {
+                        context.startActivity(
+                            Intent.createChooser(event.intent, diagnosticShareTitle),
+                        )
+                    }.onFailure {
+                        diagnosticViewModel.saveLogToDownloads(event.fileName)
+                    }
+                }
+                is DiagnosticUiEvent.LogExported -> Toast.makeText(
+                    context,
+                    "$diagnosticExportSaved ${event.location}",
+                    Toast.LENGTH_LONG,
+                ).show()
+                DiagnosticUiEvent.NoLogToExport -> Toast.makeText(
+                    context,
+                    R.string.diagnostics_no_log_to_export,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                DiagnosticUiEvent.OperationFailed -> Toast.makeText(
+                    context,
+                    R.string.diagnostics_operation_failed,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -136,6 +208,8 @@ fun SettingsScreen(
                     "devices" -> devicesFocusRequester
                     "app_filter" -> appFilterFocusRequester
                     "referrals" -> referralsFocusRequester
+                    "promocodes" -> promocodesFocusRequester
+                    "support" -> supportFocusRequester
                     else -> backFocusRequester
                 }
                 // The Settings destination stays composed under its child
@@ -177,10 +251,20 @@ fun SettingsScreen(
         pendingLanguage,
         showLogoutConfirm,
         showWhatsNew,
+        showDiagnosticInfo,
+        showDiagnosticHistory,
+        diagnosticDeleteCandidate,
         dialogReturnFocusRequester,
     ) {
         val requester = dialogReturnFocusRequester ?: return@LaunchedEffect
-        if (pendingLanguage != null || showLogoutConfirm || showWhatsNew) {
+        if (
+            pendingLanguage != null ||
+            showLogoutConfirm ||
+            showWhatsNew ||
+            showDiagnosticInfo ||
+            showDiagnosticHistory ||
+            diagnosticDeleteCandidate != null
+        ) {
             return@LaunchedEffect
         }
         // A Dialog owns a separate focus window. Wait until it is detached,
@@ -197,7 +281,6 @@ fun SettingsScreen(
     ) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
         val density = LocalDensity.current
-
         val screenPad = (40 * scale).dp
         val cardPad = (24 * scale).dp
         val cardCorner = (16 * scale).dp
@@ -238,15 +321,19 @@ fun SettingsScreen(
                         .size(headerButtonSize)
                         .focusRequester(backFocusRequester)
                         .focusProperties {
-                            down = if (settingsPage == 0) {
-                                logoutFocusRequester
-                            } else {
-                                appFilterFocusRequester
+                            down = when (settingsPage) {
+                                0 -> logoutFocusRequester
+                                1 -> appFilterFocusRequester
+                                else -> promocodesFocusRequester
                             }
-                            right = if (settingsPage == 0) {
-                                whatsNewFocusRequester
-                            } else {
-                                referralsFocusRequester
+                            right = when (settingsPage) {
+                                0 -> diagnosticLogoFocusRequester
+                                1 -> referralsFocusRequester
+                                else -> if (diagnosticState.debugModeEnabled) {
+                                    diagnosticStartFocusRequester
+                                } else {
+                                    promocodesFocusRequester
+                                }
                             }
                         },
                     shape = RoundedCornerShape(backCorner),
@@ -300,9 +387,7 @@ fun SettingsScreen(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .onGloballyPositioned { coordinates ->
-                            firstPageLeftHeightPx = coordinates.size.height
-                        },
+                        .onGloballyPositioned { firstPageLeftHeightPx = it.size.height },
                 ) {
                     // Account card
                     Card(
@@ -372,7 +457,7 @@ fun SettingsScreen(
                                         focusRequester = logoutFocusRequester,
                                         upFocusRequester = backFocusRequester,
                                         downFocusRequester = englishFocusRequester,
-                                        rightFocusRequester = whatsNewFocusRequester,
+                                        rightFocusRequester = diagnosticLogoFocusRequester,
                                     )
                                 }
                             }
@@ -430,7 +515,7 @@ fun SettingsScreen(
                                     upFocusRequester = logoutFocusRequester,
                                     downFocusRequester = pageFocusRequesters[0],
                                     leftFocusRequester = englishFocusRequester,
-                                    rightFocusRequester = devicesFocusRequester,
+                                    rightFocusRequester = diagnosticLogoFocusRequester,
                                 )
                             }
                         }
@@ -439,15 +524,19 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.width(cardSpacing))
 
-                // Right column: About + Devices
+                // Right column: expanded app identity and version information.
                 Column(modifier = Modifier.weight(1f)) {
-                    // About card
+                    val aboutCardHeight = with(density) {
+                        if (firstPageLeftHeightPx > 0) {
+                            firstPageLeftHeightPx.toDp()
+                        } else {
+                            (365 * scale).dp
+                        }
+                    }
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .onGloballyPositioned { coordinates ->
-                                firstPageAboutHeightPx = coordinates.size.height
-                            },
+                            .height(aboutCardHeight),
                         shape = RoundedCornerShape(cardCorner),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -460,7 +549,45 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 style = tightStyle,
                             )
-                            Spacer(modifier = Modifier.height(gap))
+                            Spacer(modifier = Modifier.height((10 * scale).dp))
+
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                DiagnosticUnlockLogo(
+                                    onLongClick = diagnosticViewModel::toggleDiagnosticMode,
+                                    focusRequester = diagnosticLogoFocusRequester,
+                                    size = (68 * scale).dp,
+                                    modifier = Modifier.focusProperties {
+                                        up = backFocusRequester
+                                        down = whatsNewFocusRequester
+                                        left = russianFocusRequester
+                                    },
+                                )
+                                Spacer(modifier = Modifier.height((7 * scale).dp))
+                                Text(
+                                    stringResource(R.string.app_name),
+                                    fontSize = titleSize,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    style = tightStyle,
+                                )
+                                Spacer(modifier = Modifier.height((4 * scale).dp))
+                                Text(
+                                    stringResource(R.string.about_slogan),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    fontSize = bodySize,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    style = tightStyle,
+                                )
+                            }
+
+                            // Separate the app identity from the technical
+                            // details, while keeping the details visually
+                            // grouped together near the bottom of the card.
+                            Spacer(modifier = Modifier.height((48 * scale).dp))
                             // Version + "Check for updates" merged into a single
                             // row to stop duplicating the current version.
                             com.tobevpn.tv.update.SettingsUpdateCheckRow(
@@ -472,95 +599,26 @@ fun SettingsScreen(
                                 whatsNewFocusModifier = Modifier
                                     .focusRequester(whatsNewFocusRequester)
                                     .focusProperties {
-                                        up = backFocusRequester
-                                        down = devicesFocusRequester
+                                        up = diagnosticLogoFocusRequester
+                                        down = pageFocusRequesters[1]
                                         left = logoutFocusRequester
                                         right = checkUpdateFocusRequester
                                     },
                                 checkFocusModifier = Modifier
                                     .focusRequester(checkUpdateFocusRequester)
                                     .focusProperties {
-                                        up = backFocusRequester
-                                        down = devicesFocusRequester
+                                        up = diagnosticLogoFocusRequester
+                                        down = pageFocusRequesters[2]
                                         left = whatsNewFocusRequester
                                     },
                             )
-                            Spacer(modifier = Modifier.height(gap))
+                            Spacer(modifier = Modifier.height((24 * scale).dp))
                             InfoRow(stringResource(R.string.xray), viewModel.xrayVersion, bodySize = bodySize, rowPadV = rowPadV, tightStyle = tightStyle)
-                        }
-                    }
-
-                    // Keep the right column bottom aligned with the left column,
-                    // without stretching the Devices card to the full screen height.
-                    if (authState is AuthState.Authenticated) {
-                        val devicesCardHeight = with(density) {
-                            if (firstPageLeftHeightPx > 0 && firstPageAboutHeightPx > 0) {
-                                (
-                                    firstPageLeftHeightPx -
-                                        firstPageAboutHeightPx -
-                                        cardSpacing.roundToPx()
-                                    ).coerceAtLeast(0).toDp()
-                            } else {
-                                (256 * scale).dp
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(cardSpacing))
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(devicesCardHeight),
-                            shape = RoundedCornerShape(cardCorner),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            ),
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(cardPad),
-                            ) {
-                                Text(
-                                    stringResource(R.string.devices_title),
-                                    fontSize = titleSize,
-                                    fontWeight = FontWeight.SemiBold,
-                                    style = tightStyle,
-                                )
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f),
-                                    verticalArrangement = Arrangement.Center,
-                                ) {
-                                    Text(
-                                        stringResource(R.string.devices_manage_hint),
-                                        fontSize = bodySize,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = tightStyle,
-                                    )
-                                    Spacer(modifier = Modifier.height(gap))
-                                    AccountActionButton(
-                                        label = stringResource(R.string.devices_manage),
-                                        onClick = {
-                                            navigationReturnFocus = "devices"
-                                            onNavigateToDevices()
-                                        },
-                                        contentColor = MaterialTheme.colorScheme.onBackground,
-                                        bodySize = bodySize,
-                                        scale = scale,
-                                        buttonPadH = buttonPadH,
-                                        buttonPadV = buttonPadV,
-                                        focusRequester = devicesFocusRequester,
-                                        upFocusRequester = whatsNewFocusRequester,
-                                        downFocusRequester = pageFocusRequesters[1],
-                                        leftFocusRequester = russianFocusRequester,
-                                    )
-                                }
-                            }
                         }
                     }
                 }
                     }
-                } else {
+                } else if (page == 1) {
                     SettingsAppsPage(
                         appFilterState = appFilterState,
                         onNavigateToAppFilter = {
@@ -570,6 +628,10 @@ fun SettingsScreen(
                         onNavigateToReferrals = {
                             navigationReturnFocus = "referrals"
                             onNavigateToReferrals()
+                        },
+                        onNavigateToSupport = {
+                            navigationReturnFocus = "support"
+                            onNavigateToSupport()
                         },
                         themeMode = themeMode,
                         onThemeSelected = viewModel::setThemeMode,
@@ -585,10 +647,51 @@ fun SettingsScreen(
                         backFocusRequester = backFocusRequester,
                         appFilterFocusRequester = appFilterFocusRequester,
                         referralsFocusRequester = referralsFocusRequester,
+                        supportFocusRequester = supportFocusRequester,
                         darkThemeFocusRequester = darkThemeFocusRequester,
                         lightThemeFocusRequester = lightThemeFocusRequester,
                         firstPageIndicatorFocusRequester = pageFocusRequesters[0],
-                        secondPageIndicatorFocusRequester = pageFocusRequesters[1],
+                        thirdPageIndicatorFocusRequester = pageFocusRequesters[2],
+                    )
+                } else {
+                    SettingsMorePage(
+                        showDevices = authState is AuthState.Authenticated,
+                        onNavigateToPromocodes = {
+                            navigationReturnFocus = "promocodes"
+                            onNavigateToPromocodes()
+                        },
+                        onNavigateToDevices = {
+                            navigationReturnFocus = "devices"
+                            onNavigateToDevices()
+                        },
+                        cardPad = cardPad,
+                        cardCorner = cardCorner,
+                        cardSpacing = cardSpacing,
+                        titleSize = titleSize,
+                        bodySize = bodySize,
+                        buttonPadH = buttonPadH,
+                        buttonPadV = buttonPadV,
+                        scale = scale,
+                        tightStyle = tightStyle,
+                        backFocusRequester = backFocusRequester,
+                        promocodesFocusRequester = promocodesFocusRequester,
+                        devicesFocusRequester = devicesFocusRequester,
+                        diagnosticInfoFocusRequester = diagnosticInfoFocusRequester,
+                        diagnosticStartFocusRequester = diagnosticStartFocusRequester,
+                        diagnosticHistoryFocusRequester = diagnosticHistoryFocusRequester,
+                        firstPageIndicatorFocusRequester = pageFocusRequesters[0],
+                        thirdPageIndicatorFocusRequester = pageFocusRequesters[2],
+                        diagnosticState = diagnosticState,
+                        onToggleDiagnosticCollection = diagnosticViewModel::toggleCollection,
+                        onOpenDiagnosticHistory = {
+                            dialogReturnFocusRequester = diagnosticHistoryFocusRequester
+                            showDiagnosticHistory = true
+                            diagnosticViewModel.loadHistory()
+                        },
+                        onOpenDiagnosticInfo = {
+                            dialogReturnFocusRequester = diagnosticInfoFocusRequester
+                            showDiagnosticInfo = true
+                        },
                     )
                 }
             }
@@ -597,12 +700,24 @@ fun SettingsScreen(
 
         SettingsPageIndicator(
             currentPage = settingsPage,
-            pageCount = 2,
+            pageCount = 3,
             focusRequesters = pageFocusRequesters,
-            upFocusRequesters = if (settingsPage == 0) {
-                listOf(englishFocusRequester, devicesFocusRequester)
-            } else {
-                listOf(appFilterFocusRequester, darkThemeFocusRequester)
+            upFocusRequesters = when (settingsPage) {
+                0 -> listOf(englishFocusRequester, whatsNewFocusRequester, checkUpdateFocusRequester)
+                1 -> listOf(supportFocusRequester, darkThemeFocusRequester, darkThemeFocusRequester)
+                else -> listOf(
+                    if (authState is AuthState.Authenticated) devicesFocusRequester else promocodesFocusRequester,
+                    when {
+                        diagnosticState.debugModeEnabled -> diagnosticStartFocusRequester
+                        authState is AuthState.Authenticated -> devicesFocusRequester
+                        else -> promocodesFocusRequester
+                    },
+                    when {
+                        diagnosticState.debugModeEnabled -> diagnosticStartFocusRequester
+                        authState is AuthState.Authenticated -> devicesFocusRequester
+                        else -> promocodesFocusRequester
+                    },
+                )
             },
             onPageSelected = {
                 keepPageIndicatorFocus = true
@@ -655,6 +770,42 @@ fun SettingsScreen(
                 onDismiss = { showWhatsNew = false },
             )
         }
+
+        if (showDiagnosticInfo) {
+            DiagnosticInfoDialog(
+                darkTheme = themeMode == AppThemeMode.DARK,
+                onDismiss = { showDiagnosticInfo = false },
+            )
+        }
+
+        if (showDiagnosticHistory) {
+            DiagnosticHistoryDialog(
+                state = diagnosticHistoryState,
+                darkTheme = themeMode == AppThemeMode.DARK,
+                onDismiss = { showDiagnosticHistory = false },
+                onShare = diagnosticViewModel::shareLog,
+                onDelete = { diagnosticDeleteCandidate = it },
+            )
+        }
+
+        diagnosticDeleteCandidate?.let { log ->
+            TvConfirmationDialog(
+                title = stringResource(R.string.diagnostics_history_delete_title),
+                message = stringResource(
+                    R.string.diagnostics_history_delete_message,
+                    log.date.format(SETTINGS_DIAGNOSTIC_DATE_FORMAT),
+                ),
+                confirmLabel = stringResource(R.string.diagnostics_history_delete_confirm),
+                cancelLabel = stringResource(R.string.cancel),
+                darkTheme = themeMode == AppThemeMode.DARK,
+                destructive = true,
+                onConfirm = {
+                    diagnosticDeleteCandidate = null
+                    diagnosticViewModel.deleteLog(log.fileName)
+                },
+                onDismissRequest = { diagnosticDeleteCandidate = null },
+            )
+        }
     }
 }
 
@@ -663,6 +814,7 @@ private fun SettingsAppsPage(
     appFilterState: AppFilterState,
     onNavigateToAppFilter: () -> Unit,
     onNavigateToReferrals: () -> Unit,
+    onNavigateToSupport: () -> Unit,
     themeMode: AppThemeMode,
     onThemeSelected: (AppThemeMode) -> Unit,
     cardPad: androidx.compose.ui.unit.Dp,
@@ -677,10 +829,11 @@ private fun SettingsAppsPage(
     backFocusRequester: FocusRequester,
     appFilterFocusRequester: FocusRequester,
     referralsFocusRequester: FocusRequester,
+    supportFocusRequester: FocusRequester,
     darkThemeFocusRequester: FocusRequester,
     lightThemeFocusRequester: FocusRequester,
     firstPageIndicatorFocusRequester: FocusRequester,
-    secondPageIndicatorFocusRequester: FocusRequester,
+    thirdPageIndicatorFocusRequester: FocusRequester,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -727,8 +880,48 @@ private fun SettingsAppsPage(
                         buttonPadV = buttonPadV,
                         focusRequester = appFilterFocusRequester,
                         upFocusRequester = backFocusRequester,
-                        downFocusRequester = firstPageIndicatorFocusRequester,
+                        downFocusRequester = supportFocusRequester,
                         rightFocusRequester = referralsFocusRequester,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(cardSpacing))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(cardCorner),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(cardPad)) {
+                    Text(
+                        stringResource(R.string.settings_support),
+                        fontSize = titleSize,
+                        fontWeight = FontWeight.SemiBold,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((8 * scale).dp))
+                    Text(
+                        stringResource(R.string.settings_support_desc),
+                        fontSize = bodySize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((18 * scale).dp))
+                    AccountActionButton(
+                        label = stringResource(R.string.settings_support_open),
+                        onClick = onNavigateToSupport,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        bodySize = bodySize,
+                        scale = scale,
+                        buttonPadH = buttonPadH,
+                        buttonPadV = buttonPadV,
+                        focusRequester = supportFocusRequester,
+                        upFocusRequester = appFilterFocusRequester,
+                        downFocusRequester = firstPageIndicatorFocusRequester,
+                        rightFocusRequester = darkThemeFocusRequester,
                     )
                 }
             }
@@ -806,8 +999,8 @@ private fun SettingsAppsPage(
                             scale = scale,
                             focusRequester = darkThemeFocusRequester,
                             upFocusRequester = referralsFocusRequester,
-                            downFocusRequester = secondPageIndicatorFocusRequester,
-                            leftFocusRequester = appFilterFocusRequester,
+                            downFocusRequester = thirdPageIndicatorFocusRequester,
+                            leftFocusRequester = supportFocusRequester,
                             rightFocusRequester = lightThemeFocusRequester,
                         )
                         Spacer(modifier = Modifier.width((12 * scale).dp))
@@ -819,11 +1012,176 @@ private fun SettingsAppsPage(
                             scale = scale,
                             focusRequester = lightThemeFocusRequester,
                             upFocusRequester = referralsFocusRequester,
-                            downFocusRequester = secondPageIndicatorFocusRequester,
+                            downFocusRequester = thirdPageIndicatorFocusRequester,
                             leftFocusRequester = darkThemeFocusRequester,
                         )
                     }
                 }
+            }
+        }
+
+    }
+}
+
+@Composable
+private fun SettingsMorePage(
+    showDevices: Boolean,
+    onNavigateToPromocodes: () -> Unit,
+    onNavigateToDevices: () -> Unit,
+    cardPad: androidx.compose.ui.unit.Dp,
+    cardCorner: androidx.compose.ui.unit.Dp,
+    cardSpacing: androidx.compose.ui.unit.Dp,
+    titleSize: androidx.compose.ui.unit.TextUnit,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    buttonPadH: androidx.compose.ui.unit.Dp,
+    buttonPadV: androidx.compose.ui.unit.Dp,
+    scale: Float,
+    tightStyle: TextStyle,
+    backFocusRequester: FocusRequester,
+    promocodesFocusRequester: FocusRequester,
+    devicesFocusRequester: FocusRequester,
+    diagnosticInfoFocusRequester: FocusRequester,
+    diagnosticStartFocusRequester: FocusRequester,
+    diagnosticHistoryFocusRequester: FocusRequester,
+    firstPageIndicatorFocusRequester: FocusRequester,
+    thirdPageIndicatorFocusRequester: FocusRequester,
+    diagnosticState: DiagnosticLogState,
+    onToggleDiagnosticCollection: () -> Unit,
+    onOpenDiagnosticHistory: () -> Unit,
+    onOpenDiagnosticInfo: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(cardCorner),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(cardPad)) {
+                    Text(
+                        stringResource(R.string.settings_promocodes),
+                        fontSize = titleSize,
+                        fontWeight = FontWeight.SemiBold,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((8 * scale).dp))
+                    Text(
+                        stringResource(R.string.settings_promocodes_desc),
+                        fontSize = bodySize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((18 * scale).dp))
+                    AccountActionButton(
+                        label = stringResource(R.string.settings_promocodes),
+                        onClick = onNavigateToPromocodes,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        bodySize = bodySize,
+                        scale = scale,
+                        buttonPadH = buttonPadH,
+                        buttonPadV = buttonPadV,
+                        focusRequester = promocodesFocusRequester,
+                        upFocusRequester = backFocusRequester,
+                        downFocusRequester = if (showDevices) {
+                            devicesFocusRequester
+                        } else {
+                            firstPageIndicatorFocusRequester
+                        },
+                        rightFocusRequester = if (diagnosticState.debugModeEnabled) {
+                            diagnosticStartFocusRequester
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
+
+            if (showDevices) {
+                Spacer(modifier = Modifier.height(cardSpacing))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(cardCorner),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+                ) {
+                    Column(modifier = Modifier.padding(cardPad)) {
+                        Text(
+                            stringResource(R.string.devices_title),
+                            fontSize = titleSize,
+                            fontWeight = FontWeight.SemiBold,
+                            style = tightStyle,
+                        )
+                        Spacer(modifier = Modifier.height((8 * scale).dp))
+                        Text(
+                            stringResource(R.string.devices_manage_hint),
+                            fontSize = bodySize,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = tightStyle,
+                        )
+                        Spacer(modifier = Modifier.height((18 * scale).dp))
+                        AccountActionButton(
+                            label = stringResource(R.string.devices_manage),
+                            onClick = onNavigateToDevices,
+                            contentColor = MaterialTheme.colorScheme.onBackground,
+                            bodySize = bodySize,
+                            scale = scale,
+                            buttonPadH = buttonPadH,
+                            buttonPadV = buttonPadV,
+                            focusRequester = devicesFocusRequester,
+                            upFocusRequester = promocodesFocusRequester,
+                            downFocusRequester = firstPageIndicatorFocusRequester,
+                            rightFocusRequester = if (diagnosticState.debugModeEnabled) {
+                                diagnosticStartFocusRequester
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.width(cardSpacing))
+
+        Column(modifier = Modifier.weight(1f)) {
+            if (diagnosticState.debugModeEnabled) {
+                DiagnosticCard(
+                    state = diagnosticState,
+                    bodySize = bodySize,
+                    cardPadding = cardPad * 0.75f,
+                    onToggleCollection = onToggleDiagnosticCollection,
+                    onHistory = onOpenDiagnosticHistory,
+                    onInfo = onOpenDiagnosticInfo,
+                    infoButtonModifier = Modifier
+                        .focusRequester(diagnosticInfoFocusRequester)
+                        .focusProperties {
+                            up = backFocusRequester
+                            down = diagnosticStartFocusRequester
+                            left = promocodesFocusRequester
+                        },
+                    startButtonModifier = Modifier
+                        .focusRequester(diagnosticStartFocusRequester)
+                        .focusProperties {
+                            up = diagnosticInfoFocusRequester
+                            down = thirdPageIndicatorFocusRequester
+                            left = if (showDevices) devicesFocusRequester else promocodesFocusRequester
+                            right = diagnosticHistoryFocusRequester
+                        },
+                    historyButtonModifier = Modifier
+                        .focusRequester(diagnosticHistoryFocusRequester)
+                        .focusProperties {
+                            up = diagnosticInfoFocusRequester
+                            down = thirdPageIndicatorFocusRequester
+                            left = diagnosticStartFocusRequester
+                            right = FocusRequester.Cancel
+                        },
+                )
             }
         }
     }
@@ -1079,3 +1437,6 @@ private fun formatDate(epochMillis: Long): String {
     sdf.timeZone = java.util.TimeZone.getDefault()
     return sdf.format(java.util.Date(epochMillis))
 }
+
+private val SETTINGS_DIAGNOSTIC_DATE_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd.MM.yyyy")

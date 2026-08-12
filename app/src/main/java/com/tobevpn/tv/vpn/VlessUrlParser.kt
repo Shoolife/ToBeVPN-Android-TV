@@ -2,6 +2,7 @@ package com.tobevpn.tv.vpn
 
 import com.tobevpn.tv.domain.model.Server
 import java.net.URLDecoder
+import java.util.Locale
 
 object VlessUrlParser {
 
@@ -39,14 +40,33 @@ object VlessUrlParser {
                 port = port,
                 uuid = uuid,
                 flow = params["flow"] ?: "",
-                security = params["security"] ?: "none",
+                security = params["security"]
+                    ?.trim()
+                    ?.lowercase(Locale.ROOT)
+                    ?.ifBlank { "none" }
+                    ?: "none",
                 sni = params["sni"] ?: "",
-                fingerprint = params["fp"] ?: "chrome",
+                fingerprint = params["fp"]
+                    ?.trim()
+                    ?.lowercase(Locale.ROOT)
+                    ?.ifBlank { "chrome" }
+                    ?: "chrome",
                 publicKey = params["pbk"] ?: "",
                 shortId = params["sid"] ?: "",
-                network = params["type"] ?: "tcp",
+                network = normalizeNetwork(params["type"]),
                 path = params["path"] ?: "",
-                mode = params["mode"] ?: "",
+                host = params["host"] ?: "",
+                alpn = params["alpn"] ?: "",
+                headerType = params["headerType"]
+                    ?.trim()
+                    ?.lowercase(Locale.ROOT)
+                    ?: "",
+                serviceName = params["serviceName"] ?: "",
+                extra = params["extra"] ?: "",
+                mode = params["mode"]
+                    ?.trim()
+                    ?.lowercase(Locale.ROOT)
+                    ?: "",
                 spx = params["spx"] ?: "",
                 country = "",
             )
@@ -77,6 +97,14 @@ object VlessUrlParser {
 
     private fun normalizePort(port: Int): Int =
         if (port in 1..65535) port else DEFAULT_PORT
+
+    private fun normalizeNetwork(rawNetwork: String?): String =
+        when (rawNetwork?.trim()?.lowercase(Locale.ROOT).orEmpty()) {
+            "", "raw", "tcp" -> "tcp"
+            "websocket", "ws" -> "ws"
+            "splithttp", "xhttp" -> "xhttp"
+            else -> rawNetwork.orEmpty().trim().lowercase(Locale.ROOT)
+        }
 
     /** Percent-decode without form semantics: a literal '+' must stay '+'. */
     private fun percentDecode(value: String): String {

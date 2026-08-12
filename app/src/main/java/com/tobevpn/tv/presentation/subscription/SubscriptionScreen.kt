@@ -99,6 +99,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -129,6 +130,8 @@ private data class PurchasePlan(
     val key: String,
     val title: String,
     val priceDisplay: String,
+    val originalPriceDisplay: String? = null,
+    val discountPercent: Int = 0,
     val description: String,
     val botPaymentUrl: String? = null,
 )
@@ -235,10 +238,13 @@ fun SubscriptionScreen(
                     .sortedBy { it.orderIndex }
                     .forEach { d ->
                         val durationTitle = planTitle(d.days)
+                        val price = formatDurationPrice(d, isRussian, rubToUsdRate)
                         add(PurchasePlan(
                             key = "${sourcePlan.id}:${planKey(d.days)}",
                             title = durationTitle,
-                            priceDisplay = formatDurationPrice(d, isRussian, rubToUsdRate),
+                            priceDisplay = price.finalPrice,
+                            originalPriceDisplay = price.originalPrice,
+                            discountPercent = price.discountPercent,
                             description = planDescription,
                             botPaymentUrl = d.botPaymentUrl,
                         ))
@@ -519,6 +525,34 @@ fun SubscriptionScreen(
                                         style = tightStyle,
                                     )
                                     Spacer(modifier = Modifier.height((6 * scale).dp))
+                                    if (selectedPlan.originalPriceDisplay != null &&
+                                        selectedPlan.discountPercent > 0
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy((5 * scale).dp),
+                                        ) {
+                                            Text(
+                                                text = selectedPlan.originalPriceDisplay,
+                                                fontSize = labelSize,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                textDecoration = TextDecoration.LineThrough,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                style = tightStyle,
+                                            )
+                                            Text(
+                                                text = "−${selectedPlan.discountPercent}%",
+                                                fontSize = labelSize,
+                                                fontWeight = FontWeight.Bold,
+                                                color = VpnGreen,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                style = tightStyle,
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height((2 * scale).dp))
+                                    }
                                     Text(
                                         text = selectedPlan.priceDisplay,
                                         fontSize = priceSize,
@@ -1427,13 +1461,40 @@ private fun PlanOptionCard(
                 )
             }
             Spacer(modifier = Modifier.width(cardPad))
-            Text(
-                text = plan.priceDisplay,
-                fontSize = titleSize,
-                fontWeight = FontWeight.Bold,
-                color = VpnGreen,
-                style = tightStyle,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                if (plan.originalPriceDisplay != null && plan.discountPercent > 0) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Text(
+                            text = plan.originalPriceDisplay,
+                            fontSize = labelSize,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textDecoration = TextDecoration.LineThrough,
+                            maxLines = 1,
+                            softWrap = false,
+                            style = tightStyle,
+                        )
+                        Text(
+                            text = "−${plan.discountPercent}%",
+                            fontSize = labelSize,
+                            fontWeight = FontWeight.Bold,
+                            color = VpnGreen,
+                            maxLines = 1,
+                            softWrap = false,
+                            style = tightStyle,
+                        )
+                    }
+                }
+                Text(
+                    text = plan.priceDisplay,
+                    fontSize = titleSize,
+                    fontWeight = FontWeight.Bold,
+                    color = VpnGreen,
+                    style = tightStyle,
+                )
+            }
         }
     }
 }
@@ -1493,13 +1554,17 @@ private fun buildPlanDescription(trafficLimitGb: Int?, deviceLimit: Int?): Strin
     return if (devicePart != null) "$trafficPart · $devicePart" else trafficPart
 }
 
+private data class DurationPriceDisplay(
+    val finalPrice: String,
+    val originalPrice: String? = null,
+    val discountPercent: Int = 0,
+)
+
 private fun formatDurationPrice(
     duration: com.tobevpn.tv.data.remote.dto.PurchaseDurationDto,
     isRussian: Boolean,
     rubToUsdRate: Double?,
-): String {
-    val prices = duration.prices.orEmpty().associateBy { it.currency }
-
+): DurationPriceDisplay {
     fun formatRub(amount: String): String {
         val value = amount.toDoubleOrNull() ?: return "$amount\u20BD"
         val intPart = value.toInt()
@@ -1517,23 +1582,36 @@ private fun formatDurationPrice(
         return "${value.toInt()} \u2B50"
     }
 
-    return when {
-        isRussian -> prices["RUB"]?.amount?.let { formatRub(it) }
-            ?: prices["USD"]?.amount?.let { formatUsd(it) }
-            ?: prices["XTR"]?.amount?.let { formatStars(it) }
-            ?: "XXX"
-        else -> prices["USD"]?.amount?.let { formatUsd(it) }
-            ?: prices["RUB"]?.amount?.let { rub ->
-                val rubValue = rub.toDoubleOrNull()
-                if (rubValue != null && rubToUsdRate != null) {
-                    "$%.2f".format(Locale.US, rubValue * rubToUsdRate)
-                } else {
-                    formatRub(rub)
-                }
+    fun formatAmount(currency: String, amount: String): String = when (currency.uppercase()) {
+        "RUB" -> if (!isRussian) {
+            val rubValue = amount.toDoubleOrNull()
+            if (rubValue != null && rubToUsdRate != null) {
+                "$%.2f".format(Locale.US, rubValue * rubToUsdRate)
+            } else {
+                formatRub(amount)
             }
-            ?: prices["XTR"]?.amount?.let { formatStars(it) }
-            ?: "XXX"
+        } else {
+            formatRub(amount)
+        }
+        "USD" -> formatUsd(amount)
+        "XTR" -> formatStars(amount)
+        else -> "$amount $currency".trim()
     }
+
+    val preferredCurrencies = if (isRussian) {
+        listOf("RUB", "USD", "XTR")
+    } else {
+        listOf("USD", "RUB", "XTR")
+    }
+    val resolved = resolvePurchasePrice(duration, preferredCurrencies)
+        ?: return DurationPriceDisplay(finalPrice = "XXX")
+    return DurationPriceDisplay(
+        finalPrice = formatAmount(resolved.currency, resolved.finalAmount),
+        originalPrice = resolved.originalAmount
+            .takeIf { resolved.hasDiscount }
+            ?.let { formatAmount(resolved.currency, it) },
+        discountPercent = resolved.discountPercent.takeIf { resolved.hasDiscount } ?: 0,
+    )
 }
 
 private fun planKey(days: Int): String = when (days) {

@@ -4,5 +4,6 @@
     <exclude domain="database" path="tobevpn_tv.db-shm" />
     <exclude domain="database" path="tobevpn_tv.db-wal" />
     <exclude domain="file" path="datastore/" />
+    <exclude domain="file" path="diagnostic_logs/" />
     <exclude domain="sharedpref" path="tobevpn_db_prefs.xml" />
 </full-backup-content>

@@ -43,6 +43,10 @@ class UpdateInstaller @Inject constructor(
         }
     }
 
+    fun contextualPermissionRequest() {
+        context.startActivity(buildPermissionIntent())
+    }
+
     fun install(apkUri: Uri) {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(apkUri, APK_MIME)

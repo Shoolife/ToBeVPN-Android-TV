@@ -1,5 +1,7 @@
 package com.tobevpn.tv.domain.model
 
+import java.util.Locale
+
 data class Server(
     val id: String,
     val name: String,
@@ -14,6 +16,11 @@ data class Server(
     val shortId: String = "",
     val network: String = "tcp",
     val path: String = "",
+    val host: String = "",
+    val alpn: String = "",
+    val headerType: String = "",
+    val serviceName: String = "",
+    val extra: String = "",
     val mode: String = "",
     val spx: String = "",
     val country: String = "",
@@ -34,6 +41,21 @@ data class Server(
             name.contains("ИСТЕКЛА", ignoreCase = true) ||
             name.contains("EXPIRED", ignoreCase = true) ||
             name.contains("истекла", ignoreCase = true)
+
+    /** REALITY needs a TLS 1.3-capable ClientHello fingerprint. */
+    val isXrayCompatible: Boolean
+        get() = !security.trim().equals("reality", ignoreCase = true) ||
+            fingerprint.trim().lowercase(Locale.ROOT) !in TLS12_ONLY_REALITY_FINGERPRINTS
+
+    /** Fingerprint actually passed to Xray; legacy TLS 1.2 aliases are repaired. */
+    val effectiveFingerprint: String
+        get() {
+            val requested = fingerprint.trim().ifBlank { DEFAULT_FINGERPRINT }
+            return if (isXrayCompatible) requested else DEFAULT_FINGERPRINT
+        }
+
+    val isFingerprintRepaired: Boolean
+        get() = !isXrayCompatible
 
     /**
      * Panel online metadata can lag behind real VLESS/Reality reachability.
@@ -63,6 +85,24 @@ data class Server(
             shortId == other.shortId &&
             network == other.network &&
             path == other.path &&
+            host == other.host &&
+            alpn == other.alpn &&
+            headerType == other.headerType &&
+            serviceName == other.serviceName &&
+            extra == other.extra &&
             mode == other.mode &&
             spx == other.spx
+
+    private companion object {
+        const val DEFAULT_FINGERPRINT = "chrome"
+        val TLS12_ONLY_REALITY_FINGERPRINTS = setOf(
+            "android",
+            "helloandroid_11_okhttp",
+            "hellochrome_58",
+            "hellochrome_62",
+            "hellofirefox_55",
+            "hellofirefox_56",
+            "helloios_11_1",
+        )
+    }
 }

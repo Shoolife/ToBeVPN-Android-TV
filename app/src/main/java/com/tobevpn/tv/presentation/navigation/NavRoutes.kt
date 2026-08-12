@@ -21,6 +21,15 @@ object DevicesRoute
 object ReferralsRoute
 
 @Serializable
+object PromocodesRoute
+
+@Serializable
+object AboutRoute
+
+@Serializable
+object SupportRoute
+
+@Serializable
 object StatsRoute
 
 @Serializable

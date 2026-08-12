@@ -2,12 +2,16 @@ package com.tobevpn.tv.data.repository
 
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.domain.model.Server
+import com.tobevpn.tv.util.SafeDiagnostics
+import com.tobevpn.tv.util.diagnosticServerDescriptor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -29,16 +33,18 @@ class ServerQualityRepository @Inject constructor(
     private val stateMutex = Mutex()
     private var cachedState: QualityState? = null
     private val pingCache = ConcurrentHashMap<String, TimedPing>()
+    private val pingDiagnostics = ConcurrentHashMap<String, TimedPingDiagnostic>()
 
     suspend fun measurePing(server: Server, force: Boolean = false): Long {
         if (!server.isAvailable) return -1L
-        val key = qualityKey(server)
+        val key = serverPingEndpointKey(server)
         val now = System.currentTimeMillis()
         val cached = pingCache[key]
         if (!force && cached != null && now - cached.measuredAt <= PING_CACHE_TTL_MS) {
             return cached.ping
         }
 
+        var failureCategory: String? = null
         val ping = withContext(Dispatchers.IO) {
             try {
                 val startedAt = System.currentTimeMillis()
@@ -46,11 +52,13 @@ class ServerQualityRepository @Inject constructor(
                     socket.connect(InetSocketAddress(server.address, server.port), PING_TIMEOUT_MS)
                 }
                 (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                failureCategory = SafeDiagnostics.failureCategory(error)
                 -1L
             }
         }
         pingCache[key] = TimedPing(ping = ping, measuredAt = now)
+        logPingIfNeeded(server, key, ping, failureCategory, now)
         return ping
     }
 
@@ -58,24 +66,63 @@ class ServerQualityRepository @Inject constructor(
         servers: List<Server>,
         force: Boolean = false,
     ): Map<String, Long> = coroutineScope {
-        servers.map { server ->
+        val uniqueEndpoints = servers.distinctBy(::serverPingEndpointKey)
+        val probeSlots = Semaphore(MAX_CONCURRENT_PINGS)
+        val endpointPings = uniqueEndpoints.map { server ->
             async {
-                server.id to measurePing(server, force)
+                probeSlots.withPermit {
+                    serverPingEndpointKey(server) to measurePing(server, force)
+                }
             }
         }.awaitAll().toMap()
+        val results = servers.associate { server ->
+            server.id to (endpointPings[serverPingEndpointKey(server)] ?: -1L)
+        }
+        val reachable = results.values.filter { it >= 0L }
+        SafeDiagnostics.trace(
+            TAG,
+            "Server TCP probe batch completed: total=${results.size} " +
+                "unique_endpoints=${uniqueEndpoints.size} reachable=${reachable.size} " +
+                "unreachable=${results.size - reachable.size} " +
+                "min_ms=${reachable.minOrNull() ?: -1L} max_ms=${reachable.maxOrNull() ?: -1L}",
+        )
+        results
     }
 
     suspend fun selectBestServer(
         servers: List<Server>,
         excludeServerId: String? = null,
+        excludedServerIds: Collection<String> = emptyList(),
+        avoidEndpointServers: Collection<Server> = emptyList(),
+        recentlyFailedProfiles: Collection<Server> = emptyList(),
         forceProbe: Boolean = false,
     ): Server? {
         val available = servers.filter { it.isAvailable }
         if (available.isEmpty()) return null
 
-        val preferredCandidates = available.filterNot { it.id == excludeServerId }
-            .ifEmpty { available }
-        val pings = measurePings(available, force = forceProbe)
+        val exclusionRequested = excludeServerId != null || excludedServerIds.isNotEmpty()
+        val eligibleCandidates = ServerRecoveryCandidatePolicy.eligibleServers(
+            servers = available,
+            excludeServerId = excludeServerId,
+            excludedServerIds = excludedServerIds,
+        )
+        if (exclusionRequested && eligibleCandidates.isEmpty()) {
+            SafeDiagnostics.warn(
+                TAG,
+                "Automatic server selection has no alternative after endpoint exclusion: " +
+                    "candidates=${available.size}",
+            )
+            return null
+        }
+        val endpointTiers = ServerRecoveryCandidatePolicy.endpointPreferenceTiers(
+            servers = eligibleCandidates,
+            failedEndpointServers = avoidEndpointServers,
+            penalisedProfiles = recentlyFailedProfiles,
+        )
+        val preferredCandidates = endpointTiers.preferred
+        val fallbackCandidates = endpointTiers.fallback
+        val pings = mutableMapOf<String, Long>()
+        pings += measurePings(preferredCandidates, force = forceProbe)
         val records = stateMutex.withLock { loadStateLocked().records }
         val now = System.currentTimeMillis()
 
@@ -91,7 +138,7 @@ class ServerQualityRepository @Inject constructor(
                         server = server.copy(ping = ping),
                         score = qualityScore(
                             ping = ping,
-                            record = records[qualityKey(server)],
+                            record = records[serverConnectionIdentityKey(server)],
                             now = now,
                         ),
                     )
@@ -105,14 +152,29 @@ class ServerQualityRepository @Inject constructor(
         }
 
         val preferredOnlineCandidates = preferPanelOnline(preferredCandidates)
-        val onlineCandidates = preferPanelOnline(available)
-        return rank(preferredOnlineCandidates)
-            ?: rank(preferredCandidates)
-            ?: rank(onlineCandidates)
-            ?: rank(available)
-            ?: preferredOnlineCandidates.firstOrNull()?.let { server ->
-                server.copy(ping = pings[server.id] ?: server.ping)
-            }
+        var selectedScope = "PREFERRED"
+        var selected = rank(preferredOnlineCandidates) ?: rank(preferredCandidates)
+        if (selected == null && fallbackCandidates.isNotEmpty()) {
+            pings += measurePings(fallbackCandidates, force = forceProbe)
+            selected = rank(preferPanelOnline(fallbackCandidates)) ?: rank(fallbackCandidates)
+            if (selected != null) selectedScope = "REACHABLE_FALLBACK"
+        }
+        if (selected == null) {
+            val unverified = preferredOnlineCandidates.firstOrNull()
+                ?: preferPanelOnline(fallbackCandidates).firstOrNull()
+            selected = unverified?.copy(ping = pings[unverified.id] ?: unverified.ping)
+            selectedScope = "UNVERIFIED"
+        }
+        SafeDiagnostics.trace(
+            TAG,
+            "Automatic server selection completed: candidates=${available.size} " +
+                "eligible=${eligibleCandidates.size} endpoint_preferred=${preferredCandidates.size} " +
+                "endpoint_fallback=${fallbackCandidates.size} " +
+                "recently_failed=${recentlyFailedProfiles.size} selected=" +
+                (selected?.let(::diagnosticServerDescriptor) ?: "NONE") +
+                " selected_ping_ms=${selected?.ping ?: -1L} selected_scope=$selectedScope",
+        )
+        return selected
     }
 
     suspend fun recordConnectionSuccess(server: Server) {
@@ -172,7 +234,7 @@ class ServerQualityRepository @Inject constructor(
     ) {
         stateMutex.withLock {
             val state = loadStateLocked()
-            val key = qualityKey(server)
+            val key = serverConnectionIdentityKey(server)
             val current = state.records[key] ?: QualityRecord()
             val now = System.currentTimeMillis()
             if (minWriteIntervalMs > 0L &&
@@ -261,7 +323,27 @@ class ServerQualityRepository @Inject constructor(
         record.lastTrafficAt,
     )
 
-    private fun qualityKey(server: Server): String = "${server.address}:${server.port}:${server.sni}"
+    private fun logPingIfNeeded(
+        server: Server,
+        key: String,
+        ping: Long,
+        failureCategory: String?,
+        now: Long,
+    ) {
+        val reachable = ping >= 0L
+        val previous = pingDiagnostics[key]
+        if (previous != null && previous.reachable == reachable &&
+            now - previous.loggedAt < PING_DIAGNOSTIC_INTERVAL_MS
+        ) return
+        pingDiagnostics[key] = TimedPingDiagnostic(reachable, now)
+        SafeDiagnostics.trace(
+            TAG,
+            "Server TCP probe: ${diagnosticServerDescriptor(server)} " +
+                "result=${if (reachable) "REACHABLE" else "UNREACHABLE"} " +
+                "latency_ms=$ping" +
+                (failureCategory?.let { " failure=$it" } ?: ""),
+        )
+    }
 
     @Serializable
     private data class QualityState(
@@ -285,6 +367,11 @@ class ServerQualityRepository @Inject constructor(
         val measuredAt: Long,
     )
 
+    private data class TimedPingDiagnostic(
+        val reachable: Boolean,
+        val loggedAt: Long,
+    )
+
     private data class RankedServer(
         val server: Server,
         val score: Double,
@@ -292,7 +379,9 @@ class ServerQualityRepository @Inject constructor(
 
     private companion object {
         const val PING_TIMEOUT_MS = 3_000
+        const val MAX_CONCURRENT_PINGS = 16
         const val PING_CACHE_TTL_MS = 15_000L
+        const val PING_DIAGNOSTIC_INTERVAL_MS = 30_000L
         const val HEALTHY_WRITE_INTERVAL_MS = 5L * 60L * 1000L
         const val FAILURE_FULL_PENALTY_MS = 30L * 60L * 1000L
         const val FAILURE_DECAY_MS = 6L * 60L * 60L * 1000L
@@ -307,5 +396,6 @@ class ServerQualityRepository @Inject constructor(
         const val MAX_COUNTER = 100
         const val MAX_CONSECUTIVE_FAILURES = 5
         const val MAX_RECORDS = 100
+        const val TAG = "ServerQuality"
     }
 }

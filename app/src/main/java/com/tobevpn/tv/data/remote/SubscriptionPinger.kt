@@ -37,6 +37,33 @@ data class SubscriptionProfileResult(
     val isSuccessful: Boolean,
 )
 
+internal fun isVersionLowerThanMinimum(
+    currentVersion: String?,
+    minimumVersion: String?,
+): Boolean {
+    val minimum = parseComparableVersion(minimumVersion) ?: return false
+    val current = parseComparableVersion(currentVersion) ?: return false
+    val size = maxOf(minimum.size, current.size)
+    for (index in 0 until size) {
+        val currentPart = current.getOrElse(index) { 0L }
+        val minimumPart = minimum.getOrElse(index) { 0L }
+        if (currentPart != minimumPart) return currentPart < minimumPart
+    }
+    return false
+}
+
+private fun parseComparableVersion(raw: String?): List<Long>? {
+    val normalized = raw
+        ?.trim()
+        ?.removePrefix("v")
+        ?.removePrefix("V")
+        ?.substringBefore('-')
+        ?.substringBefore('+')
+        ?.takeIf { it.matches(Regex("""\d+(?:\.\d+)*""")) }
+        ?: return null
+    return normalized.split('.').map { it.toLongOrNull() ?: return null }
+}
+
 // Direct GET on the public subscription URL with HWID headers.
 // This request creates/refreshes the HWID device record; regular API
 // endpoints don't expose the same device-binding path.
@@ -286,27 +313,10 @@ class SubscriptionPinger @Inject constructor(
     }
 
     private fun isVersionBelowMinimum(rawMinimum: String?): Boolean {
-        val minimum = parseVersion(rawMinimum) ?: return false
-        val current = parseVersion(BuildConfig.VERSION_NAME) ?: return false
-        val size = maxOf(minimum.size, current.size)
-        for (index in 0 until size) {
-            val currentPart = current.getOrElse(index) { 0L }
-            val minimumPart = minimum.getOrElse(index) { 0L }
-            if (currentPart != minimumPart) return currentPart < minimumPart
-        }
-        return false
-    }
-
-    private fun parseVersion(raw: String?): List<Long>? {
-        val normalized = raw
-            ?.trim()
-            ?.removePrefix("v")
-            ?.removePrefix("V")
-            ?.substringBefore('-')
-            ?.substringBefore('+')
-            ?.takeIf { it.matches(VERSION_REGEX) }
-            ?: return null
-        return normalized.split('.').map { it.toLongOrNull() ?: return null }
+        return isVersionLowerThanMinimum(
+            currentVersion = BuildConfig.VERSION_NAME,
+            minimumVersion = rawMinimum,
+        )
     }
 
     private fun isGatewayAuthError(response: Response): Boolean {
@@ -475,7 +485,6 @@ class SubscriptionPinger @Inject constructor(
         const val FAST_PRIMARY_TIMEOUT_MS = 1_200L
         const val PRIMARY_FAILURE_COOLDOWN_MS = 2L * 60L * 1000L
         const val MAX_GATEWAY_BODY_BYTES = 1_024L
-        val VERSION_REGEX = Regex("""\d+(?:\.\d+)*""")
         val VLESS_REGEX = Regex("""vless://[^\s<>"']+""")
     }
 

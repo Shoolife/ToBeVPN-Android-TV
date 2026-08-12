@@ -403,9 +403,9 @@ private fun AutomaticServerItem(
             containerColor = if (selected) {
                 selectedContainerColor
             } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
+                MaterialTheme.colorScheme.primaryContainer
             },
-            contentColor = MaterialTheme.colorScheme.onSurface,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ),
         border = serverCardBorder(
             selected = selected,
@@ -500,9 +500,9 @@ private fun ServerItem(
             containerColor = if (selected) {
                 selectedContainerColor
             } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
+                MaterialTheme.colorScheme.primaryContainer
             },
-            contentColor = MaterialTheme.colorScheme.onSurface,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ),
         border = serverCardBorder(
             selected = selected,

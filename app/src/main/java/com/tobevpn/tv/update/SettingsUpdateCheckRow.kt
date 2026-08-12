@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,25 +33,50 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.R
 
 /**
- * "Check for updates" row inside the About card on TV Settings. Same
- * behaviour as the phone variant; the only difference is the button is
- * focusable and responds to D-pad enter/center.
+ * "Check for updates" row inside the About card on TV Settings. The GitHub
+ * build checks releases manually; the Play build delegates to Play Core's
+ * flexible in-app update flow (ported from the phone app).
  */
 @Composable
 fun SettingsUpdateCheckRow(
-    fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    fontSize: TextUnit = TextUnit.Unspecified,
     onWhatsNew: (() -> Unit)? = null,
     whatsNewFocusModifier: Modifier = Modifier,
     checkFocusModifier: Modifier = Modifier,
+) {
+    if (BuildConfig.PLAY_DISTRIBUTION) {
+        PlayStoreSettingsUpdateCheckRow(
+            fontSize = fontSize,
+            onWhatsNew = onWhatsNew,
+            whatsNewFocusModifier = whatsNewFocusModifier,
+            checkFocusModifier = checkFocusModifier,
+        )
+    } else {
+        GithubSettingsUpdateCheckRow(
+            fontSize = fontSize,
+            onWhatsNew = onWhatsNew,
+            whatsNewFocusModifier = whatsNewFocusModifier,
+            checkFocusModifier = checkFocusModifier,
+        )
+    }
+}
+
+@Composable
+private fun GithubSettingsUpdateCheckRow(
+    fontSize: TextUnit,
+    onWhatsNew: (() -> Unit)?,
+    whatsNewFocusModifier: Modifier,
+    checkFocusModifier: Modifier,
     viewModel: UpdateViewModel = rememberAppUpdateViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    val inFlight by viewModel.manualCheckInFlight.collectAsState()
+    val checkInFlight by viewModel.manualCheckInFlight.collectAsState()
     val versionName = remember { com.tobevpn.tv.BuildConfig.VERSION_NAME }
 
     val statusText = when (val s = state) {
@@ -62,6 +89,85 @@ fun SettingsUpdateCheckRow(
             stringResource(R.string.update_check_uptodate, versionName)
     }
 
+    SettingsUpdateCheckRowContent(
+        fontSize = fontSize,
+        onWhatsNew = onWhatsNew,
+        whatsNewFocusModifier = whatsNewFocusModifier,
+        checkFocusModifier = checkFocusModifier,
+        statusText = statusText,
+        checkInFlight = checkInFlight,
+        showCheckButton = BuildConfig.IN_APP_UPDATES_ENABLED,
+        onCheck = viewModel::forceCheck,
+    )
+}
+
+@Composable
+private fun PlayStoreSettingsUpdateCheckRow(
+    fontSize: TextUnit,
+    onWhatsNew: (() -> Unit)?,
+    whatsNewFocusModifier: Modifier,
+    checkFocusModifier: Modifier,
+) {
+    val versionName = remember { com.tobevpn.tv.BuildConfig.VERSION_NAME }
+    val playUpdateState = rememberPlayStoreUpdateState(enabled = true)
+    val statusText = when (val phase = playUpdateState.phase) {
+        PlayStoreUpdatePhase.Checking ->
+            stringResource(R.string.update_play_checking)
+        is PlayStoreUpdatePhase.Downloading ->
+            phase.percent?.let {
+                stringResource(R.string.update_play_downloading, it)
+            } ?: stringResource(R.string.update_play_downloading_indeterminate)
+        PlayStoreUpdatePhase.Ready ->
+            stringResource(R.string.update_play_ready)
+        PlayStoreUpdatePhase.Idle ->
+            stringResource(R.string.update_check_uptodate, versionName)
+    }
+
+    SettingsUpdateCheckRowContent(
+        fontSize = fontSize,
+        onWhatsNew = onWhatsNew,
+        whatsNewFocusModifier = whatsNewFocusModifier,
+        checkFocusModifier = checkFocusModifier,
+        statusText = statusText,
+        checkInFlight = playUpdateState.busy,
+        showCheckButton = true,
+        onCheck = playUpdateState::check,
+    )
+
+    if (playUpdateState.showReadyPrompt) {
+        AlertDialog(
+            onDismissRequest = playUpdateState::dismissReadyPrompt,
+            title = {
+                Text(text = stringResource(R.string.update_play_ready_title))
+            },
+            text = {
+                Text(text = stringResource(R.string.update_play_ready_message))
+            },
+            confirmButton = {
+                TextButton(onClick = playUpdateState::installDownloadedUpdate) {
+                    Text(text = stringResource(R.string.update_play_restart))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = playUpdateState::dismissReadyPrompt) {
+                    Text(text = stringResource(R.string.update_play_later))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SettingsUpdateCheckRowContent(
+    fontSize: TextUnit,
+    onWhatsNew: (() -> Unit)?,
+    whatsNewFocusModifier: Modifier,
+    checkFocusModifier: Modifier,
+    statusText: String,
+    checkInFlight: Boolean,
+    showCheckButton: Boolean,
+    onCheck: () -> Unit,
+) {
     var isCheckFocused by remember { mutableStateOf(false) }
     var isWhatsNewFocused by remember { mutableStateOf(false) }
     val buttonTextColor = MaterialTheme.colorScheme.onSurface
@@ -130,12 +236,11 @@ fun SettingsUpdateCheckRow(
                 modifier = Modifier.weight(1f),
             )
         }
-        if (BuildConfig.IN_APP_UPDATES_ENABLED) {
+        if (showCheckButton) {
             Spacer(Modifier.width(12.dp))
             OutlinedButton(
-                onClick = {
-                    if (!inFlight) viewModel.forceCheck()
-                },
+                onClick = onCheck,
+                enabled = !checkInFlight,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = buttonTextColor,
@@ -153,7 +258,7 @@ fun SettingsUpdateCheckRow(
                     .then(checkFocusModifier)
                     .onFocusChanged { isCheckFocused = it.isFocused },
             ) {
-                if (inFlight) {
+                if (checkInFlight) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,

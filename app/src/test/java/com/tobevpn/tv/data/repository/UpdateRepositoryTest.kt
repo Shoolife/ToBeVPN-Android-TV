@@ -9,6 +9,18 @@ import org.junit.Test
 class UpdateRepositoryTest {
 
     @Test
+    fun tvSuffixDoesNotAffectVersionComparison() {
+        assertEquals(
+            parseSemver("1.0.24")!!.toList(),
+            parseSemver("1.0.24-tv")!!.toList(),
+        )
+        assertEquals(
+            -1,
+            compareSemver(parseSemver("1.0.24-tv")!!, parseSemver("v1.0.25-tv")!!),
+        )
+    }
+
+    @Test
     fun selectNewestUpdateChoosesHighestSemverNotFirstRelease() {
         val update = selectNewestUpdate(
             releases = listOf(

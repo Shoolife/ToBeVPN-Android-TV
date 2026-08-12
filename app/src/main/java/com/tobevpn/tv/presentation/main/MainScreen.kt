@@ -1,9 +1,6 @@
 package com.tobevpn.tv.presentation.main
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -75,7 +72,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.Server
@@ -107,7 +103,6 @@ fun MainScreen(
     val currentServer by viewModel.currentServer.collectAsStateWithLifecycle()
     val automaticServerSelection by viewModel.automaticServerSelection.collectAsStateWithLifecycle()
     val subscriptionUsageBlocked by viewModel.subscriptionUsageBlocked.collectAsStateWithLifecycle()
-    val updateRequired by viewModel.updateRequired.collectAsStateWithLifecycle()
     var showBlockedDialog by remember { mutableStateOf(false) }
     val activity = LocalActivity.current
 
@@ -358,34 +353,6 @@ fun MainScreen(
         BlockedDialog(onDismiss = { showBlockedDialog = false })
     }
 
-    if (updateRequired) {
-        UpdateRequiredDialog(
-            onUpdate = { activity?.let(::openUpdatePage) },
-            onQuit = { activity?.finishAffinity() },
-        )
-    }
-}
-
-private fun openUpdatePage(activity: Activity) {
-    val primary = if (BuildConfig.PLAY_DISTRIBUTION) {
-        Uri.parse("market://details?id=${BuildConfig.APPLICATION_ID}")
-    } else {
-        Uri.parse("https://github.com/Shoolife/ToBeVPN-Android-TV/releases/latest")
-    }
-    try {
-        activity.startActivity(Intent(Intent.ACTION_VIEW, primary))
-    } catch (_: ActivityNotFoundException) {
-        if (BuildConfig.PLAY_DISTRIBUTION) {
-            runCatching {
-                activity.startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://play.google.com/store/apps/details?id=${BuildConfig.APPLICATION_ID}"),
-                    ),
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -465,37 +432,6 @@ private fun SupportQrDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("OK") }
         },
-    )
-}
-
-@Composable
-private fun UpdateRequiredDialog(onUpdate: () -> Unit, onQuit: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = {},
-        title = {
-            Text(
-                text = stringResource(R.string.update_required_title),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        text = {
-            Text(
-                text = stringResource(R.string.update_required_message),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onUpdate) { Text(stringResource(R.string.update_required_button)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onQuit) { Text(stringResource(R.string.update_required_quit)) }
-        },
-        properties = androidx.compose.ui.window.DialogProperties(
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false,
-        ),
     )
 }
 

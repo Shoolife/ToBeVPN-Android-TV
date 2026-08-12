@@ -40,6 +40,8 @@ class PrefsDataStore @Inject constructor(
         val APP_FILTER_MODE = stringPreferencesKey("app_filter_mode")
         val APP_FILTER_PACKAGES = stringPreferencesKey("app_filter_packages")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val DIAGNOSTIC_MODE_ENABLED = booleanPreferencesKey("diagnostic_mode_enabled")
+        val DIAGNOSTIC_LOGGING_ENABLED = booleanPreferencesKey("diagnostic_logging_enabled")
         // Scope the persisted block to the installed build. After an update,
         // a block recorded by the previous version must not lock the new
         // version before it can read the current minimum-version header.
@@ -208,6 +210,35 @@ class PrefsDataStore @Inject constructor(
         return context.dataStore.data
             .map { it[Keys.UPDATE_REQUIRED] == true }
             .distinctUntilChanged()
+    }
+
+    suspend fun isUpdateRequired(): Boolean {
+        return context.dataStore.data.first()[Keys.UPDATE_REQUIRED] == true
+    }
+
+    /** Revealing diagnostics never starts collection by itself. */
+    suspend fun getDiagnosticSettings(): Pair<Boolean, Boolean> {
+        val prefs = context.dataStore.data.first()
+        return (prefs[Keys.DIAGNOSTIC_MODE_ENABLED] == true) to
+            (prefs[Keys.DIAGNOSTIC_LOGGING_ENABLED] == true)
+    }
+
+    suspend fun setDiagnosticModeEnabled(enabled: Boolean) {
+        context.dataStore.edit {
+            if (enabled) {
+                it[Keys.DIAGNOSTIC_MODE_ENABLED] = true
+            } else {
+                it.remove(Keys.DIAGNOSTIC_MODE_ENABLED)
+                it.remove(Keys.DIAGNOSTIC_LOGGING_ENABLED)
+            }
+        }
+    }
+
+    suspend fun setDiagnosticLoggingEnabled(enabled: Boolean) {
+        context.dataStore.edit {
+            if (enabled) it[Keys.DIAGNOSTIC_LOGGING_ENABLED] = true
+            else it.remove(Keys.DIAGNOSTIC_LOGGING_ENABLED)
+        }
     }
 
     val appFilterMode: Flow<String?> = context.dataStore.data.map { it[Keys.APP_FILTER_MODE] }

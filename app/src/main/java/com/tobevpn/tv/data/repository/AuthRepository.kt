@@ -59,6 +59,8 @@ data class CurrentSubscriptionPlanInfo(
     val renewalUrl: String?,
 )
 
+private const val DEMO_TELEGRAM_ID = -1L
+
 @Singleton
 class AuthRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -638,6 +640,32 @@ class AuthRepository @Inject constructor(
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * Marks the current device as authenticated with a local-only, never
+     * backend-registered identity. Reached only through a hidden gesture on
+     * the pairing screen — exists so a Google Play reviewer can get past the
+     * login wall without a real Telegram account. No network call is made:
+     * every screen behind this session sees an empty/unauthorized subscription
+     * and VPN state, since [DEMO_TELEGRAM_ID] never went through
+     * registerCurrentDevice()/bootstrapManager.bootstrap().
+     */
+    suspend fun completeDemoLogin() = withContext(Dispatchers.IO) {
+        sessionStore.updateOrCreate(getOrCreateDeviceId()) { session ->
+            session.copy(
+                authState = "AUTHENTICATED",
+                telegramId = DEMO_TELEGRAM_ID,
+                userPlan = "FREE_TRIAL",
+                planDisplayName = null,
+                planExpiresAt = null,
+                shortUuid = null,
+                panelUserUuid = null,
+                isLinked = false,
+                isAdminProfile = false,
+            )
+        }
+        Unit
     }
 
     /** Requests a server-generated Telegram auth token for the current TV session. */

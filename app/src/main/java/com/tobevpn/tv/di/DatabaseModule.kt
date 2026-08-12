@@ -10,6 +10,7 @@ import com.tobevpn.tv.data.local.DatabasePassphrase
 import com.tobevpn.tv.data.local.dao.ServerDao
 import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.local.dao.TrafficLogDao
+import com.tobevpn.tv.data.local.dao.PendingPromocodeActivationDao
 import com.tobevpn.tv.data.local.dao.UsageDao
 import dagger.Module
 import dagger.Provides
@@ -37,8 +38,14 @@ object DatabaseModule {
             "tobevpn_tv.db",
         )
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
-            .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .addMigrations(
+                MIGRATION_7_8,
+                MIGRATION_8_9,
+                MIGRATION_9_10,
+                MIGRATION_10_11,
+                MIGRATION_11_12,
+            )
+            .fallbackToDestructiveMigration(dropAllTables = false)
             // Usage is updated while the tunnel is active. Keep committed
             // writes in the main DB instead of growing a separate WAL file.
             .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
@@ -60,6 +67,34 @@ object DatabaseModule {
     private val MIGRATION_9_10 = object : Migration(9, 10) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE servers ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    // v10 -> v11: retain every transport parameter needed by modern
+    // WS/TLS/XHTTP/gRPC profiles without dropping the cached subscription.
+    internal val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE servers ADD COLUMN host TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE servers ADD COLUMN alpn TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE servers ADD COLUMN headerType TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE servers ADD COLUMN serviceName TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE servers ADD COLUMN extra TEXT NOT NULL DEFAULT ''")
+        }
+    }
+
+    internal val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS pending_promocode_activations (" +
+                    "telegramId INTEGER NOT NULL, code TEXT NOT NULL, " +
+                    "requestId TEXT NOT NULL, createdAt INTEGER NOT NULL, " +
+                    "PRIMARY KEY(telegramId, code))",
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                    "index_pending_promocode_activations_requestId " +
+                    "ON pending_promocode_activations(requestId)",
+            )
         }
     }
 
@@ -99,4 +134,8 @@ object DatabaseModule {
 
     @Provides
     fun provideTrafficLogDao(db: AppDatabase): TrafficLogDao = db.trafficLogDao()
+
+    @Provides
+    fun providePendingPromocodeActivationDao(db: AppDatabase): PendingPromocodeActivationDao =
+        db.pendingPromocodeActivationDao()
 }

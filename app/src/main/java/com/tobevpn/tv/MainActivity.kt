@@ -35,6 +35,7 @@ import com.tobevpn.tv.presentation.splash.SplashScreen
 import com.tobevpn.tv.presentation.theme.ToBeVPNTvTheme
 import com.tobevpn.tv.update.UpdateBannerCheck
 import com.tobevpn.tv.update.UpdateBannerHost
+import com.tobevpn.tv.update.MandatoryUpdateGate
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -291,6 +292,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContent {
+            val updateRequired by prefsDataStore.observeUpdateRequired()
+                .collectAsStateWithLifecycle(initialValue = false)
             val savedThemeMode by prefsDataStore.themeModeOrNull.collectAsStateWithLifecycle(
                 initialValue = null,
             )
@@ -302,6 +305,14 @@ class MainActivity : AppCompatActivity() {
                 animationSpec = tween(400),
                 label = "mainAlpha",
             )
+
+            androidx.compose.runtime.LaunchedEffect(updateRequired) {
+                if (updateRequired) {
+                    // A server minimum-version block also applies to a tunnel
+                    // that was already active when the heartbeat discovered it.
+                    connectionManagerLazy.get().stopVpn()
+                }
+            }
 
             Box(modifier = Modifier.fillMaxSize()) {
                 ToBeVPNTvTheme(darkTheme = themeMode == AppThemeMode.DARK) {
@@ -337,8 +348,6 @@ class MainActivity : AppCompatActivity() {
                             // renders the modal dialog when state != Idle.
                             // Mounted at activity level so it covers any route.
                             if (BuildConfig.IN_APP_UPDATES_ENABLED) {
-                                val updateRequired by prefsDataStore.observeUpdateRequired()
-                                    .collectAsStateWithLifecycle(initialValue = false)
                                 UpdateBannerCheck()
                                 // The forced-update dialog on Home owns this
                                 // state and must not be stacked under a second
@@ -355,6 +364,12 @@ class MainActivity : AppCompatActivity() {
                     SplashScreen(
                         darkTheme = themeMode == AppThemeMode.DARK,
                         onFinished = { splashFinished = true },
+                    )
+                }
+                if (splashFinished) {
+                    MandatoryUpdateGate(
+                        updateRequired = updateRequired,
+                        onQuit = { finishAffinity() },
                     )
                 }
             }

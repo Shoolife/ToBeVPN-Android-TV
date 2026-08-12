@@ -13,7 +13,6 @@ import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.domain.model.UsageInfo
-import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
@@ -177,48 +176,24 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             when (connectionState.value) {
                 is ConnectionState.Disconnected, is ConnectionState.Error -> {
+                    if (prefsDataStore.isUpdateRequired()) return@launch
                     // Refuse to start a tunnel for a blocked subscription.
                     // The UI shows the block dialog reactively off the flag.
                     if (subscriptionUsageBlocked.value) return@launch
                     val selected = currentServer.value ?: return@launch
                     val automatic = prefsDataStore.isAutomaticServerSelection()
                     if (!automatic && !selected.isAvailable) return@launch
-                    val availableServers = coroutineScope {
-                        val serversDeferred = async {
-                            vpnRepository.refreshServers(forceRefresh = true)
-                        }
-                        authRepository.syncSubscription()
-                        serversDeferred.await().getOrNull().orEmpty()
-                    }.filter { it.isAvailable }
-                    val resolved = if (automatic) {
-                        serverQualityRepository.selectBestServer(availableServers, forceProbe = true)
-                    } else {
-                        availableServers.firstOrNull { it.id == selected.id }
-                            ?: availableServers.firstOrNull { it.name == selected.name }
-                    }
-                    val server = resolved ?: selected.takeIf { canUseSelectedServerFallback(it) }
-                        ?: return@launch
-                    if (automatic) {
-                        prefsDataStore.setAutomaticSelectedServerId(server.id)
-                    }
-                    if (!automatic &&
-                        serverQualityRepository.measurePing(server, force = true) < 0L
-                    ) {
-                        return@launch
-                    }
-                    connectionManager.startVpn(server)
+                    // VpnConnectionManager is the single authority for the access
+                    // check, the fresh server list and AUTO selection. Preparing the
+                    // same connection here used to perform a second full TCP probe
+                    // immediately before the manager repeated it.
+                    connectionManager.startVpn(selected)
                 }
                 is ConnectionState.Connected, is ConnectionState.Connecting -> {
                     connectionManager.stopVpn()
                 }
             }
         }
-    }
-
-    private suspend fun canUseSelectedServerFallback(server: Server): Boolean {
-        if (!server.isAvailable) return false
-        val authState = authRepository.getAuthStateSnapshot()
-        return authState !is AuthState.Authenticated || authState.plan != UserPlan.EXPIRED
     }
 
     fun onPause() {

@@ -68,6 +68,14 @@ class PairingViewModel @Inject constructor(
         }
     }
 
+    /** Hidden path for Google Play review — see [AuthRepository.completeDemoLogin]. */
+    fun completeDemoLogin() {
+        viewModelScope.launch {
+            authRepository.completeDemoLogin()
+            completeAuthentication()
+        }
+    }
+
     fun selectMode(mode: PairingMode) {
         if (_mode.value == mode) return
         _mode.value = mode

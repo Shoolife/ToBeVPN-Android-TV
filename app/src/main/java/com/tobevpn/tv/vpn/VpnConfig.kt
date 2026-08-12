@@ -3,6 +3,7 @@ package com.tobevpn.tv.vpn
 import com.tobevpn.tv.domain.model.Server
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Locale
 
 object VpnConfig {
 
@@ -11,7 +12,7 @@ object VpnConfig {
     fun buildConfigJson(server: Server): String {
         return JSONObject().apply {
             put("stats", JSONObject())
-            put("log", JSONObject().put("loglevel", "warning"))
+            put("log", JSONObject().put("loglevel", "info"))
             put("policy", buildPolicy())
             put("inbounds", buildInbounds())
             put("outbounds", buildOutbounds(server))
@@ -138,17 +139,49 @@ object VpnConfig {
                 "xhttp" -> {
                     put("xhttpSettings", JSONObject().apply {
                         if (server.path.isNotEmpty()) put("path", server.path)
+                        if (server.host.isNotEmpty()) put("host", server.host)
                         if (server.mode.isNotEmpty()) put("mode", server.mode)
+                        server.extra.takeIf(String::isNotBlank)
+                            ?.let { raw -> runCatching { JSONObject(raw) }.getOrNull() }
+                            ?.let { extra -> put("extra", extra) }
                     })
                 }
                 "ws" -> {
                     put("wsSettings", JSONObject().apply {
                         if (server.path.isNotEmpty()) put("path", server.path)
+                        if (server.host.isNotEmpty()) {
+                            put("host", server.host)
+                            put("headers", JSONObject().put("Host", server.host))
+                        }
+                    })
+                }
+                "grpc" -> {
+                    put("grpcSettings", JSONObject().apply {
+                        put("serviceName", server.serviceName)
+                        put("multiMode", server.mode.equals("multi", ignoreCase = true))
+                        if (server.host.isNotEmpty()) put("authority", server.host)
                     })
                 }
                 else -> {
                     put("tcpSettings", JSONObject().apply {
-                        put("header", JSONObject().put("type", "none"))
+                        val headerType = server.headerType
+                            .lowercase(Locale.ROOT)
+                            .takeIf { it == "http" }
+                            ?: "none"
+                        put("header", JSONObject().apply {
+                            put("type", headerType)
+                            if (headerType == "http") {
+                                put("request", JSONObject().apply {
+                                    server.path.takeIf(String::isNotBlank)?.let { path ->
+                                        put("path", JSONArray().put(path))
+                                    }
+                                    server.host.takeIf(String::isNotBlank)?.let { host ->
+                                        put("headers", JSONObject().put("Host", JSONArray().put(host)))
+                                    }
+                                })
+                                put("response", JSONObject())
+                            }
+                        })
                     })
                 }
             }
@@ -156,7 +189,7 @@ object VpnConfig {
                 put("realitySettings", JSONObject().apply {
                     put("allowInsecure", false)
                     put("serverName", server.sni)
-                    put("fingerprint", server.fingerprint)
+                    put("fingerprint", server.effectiveFingerprint)
                     put("publicKey", server.publicKey)
                     put("shortId", server.shortId)
                     put("spiderX", server.spx.ifEmpty { "/" })
@@ -165,10 +198,21 @@ object VpnConfig {
                 put("tlsSettings", JSONObject().apply {
                     put("allowInsecure", false)
                     put("serverName", server.sni)
-                    put("fingerprint", server.fingerprint)
+                    put("fingerprint", server.effectiveFingerprint)
+                    serverAlpn(server)?.let { put("alpn", it) }
                 })
             }
         }
+    }
+
+    private fun serverAlpn(server: Server): JSONArray? {
+        val protocols = server.alpn
+            .split(',')
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+        if (protocols.isEmpty()) return null
+        return JSONArray().apply { protocols.forEach { put(it) } }
     }
 
     private fun buildDns(): JSONObject {
