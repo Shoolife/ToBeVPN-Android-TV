@@ -39,14 +39,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 
 @Composable
 fun OnboardingScreen(
     onComplete: () -> Unit,
-    viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize(),
@@ -55,10 +53,12 @@ fun OnboardingScreen(
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
 
         val leftScale = scale * 1.3f
-        val pad = maxWidth * 0.03f
+        val horizontalPad = maxWidth * 0.05f
+        val verticalPad = maxHeight * 0.03f
         val iconSize = min(maxHeight * 0.25f, maxWidth * 0.14f)
         val gap = maxHeight * 0.018f
-        val colSpacing = maxWidth * 0.04f
+        val colSpacing = maxWidth * 0.065f
+        val brandingWidth = maxWidth * 0.325f
         val titleSize = (40 * leftScale).sp
         val subtitleSize = (18 * leftScale).sp
         val featureSize = (20 * scale).sp
@@ -77,12 +77,13 @@ fun OnboardingScreen(
 
         Row(
             modifier = Modifier
-                .padding(pad),
+                .padding(horizontal = horizontalPad, vertical = verticalPad),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(colSpacing),
         ) {
             // Left — branding
             Column(
+                modifier = Modifier.width(brandingWidth),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -115,6 +116,7 @@ fun OnboardingScreen(
 
             // Right — features + button
             Column(
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center,
             ) {
                 FeatureItem(stringResource(R.string.onboarding_feature_pairing), featureSize, tightStyle)
@@ -131,10 +133,7 @@ fun OnboardingScreen(
                 LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
                 Button(
-                    onClick = {
-                        viewModel.completeOnboarding()
-                        onComplete()
-                    },
+                    onClick = onComplete,
                     modifier = Modifier
                         .focusRequester(focusRequester)
                         .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp),

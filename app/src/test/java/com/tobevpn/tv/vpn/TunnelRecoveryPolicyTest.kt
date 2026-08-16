@@ -1,6 +1,8 @@
 package com.tobevpn.tv.vpn
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TunnelRecoveryPolicyTest {
@@ -14,5 +16,11 @@ class TunnelRecoveryPolicyTest {
     fun automaticSelectionHasTwoBoundedAttempts() {
         assertEquals(2, TunnelRecoveryPolicy.maxAttempts(true, duringStartup = true))
         assertEquals(2, TunnelRecoveryPolicy.maxAttempts(true, duringStartup = false))
+    }
+
+    @Test
+    fun fingerprintFallbackPreservesAutomaticBudgetOnly() {
+        assertFalse(TunnelRecoveryPolicy.fingerprintRetryConsumesAttempt(true))
+        assertTrue(TunnelRecoveryPolicy.fingerprintRetryConsumesAttempt(false))
     }
 }

@@ -26,4 +26,26 @@ class NetworkResumePolicyTest {
             ),
         )
     }
+
+    @Test
+    fun resumesOnAnUnvalidatedButPresentPhysicalNetwork() {
+        assertTrue(
+            NetworkResumePolicy.shouldResume(
+                expectedRequest = 4,
+                currentRequest = 4,
+                hasNetworkTimeoutError = true,
+                sameServer = true,
+                availability = UnderlyingNetworkAvailability.UNVALIDATED,
+            ),
+        )
+        assertFalse(
+            NetworkResumePolicy.shouldResume(
+                expectedRequest = 4,
+                currentRequest = 4,
+                hasNetworkTimeoutError = true,
+                sameServer = true,
+                availability = UnderlyingNetworkAvailability.UNAVAILABLE,
+            ),
+        )
+    }
 }

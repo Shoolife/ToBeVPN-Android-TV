@@ -24,8 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CardGiftcard
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Shield
@@ -91,24 +89,19 @@ private data class WhatsNewHighlight(
 
 private val currentHighlights = listOf(
     WhatsNewHighlight(
-        icon = Icons.Filled.CardGiftcard,
-        titleRes = R.string.whats_new_promocodes_title,
-        descriptionRes = R.string.whats_new_promocodes_desc,
+        icon = Icons.Filled.SystemUpdateAlt,
+        titleRes = R.string.whats_new_mobile_setup_title,
+        descriptionRes = R.string.whats_new_mobile_setup_desc,
     ),
     WhatsNewHighlight(
         icon = Icons.Filled.Shield,
-        titleRes = R.string.whats_new_vpn_stability_title,
-        descriptionRes = R.string.whats_new_vpn_stability_desc,
+        titleRes = R.string.whats_new_validation_title,
+        descriptionRes = R.string.whats_new_validation_desc,
     ),
     WhatsNewHighlight(
-        icon = Icons.Filled.BugReport,
-        titleRes = R.string.whats_new_diagnostics_title,
-        descriptionRes = R.string.whats_new_diagnostics_desc,
-    ),
-    WhatsNewHighlight(
-        icon = Icons.Filled.SystemUpdateAlt,
-        titleRes = R.string.whats_new_updates_title,
-        descriptionRes = R.string.whats_new_updates_desc,
+        icon = Icons.Filled.AutoAwesome,
+        titleRes = R.string.whats_new_recovery_title,
+        descriptionRes = R.string.whats_new_recovery_desc,
     ),
 )
 

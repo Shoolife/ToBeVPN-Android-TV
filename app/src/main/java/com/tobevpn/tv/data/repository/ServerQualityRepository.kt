@@ -92,7 +92,8 @@ class ServerQualityRepository @Inject constructor(
     suspend fun selectBestServer(
         servers: List<Server>,
         excludeServerId: String? = null,
-        excludedServerIds: Collection<String> = emptyList(),
+        excludeEndpoint: Server? = null,
+        excludedServers: Collection<Server> = emptyList(),
         avoidEndpointServers: Collection<Server> = emptyList(),
         recentlyFailedProfiles: Collection<Server> = emptyList(),
         forceProbe: Boolean = false,
@@ -100,11 +101,14 @@ class ServerQualityRepository @Inject constructor(
         val available = servers.filter { it.isAvailable }
         if (available.isEmpty()) return null
 
-        val exclusionRequested = excludeServerId != null || excludedServerIds.isNotEmpty()
+        val exclusionRequested = excludeServerId != null ||
+            excludeEndpoint != null ||
+            excludedServers.isNotEmpty()
         val eligibleCandidates = ServerRecoveryCandidatePolicy.eligibleServers(
             servers = available,
             excludeServerId = excludeServerId,
-            excludedServerIds = excludedServerIds,
+            excludeEndpoint = excludeEndpoint,
+            excludedServers = excludedServers,
         )
         if (exclusionRequested && eligibleCandidates.isEmpty()) {
             SafeDiagnostics.warn(

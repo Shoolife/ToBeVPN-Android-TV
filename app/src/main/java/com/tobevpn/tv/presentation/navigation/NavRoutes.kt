@@ -42,4 +42,7 @@ object SubscriptionRoute
 object OnboardingRoute
 
 @Serializable
+object MobileAppInstallRoute
+
+@Serializable
 object PairingRoute

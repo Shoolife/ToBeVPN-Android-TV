@@ -20,6 +20,7 @@ import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.presentation.appfilter.AppFilterScreen
 import com.tobevpn.tv.presentation.devices.DevicesScreen
 import com.tobevpn.tv.presentation.main.MainScreen
+import com.tobevpn.tv.presentation.onboarding.MobileAppInstallScreen
 import com.tobevpn.tv.presentation.onboarding.OnboardingScreen
 import com.tobevpn.tv.presentation.pairing.PairingScreen
 import com.tobevpn.tv.presentation.referrals.ReferralsScreen
@@ -120,14 +121,31 @@ fun AppNavHost(
         composable<OnboardingRoute> {
             OnboardingScreen(
                 onComplete = {
-                    navController.navigate(PairingRoute) {
+                    navController.navigate(MobileAppInstallRoute) {
                         popUpTo(OnboardingRoute) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+        composable<MobileAppInstallRoute> {
+            MobileAppInstallScreen(
+                onComplete = {
+                    navController.navigate(PairingRoute) {
+                        popUpTo(MobileAppInstallRoute) { inclusive = true }
+                        launchSingleTop = true
                     }
                 },
             )
         }
         composable<PairingRoute> {
             PairingScreen(
+                onBack = {
+                    navController.navigate(MobileAppInstallRoute) {
+                        popUpTo(PairingRoute) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 onAuthenticated = {
                     navController.navigate(MainRoute) {
                         popUpTo(PairingRoute) { inclusive = true }

@@ -1,10 +1,17 @@
 package com.tobevpn.tv.util
 
+import com.tobevpn.tv.domain.model.RealityFingerprintPolicy
 import com.tobevpn.tv.domain.model.Server
 import java.security.MessageDigest
 
 /** Correlates server events without exporting endpoints or credentials. */
-internal fun diagnosticServerDescriptor(server: Server): String {
+internal fun diagnosticServerDescriptor(server: Server): String =
+    diagnosticServerDescriptor(server, realityFingerprintOverride = null)
+
+internal fun diagnosticServerDescriptor(
+    server: Server,
+    realityFingerprintOverride: String?,
+): String {
     val source = "${server.address}:${server.port}:${server.sni}:${server.publicKey}"
     val reference = runCatching {
         MessageDigest.getInstance("SHA-256")
@@ -17,8 +24,14 @@ internal fun diagnosticServerDescriptor(server: Server): String {
         append(" country=").append(server.country.diagnosticToken())
         append(" transport=").append(server.network.diagnosticToken())
         append(" security=").append(server.security.diagnosticToken())
-        append(" fingerprint=").append(server.effectiveFingerprint.diagnosticToken())
-        if (server.isFingerprintRepaired) {
+        val configuredFingerprint = RealityFingerprintPolicy.fingerprintForConfig(
+            server,
+            realityFingerprintOverride,
+        )
+        append(" fingerprint=").append(configuredFingerprint.diagnosticToken())
+        if (server.isFingerprintRepaired ||
+            !configuredFingerprint.equals(server.effectiveFingerprint, ignoreCase = true)
+        ) {
             append(" declared_fingerprint=").append(server.fingerprint.diagnosticToken())
         }
         append(" panel_online=").append(server.isOnline)

@@ -28,6 +28,17 @@ class DiagnosticServerDescriptorTest {
         assertTrue(descriptor.contains("declared_fingerprint=android"))
     }
 
+    @Test
+    fun `descriptor reports the fingerprint actually passed to xray`() {
+        val descriptor = diagnosticServerDescriptor(
+            testServer().copy(fingerprint = "chrome"),
+            realityFingerprintOverride = "firefox",
+        )
+
+        assertTrue(descriptor.contains("fingerprint=firefox"))
+        assertTrue(descriptor.contains("declared_fingerprint=chrome"))
+    }
+
     private fun testServer() = Server(
         id = "server-id",
         name = "Test",

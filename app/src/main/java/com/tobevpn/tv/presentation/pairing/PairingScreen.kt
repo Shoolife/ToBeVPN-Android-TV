@@ -21,10 +21,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -40,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +67,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -72,10 +77,17 @@ import com.tobevpn.tv.presentation.theme.VpnRed
 @Composable
 fun PairingScreen(
     onAuthenticated: () -> Unit,
+    onBack: () -> Unit,
     viewModel: PairingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val mode by viewModel.mode.collectAsStateWithLifecycle()
+    val backFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        runCatching { backFocusRequester.requestFocus() }
+    }
 
     LaunchedEffect(state) {
         if (state is PairingUiState.Success) {
@@ -138,82 +150,104 @@ fun PairingScreen(
         val errorTitleSize = (26 * scale).sp
         val errorBodySize = (17 * scale).sp
 
-        Row(
+        Column(
             modifier = Modifier
+                .fillMaxSize()
                 .padding(pad),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(colSpacing),
         ) {
-            // Left side — QR code
-            Box(
+            TvHeaderIconButton(
+                onClick = onBack,
                 modifier = Modifier
-                    .size(qrSize)
-                    .clip(RoundedCornerShape(qrSize * 0.06f))
-                    .background(Color.White),
-                contentAlignment = Alignment.Center,
+                    .size((44 * scale).dp)
+                    .focusRequester(backFocusRequester),
+                shape = RoundedCornerShape((8 * scale).dp),
+                borderWidth = (2 * scale).dp,
             ) {
-                when (val s = state) {
-                    is PairingUiState.Loading -> {
-                        CircularProgressIndicator(color = Color.Black)
-                    }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.back),
+                    modifier = Modifier.size((20 * scale).dp),
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
+            }
 
-                    is PairingUiState.WaitingForScan -> {
-                        QrCode(
-                            data = s.qrData,
-                            modifier = Modifier
-                                .padding(qrSize * 0.05f)
-                                .fillMaxSize(),
-                        )
-                    }
+            Spacer(modifier = Modifier.height(gap))
 
-                    is PairingUiState.Authenticating -> {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(colSpacing),
+            ) {
+                // Left side — QR code
+                Box(
+                    modifier = Modifier
+                        .size(qrSize)
+                        .clip(RoundedCornerShape(qrSize * 0.06f))
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when (val s = state) {
+                        is PairingUiState.Loading -> {
                             CircularProgressIndicator(color = Color.Black)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = stringResource(R.string.auth_waiting),
-                                color = Color.Black,
-                                fontSize = authWaitSize,
+                        }
+
+                        is PairingUiState.WaitingForScan -> {
+                            QrCode(
+                                data = s.qrData,
+                                modifier = Modifier
+                                    .padding(qrSize * 0.05f)
+                                    .fillMaxSize(),
                             )
                         }
-                    }
 
-                    is PairingUiState.Success -> {
-                        Text(
-                            text = stringResource(R.string.pairing_done),
-                            color = VpnGreen,
-                            fontSize = doneSize,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+                        is PairingUiState.Authenticating -> {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = Color.Black)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = stringResource(R.string.auth_waiting),
+                                    color = Color.Black,
+                                    fontSize = authWaitSize,
+                                )
+                            }
+                        }
 
-                    is PairingUiState.Error -> {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(20.dp),
-                        ) {
+                        is PairingUiState.Success -> {
                             Text(
-                                text = stringResource(R.string.error_generic),
-                                color = VpnRed,
-                                fontSize = errorTitleSize,
+                                text = stringResource(R.string.pairing_done),
+                                color = VpnGreen,
+                                fontSize = doneSize,
                                 fontWeight = FontWeight.Bold,
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = s.message ?: stringResource(s.messageRes),
-                                color = Color.Black,
-                                fontSize = errorBodySize,
-                                textAlign = TextAlign.Center,
-                            )
+                        }
+
+                        is PairingUiState.Error -> {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(20.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.error_generic),
+                                    color = VpnRed,
+                                    fontSize = errorTitleSize,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = s.message ?: stringResource(s.messageRes),
+                                    color = Color.Black,
+                                    fontSize = errorBodySize,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            // Right side — text
-            Column(
-                verticalArrangement = Arrangement.Center,
-            ) {
+                // Right side — text
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                ) {
                 Text(
                     text = stringResource(R.string.pairing_title),
                     fontSize = titleSize,
@@ -290,7 +324,7 @@ fun PairingScreen(
                     )
                 }
 
-                if (state is PairingUiState.Error) {
+                    if (state is PairingUiState.Error) {
                     Spacer(modifier = Modifier.height(gap))
                     val retryFocusRequester = remember { FocusRequester() }
                     var retryFocused by remember { mutableStateOf(false) }
@@ -320,6 +354,7 @@ fun PairingScreen(
                             text = stringResource(R.string.retry),
                             fontSize = statusSize,
                         )
+                    }
                     }
                 }
             }

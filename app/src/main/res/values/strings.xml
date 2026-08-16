@@ -319,13 +319,18 @@
     <string name="close">Close</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_subtitle">Fast and secure VPN powered by XRay</string>
+    <string name="onboarding_subtitle">Fast and secure VPN\npowered by XRay</string>
     <string name="onboarding_feature_pairing">Link this TV to your ToBeVPN account by QR code</string>
     <string name="onboarding_feature_devices">Manage linked TVs and other devices from your phone</string>
     <string name="onboarding_feature_telegram">Subscription and servers sync automatically</string>
     <string name="onboarding_feature_stars">Pay via Telegram and continue watching on TV</string>
     <string name="onboarding_start">Start</string>
     <string name="onboarding_consent">By tapping Start you agree to the Privacy Policy</string>
+    <string name="mobile_install_title">Install ToBeVPN on your phone</string>
+    <string name="mobile_install_description">The ToBeVPN phone app is required to use ToBeVPN on your TV. Scan the QR code with your phone camera, install the app from Google Play, and sign in. Then return to your TV.</string>
+    <string name="mobile_install_already_installed">If ToBeVPN is already installed, select Continue.</string>
+    <string name="mobile_install_qr_content_description">QR code to download ToBeVPN from Google Play</string>
+    <string name="mobile_install_continue">Continue</string>
 
     <!-- Privacy -->
     <string name="privacy_policy">Privacy Policy</string>
@@ -398,6 +403,12 @@
     <string name="whats_new_diagnostics_desc">Record privacy-safe VPN logs on demand, keep daily history, and share or delete a selected day directly from the TV app.</string>
     <string name="whats_new_updates_title">Mandatory updates work everywhere</string>
     <string name="whats_new_updates_desc">A server-required update now blocks every screen and sends Google Play builds to Play while direct builds download the signed GitHub release.</string>
+    <string name="whats_new_mobile_setup_title">Phone setup from TV</string>
+    <string name="whats_new_mobile_setup_desc">A new first-run screen explains why the phone app is required and opens its Google Play page through a QR code before account pairing.</string>
+    <string name="whats_new_validation_title">Fewer false VPN disconnects</string>
+    <string name="whats_new_validation_desc">The TV now checks real tunnel traffic even when Android cannot validate Wi-Fi or Ethernet. A single failed check no longer stops a working VPN.</string>
+    <string name="whats_new_recovery_title">Safer server recovery</string>
+    <string name="whats_new_recovery_desc">Automatic mode avoids every duplicate of a failed endpoint, while REALITY gets one bounded compatibility retry without reconnect loops or replacing a manual choice.</string>
 
     <!-- Subscription block / forced update -->
     <string name="error_subscription_expired">Subscription expired. Renew it to connect.</string>

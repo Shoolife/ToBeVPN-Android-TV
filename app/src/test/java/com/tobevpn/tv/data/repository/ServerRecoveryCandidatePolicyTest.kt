@@ -21,6 +21,22 @@ class ServerRecoveryCandidatePolicyTest {
     }
 
     @Test
+    fun `failed endpoint is excluded even when panel exposes another id`() {
+        val failed = server("failed", "shared.example")
+        val alias = failed.copy(id = "alias", name = "Alias")
+        val alternative = server("alternative", "other.example")
+
+        assertEquals(
+            listOf(alternative),
+            ServerRecoveryCandidatePolicy.eligibleServers(
+                servers = listOf(failed, alias, alternative),
+                excludeServerId = failed.id,
+                excludeEndpoint = failed,
+            ),
+        )
+    }
+
+    @Test
     fun `strict exclusion never silently restores the only failed server`() {
         val failed = server("failed", "failed.example")
 

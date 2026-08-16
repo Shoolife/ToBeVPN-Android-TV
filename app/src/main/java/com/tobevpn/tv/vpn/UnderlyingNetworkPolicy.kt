@@ -8,11 +8,18 @@ internal enum class UnderlyingNetworkAvailability {
 
 internal object UnderlyingNetworkPolicy {
     const val NO_NETWORK_TIMEOUT_MS = 15_000L
-    const val UNVALIDATED_NETWORK_TIMEOUT_MS = 45_000L
 
-    fun timeoutMs(availability: UnderlyingNetworkAvailability): Long = when (availability) {
-        UnderlyingNetworkAvailability.VALIDATED -> 0L
-        UnderlyingNetworkAvailability.UNVALIDATED -> UNVALIDATED_NETWORK_TIMEOUT_MS
-        UnderlyingNetworkAvailability.UNAVAILABLE -> NO_NETWORK_TIMEOUT_MS
-    }
+    /**
+     * Android validation only proves access to the system check endpoint. An
+     * unvalidated Wi-Fi/Ethernet network may still carry a healthy VPN tunnel,
+     * so probes are allowed whenever a physical network exists.
+     */
+    fun canAttemptTunnelProbe(availability: UnderlyingNetworkAvailability): Boolean =
+        availability != UnderlyingNetworkAvailability.UNAVAILABLE
+
+    /** Only complete physical-network loss is allowed to tear the tunnel down. */
+    fun teardownTimeoutMs(availability: UnderlyingNetworkAvailability): Long? =
+        NO_NETWORK_TIMEOUT_MS.takeIf {
+            availability == UnderlyingNetworkAvailability.UNAVAILABLE
+        }
 }

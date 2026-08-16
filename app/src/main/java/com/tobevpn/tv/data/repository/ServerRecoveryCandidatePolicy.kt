@@ -12,13 +12,21 @@ internal object ServerRecoveryCandidatePolicy {
     fun eligibleServers(
         servers: List<Server>,
         excludeServerId: String?,
-        excludedServerIds: Collection<String> = emptyList(),
+        excludeEndpoint: Server? = null,
+        excludedServers: Collection<Server> = emptyList(),
     ): List<Server> {
         val excludedIds = buildSet {
             excludeServerId?.let(::add)
-            addAll(excludedServerIds)
+            excludedServers.mapTo(this, Server::id)
         }
-        return servers.filterNot { it.id in excludedIds }
+        val excludedEndpointKeys = buildSet {
+            excludeEndpoint?.let { add(serverConnectionIdentityKey(it)) }
+            excludedServers.mapTo(this, ::serverConnectionIdentityKey)
+        }
+        return servers.filterNot { server ->
+            server.id in excludedIds ||
+                serverConnectionIdentityKey(server) in excludedEndpointKeys
+        }
     }
 
     fun endpointPreferenceTiers(

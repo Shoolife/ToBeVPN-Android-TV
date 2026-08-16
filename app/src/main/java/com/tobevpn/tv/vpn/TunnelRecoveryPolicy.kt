@@ -17,4 +17,12 @@ internal object TunnelRecoveryPolicy {
         automaticSelection: Boolean,
         duringStartup: Boolean,
     ): Boolean = currentAttempts < maxAttempts(automaticSelection, duringStartup)
+
+    /**
+     * AUTO gets one separately bounded REALITY fingerprint retry before its
+     * alternative-server budget is used. In MANUAL it replaces the existing
+     * one same-server startup retry, keeping manual recovery just as bounded.
+     */
+    fun fingerprintRetryConsumesAttempt(automaticSelection: Boolean): Boolean =
+        !automaticSelection
 }

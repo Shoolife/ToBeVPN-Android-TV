@@ -326,13 +326,18 @@
     <string name="close">Закрыть</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_subtitle">Быстрый и безопасный VPN на базе XRay</string>
+    <string name="onboarding_subtitle">Быстрый и безопасный VPN\nна базе XRay</string>
     <string name="onboarding_feature_pairing">Привяжите TV к аккаунту ToBeVPN через QR-код</string>
     <string name="onboarding_feature_devices">Управляйте TV и другими устройствами с телефона</string>
     <string name="onboarding_feature_telegram">Подписка и список серверов синхронизируются автоматически</string>
     <string name="onboarding_feature_stars">Оплачивайте через Telegram и продолжайте смотреть на TV</string>
     <string name="onboarding_start">Начать</string>
     <string name="onboarding_consent">Нажимая «Начать», вы соглашаетесь с Политикой конфиденциальности</string>
+    <string name="mobile_install_title">Установите ToBeVPN на телефон</string>
+    <string name="mobile_install_description">Приложение ToBeVPN на телефоне необходимо, чтобы пользоваться ToBeVPN на телевизоре. Отсканируйте QR-код камерой телефона, установите приложение из Google Play и войдите в аккаунт. Затем вернитесь к телевизору.</string>
+    <string name="mobile_install_already_installed">Если ToBeVPN уже установлен, нажмите «Продолжить».</string>
+    <string name="mobile_install_qr_content_description">QR-код для загрузки ToBeVPN из Google Play</string>
+    <string name="mobile_install_continue">Продолжить</string>
 
     <!-- Privacy -->
     <string name="privacy_policy">Политика конфиденциальности</string>
@@ -404,6 +409,12 @@
     <string name="whats_new_diagnostics_desc">Запускайте безопасный сбор VPN-логов вручную, храните историю по дням и делитесь либо удаляйте выбранный день прямо в TV-приложении.</string>
     <string name="whats_new_updates_title">Обязательное обновление на любом экране</string>
     <string name="whats_new_updates_desc">Требование сервера теперь блокирует всё приложение: сборка Google Play открывает Play, а прямая сборка скачивает подписанный релиз GitHub.</string>
+    <string name="whats_new_mobile_setup_title">Установка приложения на телефон</string>
+    <string name="whats_new_mobile_setup_desc">Новый экран при первом запуске объясняет, зачем нужно приложение на телефоне, и открывает его страницу в Google Play по QR-коду перед привязкой аккаунта.</string>
+    <string name="whats_new_validation_title">Без ложных отключений VPN</string>
+    <string name="whats_new_validation_desc">TV проверяет реальный трафик туннеля, даже если Android не смог подтвердить Wi‑Fi или Ethernet. Одна неудачная проверка больше не останавливает рабочий VPN.</string>
+    <string name="whats_new_recovery_title">Безопаснее восстановление серверов</string>
+    <string name="whats_new_recovery_desc">Автоматический режим исключает дубли отказавшего endpoint, а REALITY получает одну ограниченную попытку совместимости без циклов и замены ручного выбора.</string>
 
     <!-- Блокировка подписки / принудительное обновление -->
     <string name="error_subscription_expired">Подписка истекла. Продлите, чтобы подключиться.</string>

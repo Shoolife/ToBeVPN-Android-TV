@@ -1,13 +1,18 @@
 package com.tobevpn.tv.vpn
 
-/** Collapses concurrent Ethernet/Wi-Fi callbacks into one stable physical upstream. */
+/**
+ * Collapses concurrent Ethernet/Wi-Fi callbacks into one stable physical
+ * upstream. Validated networks are preferred, while an unvalidated physical
+ * network remains usable because Android's connectivity check is not a VPN
+ * liveness verdict.
+ */
 internal class PhysicalNetworkSelector<T> {
     private val candidates = LinkedHashMap<T, Candidate>()
     private var selected: T? = null
 
     @Synchronized
     fun update(network: T, validated: Boolean, priority: Int): SelectionChange<T> {
-        candidates[network] = Candidate(validated, priority)
+        candidates[network] = Candidate(validated = validated, priority = priority)
         return reselect()
     }
 
@@ -37,11 +42,10 @@ internal class PhysicalNetworkSelector<T> {
         val previousCandidate = previous?.let(candidates::get)
         val best = candidates.entries
             .asSequence()
-            .filter { it.value.validated }
-            .maxByOrNull { it.value.priority }
+            .maxByOrNull { it.value.selectionScore }
         val next = if (previous != null &&
-            previousCandidate?.validated == true &&
-            (best == null || previousCandidate.priority >= best.value.priority)
+            previousCandidate != null &&
+            (best == null || previousCandidate.selectionScore >= best.value.selectionScore)
         ) {
             previous
         } else {
@@ -57,7 +61,13 @@ internal class PhysicalNetworkSelector<T> {
         return SelectionChange(type, previous, next)
     }
 
-    private data class Candidate(val validated: Boolean, val priority: Int)
+    private data class Candidate(
+        val validated: Boolean,
+        val priority: Int,
+    ) {
+        val selectionScore: Int
+            get() = priority + if (validated) VALIDATED_PRIORITY_BONUS else 0
+    }
 
     data class SelectionChange<T>(
         val type: ChangeType,
@@ -66,4 +76,8 @@ internal class PhysicalNetworkSelector<T> {
     )
 
     enum class ChangeType { UNCHANGED, INITIAL, HANDOVER, UNAVAILABLE }
+
+    private companion object {
+        const val VALIDATED_PRIORITY_BONUS = 10_000
+    }
 }

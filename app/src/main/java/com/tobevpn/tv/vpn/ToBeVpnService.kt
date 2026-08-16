@@ -323,8 +323,10 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
     private fun registerNetworkCallback() {
         val cm = getSystemService(ConnectivityManager::class.java) ?: return
         val request = NetworkRequest.Builder()
+            // The builder includes NOT_RESTRICTED by default. Remove it so
+            // restricted-but-usable physical networks are still observed.
+            .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
             .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
             .build()
         val callback = object : ConnectivityManager.NetworkCallback() {
@@ -369,10 +371,15 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         network: Network,
         capabilities: NetworkCapabilities?,
     ) {
+        // onAvailable can precede capabilities. Do not create a fake
+        // zero-priority candidate; onCapabilitiesChanged will provide it.
+        if (capabilities == null || !isPhysicalInternet(capabilities)) return
         val change = physicalNetworkSelector.update(
             network = network,
-            validated = capabilities?.let(::isValidatedPhysicalInternet) == true,
-            priority = capabilities?.let(::physicalNetworkPriority) ?: 0,
+            validated = capabilities.hasCapability(
+                NetworkCapabilities.NET_CAPABILITY_VALIDATED,
+            ),
+            priority = physicalNetworkPriority(capabilities),
         )
         if (physicalNetworkSelector.hasUsableNetwork()) cancelUnderlyingNetworkTimeout()
         else scheduleUnderlyingNetworkTimeout(cm)
@@ -459,15 +466,23 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         if (cleanedUp || activeConnectionGeneration < 0) return
         val generation = activeConnectionGeneration
         val startedAtMs = SystemClock.elapsedRealtime()
+        val initialTimeoutMs = UnderlyingNetworkPolicy.teardownTimeoutMs(
+            underlyingNetworkAvailability(cm),
+        )
+        if (initialTimeoutMs == null) {
+            cancelUnderlyingNetworkTimeout()
+            return
+        }
         synchronized(networkJobLock) {
             if (underlyingNetworkTimeoutJob?.isCompleted == false) return
             val job = serviceScope.launch(start = CoroutineStart.LAZY) {
                 while (!cleanedUp && generation == activeConnectionGeneration) {
                     val availability = underlyingNetworkAvailability(cm)
-                    if (availability == UnderlyingNetworkAvailability.VALIDATED) return@launch
+                    val timeoutMs = UnderlyingNetworkPolicy.teardownTimeoutMs(availability)
+                        ?: return@launch
                     val deadline = NetworkAvailabilityDeadline(
                         startedAtMs = startedAtMs,
-                        timeoutMs = UnderlyingNetworkPolicy.timeoutMs(availability),
+                        timeoutMs = timeoutMs,
                     )
                     val now = SystemClock.elapsedRealtime()
                     if (deadline.isExpired(now)) {
@@ -482,9 +497,8 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
         }
     }
 
-    private fun isValidatedPhysicalInternet(capabilities: NetworkCapabilities): Boolean =
+    private fun isPhysicalInternet(capabilities: NetworkCapabilities): Boolean =
         capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) &&
             !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
 
     @Suppress("DEPRECATION")

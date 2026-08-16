@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
 fun QrCode(
     data: String,
     modifier: Modifier = Modifier,
+    contentDescription: String = "QR",
 ) {
     var bitmap by remember(data) { mutableStateOf<ImageBitmap?>(null) }
     var error by remember(data) { mutableStateOf(false) }
@@ -63,7 +64,7 @@ fun QrCode(
         else -> {
             Image(
                 bitmap = bitmap!!,
-                contentDescription = "QR",
+                contentDescription = contentDescription,
                 modifier = modifier,
                 contentScale = ContentScale.Fit,
             )
