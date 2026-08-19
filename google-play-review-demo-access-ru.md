@@ -27,3 +27,11 @@ VPN-серверу** и не использует настоящий аккау�
 
 Обычные пользователи не сталкиваются с этим экраном — вход в демо-режим
 скрыт за неочевидной комбинацией нажатий и не описан нигде в интерфейсе.
+
+## Текст для Play Console → App access (EN)
+
+Поле «Any other information» ограничено 500 символами — вариант ниже занимает 498.
+
+```
+TV sign-in needs a QR code (Telegram or the ToBeVPN phone app). Reviewer demo: press "Start", then any button on the install screen (e.g. "I installed the app") to reach the sign-in screen. Focus is on "Back" at the right - press and HOLD OK for ~2 seconds. Enter PIN 483920, press Continue. A short press on "Back" just goes back. The demo session is local-only: server list and subscription stay empty and the VPN will not connect, by design - it only lets reviewers pass sign-in and see the app.
+```
