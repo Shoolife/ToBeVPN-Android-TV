@@ -301,18 +301,20 @@
     <string name="speed_measure_failed">Не удалось измерить скорость</string>
 
     <!-- Pairing -->
-    <string name="pairing_title">Вход в ToBeVPN</string>
-    <string name="pairing_instruction">Откройте QR-код обычной камерой на авторизованном телефоне, отсканируйте его в разделе «Подключённые устройства» или введите код вручную.</string>
-    <string name="pairing_instruction_own_account">Откройте QR-код на своём телефоне, чтобы войти в свой аккаунт.</string>
-    <string name="pairing_instruction_other_device">Для доступа к чужому аккаунту владелец должен подтвердить QR или код на телефоне в настройках, в разделе устройств.</string>
-    <string name="pairing_mode_own_account">Свой аккаунт</string>
-    <string name="pairing_mode_other_device">Другое устройство</string>
-    <string name="pairing_loading">Готовим код для входа…</string>
-    <string name="pairing_loading_own_account">Готовим вход в свой аккаунт…</string>
-    <string name="pairing_loading_other_device">Готовим код для входа…</string>
-    <string name="pairing_waiting">Ожидаем подтверждения на авторизованном устройстве…</string>
-    <string name="pairing_waiting_own_account">Ожидаем подтверждения входа…</string>
-    <string name="pairing_waiting_other_device">Ожидаем подтверждения на устройстве владельца…</string>
+    <string name="pairing_title_app">Вход через ToBeVPN</string>
+    <string name="pairing_title_iphone">Вход в ToBeVPN на iPhone</string>
+    <string name="pairing_title_telegram">Вход в ToBeVPN через Telegram</string>
+    <string name="pairing_instruction_app">Откройте приложение ToBeVPN на телефоне и перейдите в «Настройки» — «Дополнительно» — «Устройства». Выберите «Сканировать QR» или «Ввести код».</string>
+    <string name="pairing_instruction_iphone">Приложения ToBeVPN для iPhone пока нет — войдите через Telegram. Отсканируйте QR-код камерой телефона и подтвердите вход в боте. Подпиской тоже можно управлять прямо в нём.</string>
+    <string name="pairing_instruction_telegram">Приложение не понадобится, но нужен Telegram. Отсканируйте QR-код камерой телефона и подтвердите вход в боте. Подпиской тоже можно управлять прямо в нём.</string>
+    <string name="pairing_loading_app">Готовим код для входа…</string>
+    <string name="pairing_loading_telegram">Готовим вход через Telegram…</string>
+    <string name="pairing_waiting_app">Ожидаем подтверждение входа…</string>
+    <string name="pairing_waiting_telegram">Ожидаем подтверждение входа…</string>
+    <string name="pairing_open_telegram_bot">Вход через Telegram-бот</string>
+    <string name="mobile_install_title_accent">ToBeVPN</string>
+    <string name="pairing_title_telegram_accent">Telegram</string>
+    <string name="pairing_open_telegram_bot_accent">Telegram-бот</string>
     <string name="pairing_code_label">Код входа</string>
     <string name="pairing_done">Готово!</string>
     <string name="demo_login_title">Демо-доступ</string>
@@ -334,10 +336,14 @@
     <string name="onboarding_start">Начать</string>
     <string name="onboarding_consent">Нажимая «Начать», вы соглашаетесь с Политикой конфиденциальности</string>
     <string name="mobile_install_title">Установите ToBeVPN на телефон</string>
-    <string name="mobile_install_description">Приложение ToBeVPN на телефоне необходимо, чтобы пользоваться ToBeVPN на телевизоре. Отсканируйте QR-код камерой телефона, установите приложение из Google Play и войдите в аккаунт. Затем вернитесь к телевизору.</string>
-    <string name="mobile_install_already_installed">Если ToBeVPN уже установлен, нажмите «Продолжить».</string>
+    <string name="mobile_install_description">С приложением ToBeVPN на телефоне вход занимает пару секунд: отсканируйте QR-код камерой, установите приложение из Google Play и войдите в аккаунт. Затем вернитесь к телевизору.</string>
+    <string name="mobile_install_choose_action">Выберите действие кнопкой ниже</string>
+    <string name="mobile_install_done">Я установил приложение</string>
+    <string name="mobile_install_iphone">У меня iPhone</string>
+    <string name="mobile_install_no_phone">Войти без приложения</string>
+    <string name="mobile_install_store_available_in">доступно в</string>
+    <string name="mobile_install_store_badge">Google Play</string>
     <string name="mobile_install_qr_content_description">QR-код для загрузки ToBeVPN из Google Play</string>
-    <string name="mobile_install_continue">Продолжить</string>
 
     <!-- Privacy -->
     <string name="privacy_policy">Политика конфиденциальности</string>

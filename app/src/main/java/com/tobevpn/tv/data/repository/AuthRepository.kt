@@ -2,6 +2,7 @@ package com.tobevpn.tv.data.repository
 
 import android.content.Context
 import android.os.Build
+import com.tobevpn.tv.util.SafeDiagnostics
 import com.tobevpn.tv.data.device.DeviceFingerprintProvider
 import com.tobevpn.tv.data.device.DeviceIdProvider
 import com.tobevpn.tv.data.local.PrefsDataStore
@@ -397,6 +398,9 @@ class AuthRepository @Inject constructor(
             else -> "$manufacturer $model"
         }
     }
+
+    private fun isDeviceLimitError(error: Throwable): Boolean =
+        error.message?.contains("device limit", ignoreCase = true) == true
 
     suspend fun registerCurrentDevice(): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
@@ -818,7 +822,18 @@ class AuthRepository @Inject constructor(
         } catch (_: Exception) {
         }
 
-        registerCurrentDevice()
+        // A refused registration is not fatal: on the Telegram path the bot has
+        // already linked this device, and /device/register acts as a heartbeat —
+        // the desktop client ignores the same refusal. Record it so the reason
+        // is visible in diagnostics instead of disappearing silently.
+        registerCurrentDevice().onFailure { error ->
+            if (isDeviceLimitError(error)) {
+                SafeDiagnostics.warn(
+                    "Auth",
+                    "Device registration refused: account is at its linked-device limit",
+                )
+            }
+        }
         syncSubscription()
     }
 

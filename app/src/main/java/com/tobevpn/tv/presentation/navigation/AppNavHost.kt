@@ -50,7 +50,7 @@ fun AppNavHost(
             is AuthState.Authenticated -> {
                 if (!wasAuthenticated) {
                     navController.navigate(MainRoute) {
-                        popUpTo(PairingRoute) { inclusive = true }
+                        popUpTo<PairingRoute> { inclusive = true }
                         launchSingleTop = true
                     }
                 }
@@ -58,7 +58,7 @@ fun AppNavHost(
             }
             AuthState.Unauthenticated -> {
                 if (wasAuthenticated) {
-                    navController.navigate(PairingRoute) {
+                    navController.navigate(PairingRoute()) {
                         popUpTo(MainRoute) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -71,7 +71,7 @@ fun AppNavHost(
     val startDestination: Any = when {
         startFromOnboarding -> OnboardingRoute
         startAuthenticated -> MainRoute
-        else -> PairingRoute
+        else -> PairingRoute()
     }
 
     val navAnim = tween<Float>(durationMillis = 320)
@@ -130,8 +130,8 @@ fun AppNavHost(
         }
         composable<MobileAppInstallRoute> {
             MobileAppInstallScreen(
-                onComplete = {
-                    navController.navigate(PairingRoute) {
+                onContinue = { entry ->
+                    navController.navigate(PairingRoute(entry.name)) {
                         popUpTo(MobileAppInstallRoute) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -142,13 +142,13 @@ fun AppNavHost(
             PairingScreen(
                 onBack = {
                     navController.navigate(MobileAppInstallRoute) {
-                        popUpTo(PairingRoute) { inclusive = true }
+                        popUpTo<PairingRoute> { inclusive = true }
                         launchSingleTop = true
                     }
                 },
                 onAuthenticated = {
                     navController.navigate(MainRoute) {
-                        popUpTo(PairingRoute) { inclusive = true }
+                        popUpTo<PairingRoute> { inclusive = true }
                     }
                 },
             )
@@ -157,7 +157,7 @@ fun AppNavHost(
             MainScreen(
                 onNavigateToServers = { navController.navigate(ServerListRoute) },
                 onNavigateToPairing = {
-                    navController.navigate(PairingRoute) {
+                    navController.navigate(PairingRoute()) {
                         popUpTo(MainRoute) { inclusive = true }
                     }
                 },

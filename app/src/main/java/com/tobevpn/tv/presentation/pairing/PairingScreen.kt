@@ -1,42 +1,32 @@
 package com.tobevpn.tv.presentation.pairing
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,33 +37,44 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.tobevpn.tv.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.EncodeHintType
-import com.google.zxing.qrcode.QRCodeWriter
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.tobevpn.tv.R
+import com.tobevpn.tv.presentation.components.AUTH_QR_GLOW_FRACTION
+import com.tobevpn.tv.presentation.components.AuthActionButton
+import com.tobevpn.tv.presentation.components.AuthCodeChip
+import com.tobevpn.tv.presentation.components.AuthQrPanel
+import com.tobevpn.tv.presentation.components.AuthScreenCard
+import com.tobevpn.tv.presentation.components.AuthStatusRow
+import com.tobevpn.tv.presentation.components.AuthTightTextStyle
+import com.tobevpn.tv.presentation.components.QrCode
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
-import com.tobevpn.tv.presentation.rememberTvScreenScale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.tobevpn.tv.presentation.components.accentedText
+import com.tobevpn.tv.presentation.navigation.PairingEntry
+import com.tobevpn.tv.presentation.rememberTvProportionalScale
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnRed
 
+/**
+ * Sign-in screen in three flavours, picked by the button the user pressed on
+ * the install screen: pairing with the phone app (QR plus a typed code), or
+ * Telegram for an iPhone / for no phone at all. The transport differences live
+ * in [PairingViewModel]; this screen only swaps copy and the Telegram button.
+ */
 @Composable
 fun PairingScreen(
     onAuthenticated: () -> Unit,
@@ -81,7 +82,7 @@ fun PairingScreen(
     viewModel: PairingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val mode by viewModel.mode.collectAsStateWithLifecycle()
+    val entry = viewModel.entry
     val backFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -95,20 +96,11 @@ fun PairingScreen(
         }
     }
 
-    // Hidden entry point for Google Play review: 5 rapid presses on the
-    // "own account" mode button (within 3s) opens a PIN-gated demo login
-    // that never touches the real backend. Not discoverable through normal
-    // use — regular users only ever tap this button once per session.
-    var secretClickTimestamps by remember { mutableStateOf(emptyList<Long>()) }
+    // Hidden entry point for Google Play review: hold OK on Back to open a
+    // PIN-gated demo login that never touches the real backend. Counting taps
+    // cannot work on this button — the first tap already leaves the screen.
     var showDemoLoginDialog by remember { mutableStateOf(false) }
-    val onOwnAccountSecretCheck: () -> Unit = {
-        val now = System.currentTimeMillis()
-        secretClickTimestamps = (secretClickTimestamps + now).filter { now - it <= 3000L }
-        if (secretClickTimestamps.size >= 5) {
-            secretClickTimestamps = emptyList()
-            showDemoLoginDialog = true
-        }
-    }
+    val onBackLongPress: () -> Unit = { showDemoLoginDialog = true }
 
     if (showDemoLoginDialog) {
         DemoLoginDialog(
@@ -131,230 +123,196 @@ fun PairingScreen(
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center,
     ) {
-        val scale = rememberTvScreenScale(
-            maxWidth = maxWidth,
-            maxHeight = maxHeight,
-            largeScreenBaseline = 650f,
-        )
+        val scale = rememberTvProportionalScale(maxHeight = maxHeight)
 
-        val pad = maxOf(maxWidth * 0.03f, 16.dp)
-        // QR size: purely proportional, no absolute dp cap
-        val qrSize = min(maxHeight * 0.7f, maxWidth * 0.4f)
-        val gap = maxHeight * 0.015f
-        val colSpacing = maxWidth * 0.04f
-        val titleSize = (38 * scale).sp
-        val instructionSize = (18 * scale).sp
-        val statusSize = (19 * scale).sp
-        val authWaitSize = (19 * scale).sp
-        val doneSize = (43 * scale).sp
-        val errorTitleSize = (26 * scale).sp
-        val errorBodySize = (17 * scale).sp
+        // Same adaptive sizing as the rest of the TV UI: one scale factor, every
+        // dimension as (n * scale). The Telegram variants carry a caption under
+        // the plate, so their QR is a step smaller.
+        val screenPad = (36 * scale).dp
+        val gap = (11 * scale).dp
+        val qrSize = (maxHeight * (if (entry.usesTelegram()) 0.72f else 0.70f))
+            .coerceAtMost(maxWidth * (if (entry.usesTelegram()) 0.44f else 0.40f))
+        val colSpacing = (30 * scale).dp
+        val titleSize = (40 * scale).sp
+        val instructionSize = (21 * scale).sp
+        val statusSize = (21 * scale).sp
+        val doneSize = (46 * scale).sp
+        val errorTitleSize = (28 * scale).sp
+        val errorBodySize = (18 * scale).sp
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(pad),
+        AuthScreenCard(
+            scale = scale,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            TvHeaderIconButton(
-                onClick = onBack,
+            Column(
                 modifier = Modifier
-                    .size((44 * scale).dp)
-                    .focusRequester(backFocusRequester),
-                shape = RoundedCornerShape((8 * scale).dp),
-                borderWidth = (2 * scale).dp,
+                    .fillMaxSize()
+                    .padding(screenPad),
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.back),
-                    modifier = Modifier.size((20 * scale).dp),
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(gap))
-
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(colSpacing),
-            ) {
-                // Left side — QR code
-                Box(
-                    modifier = Modifier
-                        .size(qrSize)
-                        .clip(RoundedCornerShape(qrSize * 0.06f))
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center,
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(colSpacing),
                 ) {
-                    when (val s = state) {
-                        is PairingUiState.Loading -> {
-                            CircularProgressIndicator(color = Color.Black)
-                        }
-
-                        is PairingUiState.WaitingForScan -> {
-                            QrCode(
-                                data = s.qrData,
-                                modifier = Modifier
-                                    .padding(qrSize * 0.05f)
-                                    .fillMaxSize(),
-                            )
-                        }
-
-                        is PairingUiState.Authenticating -> {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    AuthQrPanel(
+                        size = qrSize,
+                        scale = scale,
+                        footer = if (entry.usesTelegram()) {
+                            {
+                                TelegramBotCaption(scale = scale, width = qrSize)
+                            }
+                        } else {
+                            null
+                        },
+                    ) {
+                        when (val s = state) {
+                            is PairingUiState.Loading -> {
                                 CircularProgressIndicator(color = Color.Black)
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = stringResource(R.string.auth_waiting),
-                                    color = Color.Black,
-                                    fontSize = authWaitSize,
+                            }
+
+                            is PairingUiState.WaitingForScan -> {
+                                QrCode(
+                                    data = s.qrData,
+                                    modifier = Modifier
+                                        .padding(qrSize * 0.05f)
+                                        .fillMaxSize(),
                                 )
                             }
-                        }
 
-                        is PairingUiState.Success -> {
-                            Text(
-                                text = stringResource(R.string.pairing_done),
-                                color = VpnGreen,
-                                fontSize = doneSize,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
+                            is PairingUiState.Authenticating -> {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(color = Color.Black)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = stringResource(R.string.auth_waiting),
+                                        color = Color.Black,
+                                        fontSize = statusSize,
+                                    )
+                                }
+                            }
 
-                        is PairingUiState.Error -> {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(20.dp),
-                            ) {
+                            is PairingUiState.Success -> {
                                 Text(
-                                    text = stringResource(R.string.error_generic),
-                                    color = VpnRed,
-                                    fontSize = errorTitleSize,
+                                    text = stringResource(R.string.pairing_done),
+                                    color = VpnGreen,
+                                    fontSize = doneSize,
                                     fontWeight = FontWeight.Bold,
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = s.message ?: stringResource(s.messageRes),
-                                    color = Color.Black,
-                                    fontSize = errorBodySize,
-                                    textAlign = TextAlign.Center,
-                                )
+                            }
+
+                            is PairingUiState.Error -> {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(20.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.error_generic),
+                                        color = VpnRed,
+                                        fontSize = errorTitleSize,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = s.message ?: stringResource(s.messageRes),
+                                        color = Color.Black,
+                                        fontSize = errorBodySize,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                // Right side — text
-                Column(
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                Text(
-                    text = stringResource(R.string.pairing_title),
-                    fontSize = titleSize,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Spacer(modifier = Modifier.height(gap))
-                Text(
-                    text = stringResource(
-                        if (mode == PairingMode.OWN_ACCOUNT) {
-                            R.string.pairing_instruction_own_account
-                        } else {
-                            R.string.pairing_instruction_other_device
-                        },
-                    ),
-                    fontSize = instructionSize,
-                    lineHeight = instructionSize * 1.5f,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                Spacer(modifier = Modifier.height(gap))
-                PairingModeSelector(
-                    mode = mode,
-                    fontSize = instructionSize,
-                    onOwnAccount = {
-                        viewModel.selectMode(PairingMode.OWN_ACCOUNT)
-                        onOwnAccountSecretCheck()
-                    },
-                    onOtherDevice = { viewModel.selectMode(PairingMode.OTHER_DEVICE) },
-                )
-
-                val pairingCode = (state as? PairingUiState.WaitingForScan)?.code
-                if (pairingCode != null) {
-                    Spacer(modifier = Modifier.height(gap))
-                    Text(
-                        text = stringResource(R.string.pairing_code_label),
-                        fontSize = instructionSize,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = pairingCode,
-                        fontSize = statusSize,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(gap))
-
-                val status = when (val s = state) {
-                    is PairingUiState.Loading -> stringResource(
-                        if (mode == PairingMode.OWN_ACCOUNT) {
-                            R.string.pairing_loading_own_account
-                        } else {
-                            R.string.pairing_loading_other_device
-                        },
-                    )
-                    is PairingUiState.WaitingForScan -> stringResource(
-                        if (mode == PairingMode.OWN_ACCOUNT) {
-                            R.string.pairing_waiting_own_account
-                        } else {
-                            R.string.pairing_waiting_other_device
-                        },
-                    )
-                    is PairingUiState.Authenticating -> ""
-                    is PairingUiState.Success -> ""
-                    is PairingUiState.Error -> s.message ?: stringResource(s.messageRes)
-                }
-                if (status.isNotEmpty()) {
-                    Text(
-                        text = status,
-                        fontSize = statusSize,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                    if (state is PairingUiState.Error) {
-                    Spacer(modifier = Modifier.height(gap))
-                    val retryFocusRequester = remember { FocusRequester() }
-                    var retryFocused by remember { mutableStateOf(false) }
-                    LaunchedEffect(Unit) {
-                        runCatching { retryFocusRequester.requestFocus() }
-                    }
-                    OutlinedButton(
-                        onClick = { viewModel.requestCode() },
-                        modifier = Modifier
-                            .focusRequester(retryFocusRequester)
-                            .onFocusChanged { retryFocused = it.isFocused }
-                            .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                            .then(
-                                if (retryFocused) Modifier.border(
-                                    2.dp,
-                                    MaterialTheme.colorScheme.onSurface,
-                                    RoundedCornerShape(12.dp),
-                                ) else Modifier
-                            ),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onBackground,
-                        ),
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center,
                     ) {
                         Text(
-                            text = stringResource(R.string.retry),
-                            fontSize = statusSize,
+                            text = accentedText(
+                                full = stringResource(entry.titleRes()),
+                                accent = if (entry == PairingEntry.NO_PHONE) {
+                                    stringResource(R.string.pairing_title_telegram_accent)
+                                } else {
+                                    ""
+                                },
+                            ),
+                            fontSize = titleSize,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = titleSize * 1.12f,
+                            color = MaterialTheme.colorScheme.onBackground,
                         )
-                    }
+
+                        Spacer(modifier = Modifier.height(gap))
+
+                        Text(
+                            text = stringResource(entry.instructionRes()),
+                            fontSize = instructionSize,
+                            lineHeight = instructionSize * 1.5f,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        val pairingCode = (state as? PairingUiState.WaitingForScan)?.code
+                        if (pairingCode != null) {
+                            Spacer(modifier = Modifier.height(gap))
+                            AuthCodeChip(
+                                label = stringResource(R.string.pairing_code_label),
+                                code = pairingCode,
+                                scale = scale,
+                            )
+                        }
+
+                        val status = when (val s = state) {
+                            is PairingUiState.Loading -> stringResource(entry.loadingRes())
+                            is PairingUiState.WaitingForScan -> stringResource(entry.waitingRes())
+                            is PairingUiState.Authenticating -> ""
+                            is PairingUiState.Success -> ""
+                            is PairingUiState.Error -> s.message ?: stringResource(s.messageRes)
+                        }
+                        if (status.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(gap))
+                            AuthStatusRow(
+                                text = status,
+                                scale = scale,
+                                dotColor = if (state is PairingUiState.Error) VpnRed else VpnGreen,
+                                fontSize = statusSize,
+                                pulsing = state !is PairingUiState.Error,
+                            )
+                        }
+
+                        if (state is PairingUiState.Error) {
+                            Spacer(modifier = Modifier.height(gap))
+                            val retryFocusRequester = remember { FocusRequester() }
+                            LaunchedEffect(Unit) {
+                                runCatching { retryFocusRequester.requestFocus() }
+                            }
+                            AuthActionButton(
+                                text = stringResource(R.string.retry),
+                                scale = scale,
+                                modifier = Modifier
+                                    .widthIn(max = (280 * scale).dp)
+                                    .focusRequester(retryFocusRequester),
+                                onClick = { viewModel.requestCode() },
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(gap))
+                        AuthActionButton(
+                            text = stringResource(R.string.back),
+                            scale = scale,
+                            modifier = Modifier
+                                .widthIn(max = (280 * scale).dp)
+                                .focusRequester(backFocusRequester),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            },
+                            onClick = onBack,
+                            onLongClick = onBackLongPress,
+                        )
                     }
                 }
             }
@@ -362,97 +320,76 @@ fun PairingScreen(
     }
 }
 
-@Composable
-private fun PairingModeSelector(
-    mode: PairingMode,
-    fontSize: androidx.compose.ui.unit.TextUnit,
-    onOwnAccount: () -> Unit,
-    onOtherDevice: () -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        PairingModeButton(
-            text = stringResource(R.string.pairing_mode_own_account),
-            selected = mode == PairingMode.OWN_ACCOUNT,
-            fontSize = fontSize,
-            onClick = onOwnAccount,
-        )
-        PairingModeButton(
-            text = stringResource(R.string.pairing_mode_other_device),
-            selected = mode == PairingMode.OTHER_DEVICE,
-            fontSize = fontSize,
-            onClick = onOtherDevice,
-        )
-    }
+private fun PairingEntry.usesTelegram(): Boolean =
+    this == PairingEntry.IPHONE || this == PairingEntry.NO_PHONE
+
+private fun PairingEntry.titleRes(): Int = when (this) {
+    PairingEntry.MOBILE_APP -> R.string.pairing_title_app
+    PairingEntry.IPHONE -> R.string.pairing_title_iphone
+    PairingEntry.NO_PHONE -> R.string.pairing_title_telegram
 }
 
+private fun PairingEntry.instructionRes(): Int = when (this) {
+    PairingEntry.MOBILE_APP -> R.string.pairing_instruction_app
+    PairingEntry.IPHONE -> R.string.pairing_instruction_iphone
+    PairingEntry.NO_PHONE -> R.string.pairing_instruction_telegram
+}
+
+private fun PairingEntry.loadingRes(): Int = when (this) {
+    PairingEntry.MOBILE_APP -> R.string.pairing_loading_app
+    PairingEntry.IPHONE, PairingEntry.NO_PHONE -> R.string.pairing_loading_telegram
+}
+
+private fun PairingEntry.waitingRes(): Int = when (this) {
+    PairingEntry.MOBILE_APP -> R.string.pairing_waiting_app
+    PairingEntry.IPHONE, PairingEntry.NO_PHONE -> R.string.pairing_waiting_telegram
+}
+
+/**
+ * Caption under the QR saying where the code leads. Deliberately neither
+ * focusable nor clickable: a TV has no Telegram to open, and a capsule that
+ * looks pressable but does nothing on OK reads as a broken button.
+ */
 @Composable
-private fun PairingModeButton(
-    text: String,
-    selected: Boolean,
-    fontSize: androidx.compose.ui.unit.TextUnit,
-    onClick: () -> Unit,
+private fun TelegramBotCaption(
+    scale: Float,
+    width: Dp,
 ) {
-    if (selected) {
-        Button(
-            onClick = onClick,
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
-        ) {
-            Text(text = text, fontSize = fontSize, fontWeight = FontWeight.Bold)
-        }
-    } else {
-        OutlinedButton(
-            onClick = onClick,
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.onBackground,
+    Row(
+        modifier = Modifier
+            .width(width)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .padding(horizontal = (14 * scale).dp, vertical = (13 * scale).dp),
+        verticalAlignment = Alignment.CenterVertically,
+        // Centre the pair inside the pill instead of hugging the left edge.
+        horizontalArrangement = Arrangement.spacedBy(
+            (12 * scale).dp,
+            Alignment.CenterHorizontally,
+        ),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_telegram),
+            contentDescription = null,
+            modifier = Modifier.size((30 * scale).dp),
+        )
+        Text(
+            text = accentedText(
+                full = stringResource(R.string.pairing_open_telegram_bot),
+                accent = stringResource(R.string.pairing_open_telegram_bot_accent),
             ),
-        ) {
-            Text(text = text, fontSize = fontSize, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun QrCode(
-    data: String,
-    modifier: Modifier = Modifier,
-) {
-    var bitmap by remember(data) { mutableStateOf<ImageBitmap?>(null) }
-    var error by remember(data) { mutableStateOf(false) }
-
-    LaunchedEffect(data) {
-        val result = withContext(Dispatchers.Default) {
-            runCatching {
-                val hints = mapOf(
-                    EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
-                    EncodeHintType.MARGIN to 0,
-                )
-                val matrix = QRCodeWriter().encode(data, BarcodeFormat.QR_CODE, 512, 512, hints)
-                val w = matrix.width
-                val h = matrix.height
-                val pixels = IntArray(w * h) { i ->
-                    if (matrix[i % w, i / w]) android.graphics.Color.BLACK
-                    else android.graphics.Color.WHITE
-                }
-                Bitmap.createBitmap(pixels, w, h, Bitmap.Config.RGB_565).asImageBitmap()
-            }.getOrNull()
-        }
-        if (result != null) bitmap = result else error = true
-    }
-
-    when {
-        error -> Text(stringResource(R.string.error_generic), color = Color.Red)
-        bitmap == null -> CircularProgressIndicator(color = Color.Black)
-        else -> {
-            Image(
-                bitmap = bitmap!!,
-                contentDescription = "QR",
-                modifier = modifier,
-                contentScale = ContentScale.Fit,
-            )
-        }
+            // The pill is as wide as the QR plate, which is sized to keep this
+            // caption on one line at full size.
+            fontSize = (22 * scale).sp,
+            lineHeight = (26 * scale).sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            color = MaterialTheme.colorScheme.onSurface,
+            // Without trimming, the font's own padding sits inside the pill and
+            // makes the vertical spacing look uneven.
+            style = AuthTightTextStyle,
+        )
     }
 }
 

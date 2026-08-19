@@ -1,6 +1,7 @@
 package com.tobevpn.tv.presentation.onboarding
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -40,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import com.tobevpn.tv.R
+import com.tobevpn.tv.presentation.components.AuthActionButton
+import com.tobevpn.tv.presentation.components.AuthScreenCard
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 
 @Composable
@@ -47,7 +51,9 @@ fun OnboardingScreen(
     onComplete: () -> Unit,
 ) {
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center,
     ) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
@@ -75,8 +81,15 @@ fun OnboardingScreen(
             ),
         )
 
+        AuthScreenCard(
+            scale = scale,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(maxOf(maxWidth * 0.03f, 16.dp)),
+        ) {
         Row(
             modifier = Modifier
+                .fillMaxSize()
                 .padding(horizontal = horizontalPad, vertical = verticalPad),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(colSpacing),
@@ -130,22 +143,25 @@ fun OnboardingScreen(
                 Spacer(modifier = Modifier.height(gap * 2f))
 
                 val focusRequester = remember { FocusRequester() }
-                LaunchedEffect(Unit) { focusRequester.requestFocus() }
-
-                Button(
-                    onClick = onComplete,
-                    modifier = Modifier
-                        .focusRequester(focusRequester)
-                        .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp),
-                    shape = RoundedCornerShape((12 * scale).dp),
-                    contentPadding = PaddingValues(horizontal = btnPadH, vertical = btnPadV),
-                ) {
-                    Text(
-                        stringResource(R.string.onboarding_start),
-                        fontSize = buttonTextSize,
-                    )
+                LaunchedEffect(Unit) {
+                    withFrameNanos { }
+                    if (runCatching { focusRequester.requestFocus() }.isFailure) {
+                        withFrameNanos { }
+                        runCatching { focusRequester.requestFocus() }
+                    }
                 }
+
+                AuthActionButton(
+                    text = stringResource(R.string.onboarding_start),
+                    scale = scale,
+                    primary = true,
+                    modifier = Modifier
+                        .widthIn(max = (300 * scale).dp)
+                        .focusRequester(focusRequester),
+                    onClick = onComplete,
+                )
             }
+        }
         }
     }
 }

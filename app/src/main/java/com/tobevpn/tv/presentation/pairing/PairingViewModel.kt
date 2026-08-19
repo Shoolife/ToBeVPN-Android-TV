@@ -1,12 +1,16 @@
 package com.tobevpn.tv.presentation.pairing
 
 import androidx.annotation.StringRes
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.data.repository.DevicePairingPollResult
 import com.tobevpn.tv.domain.model.AuthState
+import com.tobevpn.tv.presentation.navigation.PairingEntry
+import com.tobevpn.tv.presentation.navigation.PairingRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -17,8 +21,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class PairingMode {
-    OWN_ACCOUNT,
-    OTHER_DEVICE,
+    /** Device pairing with a short code, confirmed in the ToBeVPN phone app. */
+    MOBILE_APP,
+
+    /** Telegram bot login, for users without the phone app. */
+    TELEGRAM,
+    ;
+
+    companion object {
+        fun forEntry(entry: PairingEntry): PairingMode = when (entry) {
+            PairingEntry.MOBILE_APP -> MOBILE_APP
+            PairingEntry.IPHONE, PairingEntry.NO_PHONE -> TELEGRAM
+        }
+    }
 }
 
 sealed interface PairingUiState {
@@ -32,6 +47,7 @@ sealed interface PairingUiState {
 @HiltViewModel
 class PairingViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     companion object {
         private const val POLL_INTERVAL_MS = 3000L
@@ -45,7 +61,16 @@ class PairingViewModel @Inject constructor(
     private val _state = MutableStateFlow<PairingUiState>(PairingUiState.Loading)
     val state: StateFlow<PairingUiState> = _state.asStateFlow()
 
-    private val _mode = MutableStateFlow(PairingMode.OWN_ACCOUNT)
+    /**
+     * Which sign-in the user picked on the install screen. It is fixed for the
+     * lifetime of the screen — the old in-screen mode switch is gone, so there
+     * is no path that changes it after the first code request.
+     */
+    val entry: PairingEntry = PairingEntry.fromRoute(
+        savedStateHandle.toRoute<PairingRoute>().entry,
+    )
+
+    private val _mode = MutableStateFlow(PairingMode.forEntry(entry))
     val mode: StateFlow<PairingMode> = _mode.asStateFlow()
 
     private var pollJob: Job? = null
@@ -76,12 +101,6 @@ class PairingViewModel @Inject constructor(
         }
     }
 
-    fun selectMode(mode: PairingMode) {
-        if (_mode.value == mode) return
-        _mode.value = mode
-        requestCode()
-    }
-
     private fun rotateCode() {
         // Internal recycle path — preserve consecutiveExpirations across rotations
         // so we can stop after MAX_REQUEST_RETRIES idle cycles. requestCode() is
@@ -97,12 +116,12 @@ class PairingViewModel @Inject constructor(
 
     private suspend fun requestCurrentModeCode(version: Int) {
         when (_mode.value) {
-            PairingMode.OWN_ACCOUNT -> requestOwnAccountCode(version)
-            PairingMode.OTHER_DEVICE -> requestDevicePairingCode(version)
+            PairingMode.TELEGRAM -> requestTelegramCode(version)
+            PairingMode.MOBILE_APP -> requestDevicePairingCode(version)
         }
     }
 
-    private suspend fun requestOwnAccountCode(version: Int) {
+    private suspend fun requestTelegramCode(version: Int) {
         authRepository.requestTelegramAuth()
             .onSuccess { authToken ->
                 if (!isCurrentRequest(version)) return

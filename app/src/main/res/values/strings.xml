@@ -294,18 +294,20 @@
     <string name="speed_measure_failed">Speed measurement failed</string>
 
     <!-- Pairing -->
-    <string name="pairing_title">Sign in to ToBeVPN</string>
-    <string name="pairing_instruction">Open this QR code with the camera on an authorized phone, scan it in Linked devices, or enter the code manually.</string>
-    <string name="pairing_instruction_own_account">Open this QR code on your phone to sign in to your own account.</string>
-    <string name="pairing_instruction_other_device">To use another account, the owner must confirm this QR or code on their phone in Settings, under Devices.</string>
-    <string name="pairing_mode_own_account">Own account</string>
-    <string name="pairing_mode_other_device">Another device</string>
-    <string name="pairing_loading">Preparing sign-in code…</string>
-    <string name="pairing_loading_own_account">Preparing own account sign-in…</string>
-    <string name="pairing_loading_other_device">Preparing sign-in code…</string>
-    <string name="pairing_waiting">Waiting for confirmation on an authorized device…</string>
-    <string name="pairing_waiting_own_account">Waiting for sign-in confirmation…</string>
-    <string name="pairing_waiting_other_device">Waiting for account owner confirmation…</string>
+    <string name="pairing_title_app">Sign in with ToBeVPN</string>
+    <string name="pairing_title_iphone">Sign in to ToBeVPN on iPhone</string>
+    <string name="pairing_title_telegram">Sign in to ToBeVPN with Telegram</string>
+    <string name="pairing_instruction_app">Open the ToBeVPN app on your phone and go to Settings — Advanced — Devices. Choose "Scan QR" or "Enter code".</string>
+    <string name="pairing_instruction_iphone">There is no ToBeVPN app for iPhone yet — sign in with Telegram. Scan the QR code with your phone camera and confirm the sign-in in the bot. You can manage your subscription there too.</string>
+    <string name="pairing_instruction_telegram">No app needed, but Telegram is. Scan the QR code with your phone camera and confirm the sign-in in the bot. You can manage your subscription there too.</string>
+    <string name="pairing_loading_app">Preparing the sign-in code…</string>
+    <string name="pairing_loading_telegram">Preparing Telegram sign-in…</string>
+    <string name="pairing_waiting_app">Waiting for sign-in confirmation…</string>
+    <string name="pairing_waiting_telegram">Waiting for sign-in confirmation…</string>
+    <string name="pairing_open_telegram_bot">Sign-in via Telegram bot</string>
+    <string name="mobile_install_title_accent">ToBeVPN</string>
+    <string name="pairing_title_telegram_accent">Telegram</string>
+    <string name="pairing_open_telegram_bot_accent">Telegram bot</string>
     <string name="pairing_code_label">Sign-in code</string>
     <string name="pairing_done">Done!</string>
     <string name="demo_login_title">Demo access</string>
@@ -327,10 +329,14 @@
     <string name="onboarding_start">Start</string>
     <string name="onboarding_consent">By tapping Start you agree to the Privacy Policy</string>
     <string name="mobile_install_title">Install ToBeVPN on your phone</string>
-    <string name="mobile_install_description">The ToBeVPN phone app is required to use ToBeVPN on your TV. Scan the QR code with your phone camera, install the app from Google Play, and sign in. Then return to your TV.</string>
-    <string name="mobile_install_already_installed">If ToBeVPN is already installed, select Continue.</string>
+    <string name="mobile_install_description">With the ToBeVPN app on your phone signing in takes seconds: scan the QR code with your camera, install the app from Google Play and sign in. Then return to your TV.</string>
+    <string name="mobile_install_choose_action">Choose an action with the buttons below</string>
+    <string name="mobile_install_done">I installed the app</string>
+    <string name="mobile_install_iphone">I have an iPhone</string>
+    <string name="mobile_install_no_phone">Sign in without the app</string>
+    <string name="mobile_install_store_available_in">available on</string>
+    <string name="mobile_install_store_badge">Google Play</string>
     <string name="mobile_install_qr_content_description">QR code to download ToBeVPN from Google Play</string>
-    <string name="mobile_install_continue">Continue</string>
 
     <!-- Privacy -->
     <string name="privacy_policy">Privacy Policy</string>
