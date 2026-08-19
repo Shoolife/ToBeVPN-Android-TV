@@ -409,6 +409,12 @@
     <string name="whats_new_diagnostics_desc">Record privacy-safe VPN logs on demand, keep daily history, and share or delete a selected day directly from the TV app.</string>
     <string name="whats_new_updates_title">Mandatory updates work everywhere</string>
     <string name="whats_new_updates_desc">A server-required update now blocks every screen and sends Google Play builds to Play while direct builds download the signed GitHub release.</string>
+    <string name="whats_new_signin_title">Three ways to sign in</string>
+    <string name="whats_new_signin_desc">The start screen now offers signing in with the phone app, on iPhone, or without the app at all through Telegram. There used to be a single path.</string>
+    <string name="whats_new_signin_code_title">Sign-in code next to the QR</string>
+    <string name="whats_new_signin_code_desc">The sign-in screen shows the code for manual entry in the phone app, and a waiting indicator makes clear the TV is still listening for confirmation.</string>
+    <string name="whats_new_signin_scale_title">Same look on every screen</string>
+    <string name="whats_new_signin_scale_desc">The sign-in screens keep the same share of the display on 720p, 1080p and 4K — sizing no longer depends on the pixel density of the TV.</string>
     <string name="whats_new_mobile_setup_title">Phone setup from TV</string>
     <string name="whats_new_mobile_setup_desc">A new first-run screen explains why the phone app is required and opens its Google Play page through a QR code before account pairing.</string>
     <string name="whats_new_validation_title">Fewer false VPN disconnects</string>

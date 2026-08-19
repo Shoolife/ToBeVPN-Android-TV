@@ -90,18 +90,18 @@ private data class WhatsNewHighlight(
 private val currentHighlights = listOf(
     WhatsNewHighlight(
         icon = Icons.Filled.SystemUpdateAlt,
-        titleRes = R.string.whats_new_mobile_setup_title,
-        descriptionRes = R.string.whats_new_mobile_setup_desc,
+        titleRes = R.string.whats_new_signin_title,
+        descriptionRes = R.string.whats_new_signin_desc,
     ),
     WhatsNewHighlight(
         icon = Icons.Filled.Shield,
-        titleRes = R.string.whats_new_validation_title,
-        descriptionRes = R.string.whats_new_validation_desc,
+        titleRes = R.string.whats_new_signin_code_title,
+        descriptionRes = R.string.whats_new_signin_code_desc,
     ),
     WhatsNewHighlight(
         icon = Icons.Filled.AutoAwesome,
-        titleRes = R.string.whats_new_recovery_title,
-        descriptionRes = R.string.whats_new_recovery_desc,
+        titleRes = R.string.whats_new_signin_scale_title,
+        descriptionRes = R.string.whats_new_signin_scale_desc,
     ),
 )
 

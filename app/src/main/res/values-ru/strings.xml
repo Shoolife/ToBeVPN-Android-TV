@@ -415,6 +415,12 @@
     <string name="whats_new_diagnostics_desc">Запускайте безопасный сбор VPN-логов вручную, храните историю по дням и делитесь либо удаляйте выбранный день прямо в TV-приложении.</string>
     <string name="whats_new_updates_title">Обязательное обновление на любом экране</string>
     <string name="whats_new_updates_desc">Требование сервера теперь блокирует всё приложение: сборка Google Play открывает Play, а прямая сборка скачивает подписанный релиз GitHub.</string>
+    <string name="whats_new_signin_title">Три способа входа</string>
+    <string name="whats_new_signin_desc">Стартовый экран предлагает вход через приложение на телефоне, вход на iPhone и вход без приложения — через Telegram. Раньше путь был один.</string>
+    <string name="whats_new_signin_code_title">Код входа рядом с QR</string>
+    <string name="whats_new_signin_code_desc">На экране входа виден код для ручного ввода в приложении на телефоне, а индикатор ожидания показывает, что ТВ продолжает ждать подтверждение.</string>
+    <string name="whats_new_signin_scale_title">Одинаковый вид на любом экране</string>
+    <string name="whats_new_signin_scale_desc">Экраны входа занимают одну и ту же долю экрана на 720p, 1080p и 4K — размеры больше не зависят от плотности пикселей телевизора.</string>
     <string name="whats_new_mobile_setup_title">Установка приложения на телефон</string>
     <string name="whats_new_mobile_setup_desc">Новый экран при первом запуске объясняет, зачем нужно приложение на телефоне, и открывает его страницу в Google Play по QR-коду перед привязкой аккаунта.</string>
     <string name="whats_new_validation_title">Без ложных отключений VPN</string>
