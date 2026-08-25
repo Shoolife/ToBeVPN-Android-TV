@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import androidx.navigation.toRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.tobevpn.tv.domain.model.AuthState
@@ -161,7 +162,9 @@ fun AppNavHost(
                         popUpTo(MainRoute) { inclusive = true }
                     }
                 },
-                onNavigateToSubscription = { navController.navigate(SubscriptionRoute) },
+                onNavigateToSubscription = { selectCurrentPlan ->
+                    navController.navigate(SubscriptionRoute(selectCurrentPlan))
+                },
                 onNavigateToSettings = { navController.navigate(SettingsRoute) },
                 onNavigateToStats = { navController.navigate(StatsRoute) },
                 onNavigateToSpeedTest = { navController.navigate(SpeedTestRoute) },
@@ -185,10 +188,12 @@ fun AppNavHost(
                 onLongBack = navigateHomeSafely,
             )
         }
-        composable<SubscriptionRoute> {
+        composable<SubscriptionRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<SubscriptionRoute>()
             SubscriptionScreen(
                 onBack = navigateBackSafely,
                 onLongBack = navigateHomeSafely,
+                selectCurrentPlan = route.selectCurrentPlan,
             )
         }
         composable<SettingsRoute> {

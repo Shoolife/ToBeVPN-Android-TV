@@ -36,7 +36,7 @@ object StatsRoute
 object SpeedTestRoute
 
 @Serializable
-object SubscriptionRoute
+data class SubscriptionRoute(val selectCurrentPlan: Boolean = false)
 
 @Serializable
 object OnboardingRoute

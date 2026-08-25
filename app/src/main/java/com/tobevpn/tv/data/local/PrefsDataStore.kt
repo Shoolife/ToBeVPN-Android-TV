@@ -20,6 +20,11 @@ import javax.inject.Singleton
 
 private val Context.dataStore by preferencesDataStore("tobevpn_tv_prefs")
 
+data class SubscriptionReminderSnooze(
+    val untilMillis: Long = 0L,
+    val expiresAtMillis: Long? = null,
+)
+
 @Singleton
 class PrefsDataStore @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -42,6 +47,10 @@ class PrefsDataStore @Inject constructor(
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DIAGNOSTIC_MODE_ENABLED = booleanPreferencesKey("diagnostic_mode_enabled")
         val DIAGNOSTIC_LOGGING_ENABLED = booleanPreferencesKey("diagnostic_logging_enabled")
+        val SUBSCRIPTION_REMINDER_SNOOZED_UNTIL =
+            longPreferencesKey("subscription_reminder_snoozed_until")
+        val SUBSCRIPTION_REMINDER_EXPIRES_AT =
+            longPreferencesKey("subscription_reminder_expires_at")
         // Scope the persisted block to the installed build. After an update,
         // a block recorded by the previous version must not lock the new
         // version before it can read the current minimum-version header.
@@ -66,8 +75,32 @@ class PrefsDataStore @Inject constructor(
         .map { it ?: AppThemeMode.DARK }
         .distinctUntilChanged()
 
+    val subscriptionReminderSnooze: Flow<SubscriptionReminderSnooze> =
+        context.dataStore.data
+            .map { preferences ->
+                SubscriptionReminderSnooze(
+                    untilMillis = preferences[Keys.SUBSCRIPTION_REMINDER_SNOOZED_UNTIL] ?: 0L,
+                    expiresAtMillis = preferences[Keys.SUBSCRIPTION_REMINDER_EXPIRES_AT],
+                )
+            }
+            .distinctUntilChanged()
+
     suspend fun setThemeMode(mode: AppThemeMode) {
         context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
+    }
+
+    suspend fun setSubscriptionReminderSnooze(
+        untilMillis: Long,
+        expiresAtMillis: Long?,
+    ) {
+        context.dataStore.edit {
+            it[Keys.SUBSCRIPTION_REMINDER_SNOOZED_UNTIL] = untilMillis
+            if (expiresAtMillis != null) {
+                it[Keys.SUBSCRIPTION_REMINDER_EXPIRES_AT] = expiresAtMillis
+            } else {
+                it.remove(Keys.SUBSCRIPTION_REMINDER_EXPIRES_AT)
+            }
+        }
     }
 
     suspend fun getCachedUsdRate(): Pair<Double, Long>? {

@@ -42,6 +42,17 @@
     <string name="plan_active_until">Активна до %1$s</string>
     <string name="plan_unlimited_access">Безлимитный доступ</string>
     <string name="plan_renew">Продлите подписку</string>
+    <!-- Напоминание о продлении подписки -->
+    <string name="subscription_expired_title">Подписка истекла</string>
+    <string name="subscription_expiry_today">Подписка истекает сегодня</string>
+    <plurals name="subscription_expiring_title">
+        <item quantity="one">Подписка истекает через %1$d день</item>
+        <item quantity="few">Подписка истекает через %1$d дня</item>
+        <item quantity="many">Подписка истекает через %1$d дней</item>
+        <item quantity="other">Подписка истекает через %1$d дня</item>
+    </plurals>
+    <string name="subscription_renew_reminder_desc">Продлите, чтобы не потерять доступ к серверам</string>
+    <string name="subscription_renew_action">Продлить</string>
     <string name="plan_limited_traffic">Ограниченный трафик</string>
     <string name="plan_quota_month">XXX ГБ / месяц</string>
     <string name="plan_conditions_loading">Условия тарифа загружаются</string>
@@ -395,6 +406,12 @@
     <string name="whats_new_version">Версия %1$s</string>
     <string name="whats_new_intro">Главные улучшения установленной ТВ-версии</string>
     <string name="whats_new_done">Понятно</string>
+    <string name="whats_new_subscription_status_title">Срок подписки всегда заметен</string>
+    <string name="whats_new_subscription_status_desc">На главном экране появилось предупреждение о скором окончании подписки, даты получили понятный цветовой акцент, а кнопка продления сразу открывает текущий тариф.</string>
+    <string name="whats_new_device_traffic_title">Трафик этого телевизора</string>
+    <string name="whats_new_device_traffic_desc">«Текущая сессия» теперь считает только трафик и время этого TV. В карточке тарифа отдельно показан общий расход относительно лимита подписки.</string>
+    <string name="whats_new_tv_polish_title">Плавнее и предсказуемее</string>
+    <string name="whats_new_tv_polish_desc">Устройства и промокоды получили плавную анимацию обновления. Фокус больше не прыгает с активных кнопок, а окна выхода и перезагрузки выровнены по центру.</string>
     <string name="whats_new_stability_title">Надёжнее запуск и VPN</string>
     <string name="whats_new_stability_desc">Зашифрованная сессия теперь корректно восстанавливается при запуске. Запуск, остановка и переподключение VPN защищены от устаревших событий сервиса.</string>
     <string name="whats_new_servers_title">Серверы обновляются быстрее</string>

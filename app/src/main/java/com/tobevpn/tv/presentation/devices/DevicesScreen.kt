@@ -1,7 +1,14 @@
 package com.tobevpn.tv.presentation.devices
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,6 +50,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -137,6 +146,11 @@ fun DevicesScreen(
         val headerIconSize = (20 * scale).dp
         val deviceIconSize = (28 * scale).dp
         val headerColor = MaterialTheme.colorScheme.onBackground
+        val refreshPlaceholderAlpha = if (state.isLoading) {
+            deviceRefreshPlaceholderAlpha()
+        } else {
+            1f
+        }
 
         val tightStyle = TextStyle(
             platformStyle = PlatformTextStyle(includeFontPadding = false),
@@ -257,7 +271,19 @@ fun DevicesScreen(
             Spacer(modifier = Modifier.height(gap))
 
             // This device
-            if (currentDevice != null) {
+            if (state.isLoading) {
+                SectionTitle(stringResource(R.string.devices_this_device), titleSize, tightStyle)
+                Spacer(modifier = Modifier.height(smallGap))
+                DeviceLoadingCard(
+                    alpha = refreshPlaceholderAlpha,
+                    isCurrent = true,
+                    scale = scale,
+                    cardCorner = cardCorner,
+                    cardPad = cardPad,
+                    deviceIconSize = deviceIconSize,
+                )
+                Spacer(modifier = Modifier.height(gap))
+            } else if (currentDevice != null) {
                 SectionTitle(stringResource(R.string.devices_this_device), titleSize, tightStyle)
                 Spacer(modifier = Modifier.height(smallGap))
                 DeviceCard(
@@ -281,14 +307,19 @@ fun DevicesScreen(
             SectionTitle(stringResource(R.string.devices_other_devices), titleSize, tightStyle)
             Spacer(modifier = Modifier.height(smallGap))
             when {
-                // Match the desktop client: any (re)load shows a centered
-                // accent spinner in place of the list, not only the first load.
-                state.isLoading && otherDevices.isEmpty() -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = gap),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        CircularProgressIndicator(color = VpnGreen)
+                state.isLoading -> {
+                    repeat(otherDevices.size.coerceIn(2, 3)) { index ->
+                        DeviceLoadingCard(
+                            alpha = refreshPlaceholderAlpha,
+                            isCurrent = false,
+                            scale = scale,
+                            cardCorner = cardCorner,
+                            cardPad = cardPad,
+                            deviceIconSize = deviceIconSize,
+                        )
+                        if (index < otherDevices.size.coerceIn(2, 3) - 1) {
+                            Spacer(modifier = Modifier.height(cardSpacing))
+                        }
                     }
                 }
                 otherDevices.isEmpty() -> {
@@ -334,6 +365,83 @@ fun DevicesScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun deviceRefreshPlaceholderAlpha(): Float {
+    val transition = rememberInfiniteTransition(label = "devices-refresh")
+    val alpha by transition.animateFloat(
+        initialValue = 0.42f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 720),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "devices-placeholder-alpha",
+    )
+    return alpha
+}
+
+@Composable
+private fun DeviceLoadingCard(
+    alpha: Float,
+    isCurrent: Boolean,
+    scale: Float,
+    cardCorner: androidx.compose.ui.unit.Dp,
+    cardPad: androidx.compose.ui.unit.Dp,
+    deviceIconSize: androidx.compose.ui.unit.Dp,
+) {
+    val placeholderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(cardCorner),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(cardPad)
+                .alpha(alpha),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(deviceIconSize)
+                    .clip(RoundedCornerShape((7 * scale).dp))
+                    .background(placeholderColor),
+            )
+            Spacer(modifier = Modifier.width((14 * scale).dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy((7 * scale).dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.48f)
+                        .height((17 * scale).dp)
+                        .clip(RoundedCornerShape((6 * scale).dp))
+                        .background(placeholderColor),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.34f)
+                        .height((13 * scale).dp)
+                        .clip(RoundedCornerShape((6 * scale).dp))
+                        .background(placeholderColor),
+                )
+            }
+            Spacer(modifier = Modifier.width((12 * scale).dp))
+            Box(
+                modifier = Modifier
+                    .width((if (isCurrent) 74 else 104).times(scale).dp)
+                    .height((if (isCurrent) 15 else 34).times(scale).dp)
+                    .clip(RoundedCornerShape((10 * scale).dp))
+                    .background(placeholderColor),
+            )
         }
     }
 }

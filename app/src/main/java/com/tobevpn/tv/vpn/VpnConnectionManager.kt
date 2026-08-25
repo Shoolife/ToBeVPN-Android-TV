@@ -95,6 +95,9 @@ class VpnConnectionManager @Inject constructor(
     private val _sessionTimeSeconds = MutableStateFlow(0L)
     val sessionTimeSeconds: StateFlow<Long> = _sessionTimeSeconds.asStateFlow()
 
+    private val _sessionBytes = MutableStateFlow(0L)
+    val sessionBytes: StateFlow<Long> = _sessionBytes.asStateFlow()
+
     private var usageTrackingJob: Job? = null
     private val healthJobLock = Any()
     private var healthCheckJob: Job? = null
@@ -1371,6 +1374,7 @@ class VpnConnectionManager @Inject constructor(
         )
         sessionBytesAccumulated = 0L
         sessionStartUsageBytes = 0L
+        _sessionBytes.value = 0L
         connectionStartTime = 0L
         resetDiagnosticTrafficInterval()
     }
@@ -1489,6 +1493,7 @@ class VpnConnectionManager @Inject constructor(
             _connectionState.value = ConnectionState.Connected
             connectionStartTime = System.currentTimeMillis()
             sessionBytesAccumulated = 0L
+            _sessionBytes.value = 0L
             qualityDownlinkBytesAccumulated = 0L
             trafficQualityConfirmed = false
             resetDiagnosticTrafficInterval()
@@ -1863,6 +1868,7 @@ class VpnConnectionManager @Inject constructor(
                 if (delta <= 0L && addTimeSeconds <= 0L) return@withLock
 
                 sessionBytesAccumulated += delta
+                _sessionBytes.value = sessionBytesAccumulated
                 diagnosticIntervalUplinkBytes += upBytes
                 diagnosticIntervalDownlinkBytes += downBytes
                 val suppressDownlinkEvidence = probeDownlinkEvidenceGate

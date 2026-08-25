@@ -1,6 +1,12 @@
 package com.tobevpn.tv.presentation.promocodes
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +49,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -95,6 +103,12 @@ fun PromocodesScreen(
         val bodySize = (16 * scale).sp
         val labelSize = (14 * scale).sp
         val headerColor = MaterialTheme.colorScheme.onBackground
+        val isRefreshing = state.isLoading && state.history != null
+        val refreshPlaceholderAlpha = if (isRefreshing) {
+            promocodeRefreshPlaceholderAlpha()
+        } else {
+            1f
+        }
 
         Column(Modifier.fillMaxSize().padding(screenPad)) {
             Row(
@@ -251,7 +265,13 @@ fun PromocodesScreen(
                                     fontSize = bodySize,
                                 )
                             }
-                            if (state.effectiveDiscountPercent > 0) {
+                            if (isRefreshing && state.effectiveDiscountPercent > 0) {
+                                Spacer(Modifier.height(gap))
+                                PromocodeDiscountLoadingCard(
+                                    alpha = refreshPlaceholderAlpha,
+                                    scale = scale,
+                                )
+                            } else if (state.effectiveDiscountPercent > 0) {
                                 Spacer(Modifier.height(gap))
                                 Card(
                                     colors = CardDefaults.cardColors(
@@ -297,45 +317,217 @@ fun PromocodesScreen(
                         ),
                     ) {
                         Column(Modifier.fillMaxSize().padding(cardPad)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.History, null)
-                                Spacer(Modifier.width((9 * scale).dp))
-                                Text(
-                                    stringResource(R.string.promocodes_history_title),
-                                    fontSize = (21 * scale).sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f),
+                            if (isRefreshing) {
+                                PromocodeHistoryHeaderLoading(
+                                    alpha = refreshPlaceholderAlpha,
+                                    scale = scale,
                                 )
-                                Text(
-                                    "${state.history?.total ?: 0}",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(Modifier.height((10 * scale).dp))
-                            if (state.history?.promocodes.orEmpty().isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Spacer(Modifier.height((10 * scale).dp))
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy((10 * scale).dp),
+                                ) {
+                                    repeat(3) {
+                                        PromocodeHistoryLoadingCard(
+                                            alpha = refreshPlaceholderAlpha,
+                                            scale = scale,
+                                        )
+                                    }
+                                }
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.History, null)
+                                    Spacer(Modifier.width((9 * scale).dp))
                                     Text(
-                                        stringResource(R.string.promocodes_empty_description),
-                                        fontSize = bodySize,
-                                        textAlign = TextAlign.Center,
+                                        stringResource(R.string.promocodes_history_title),
+                                        fontSize = (21 * scale).sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Text(
+                                        "${state.history?.total ?: 0}",
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
-                            } else {
-                                LazyColumn(
-                                    verticalArrangement = Arrangement.spacedBy((10 * scale).dp),
-                                ) {
-                                    items(
-                                        state.history?.promocodes.orEmpty(),
-                                        key = { it.activationId ?: "${it.code}:${it.activatedAt}" },
-                                    ) { item ->
-                                        PromocodeHistoryCard(item, scale, bodySize, labelSize)
+                                Spacer(Modifier.height((10 * scale).dp))
+                                if (state.history?.promocodes.orEmpty().isEmpty()) {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Text(
+                                            stringResource(R.string.promocodes_empty_description),
+                                            fontSize = bodySize,
+                                            textAlign = TextAlign.Center,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        verticalArrangement = Arrangement.spacedBy((10 * scale).dp),
+                                    ) {
+                                        items(
+                                            state.history?.promocodes.orEmpty(),
+                                            key = { it.activationId ?: "${it.code}:${it.activatedAt}" },
+                                        ) { item ->
+                                            PromocodeHistoryCard(item, scale, bodySize, labelSize)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun promocodeRefreshPlaceholderAlpha(): Float {
+    val transition = rememberInfiniteTransition(label = "promocode-refresh")
+    val alpha by transition.animateFloat(
+        initialValue = 0.42f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 720),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "promocode-placeholder-alpha",
+    )
+    return alpha
+}
+
+@Composable
+private fun PromocodeDiscountLoadingCard(
+    alpha: Float,
+    scale: Float,
+) {
+    val placeholderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = VpnGreen.copy(alpha = 0.14f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding((14 * scale).dp)
+                .alpha(alpha),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size((25 * scale).dp)
+                    .clip(RoundedCornerShape((7 * scale).dp))
+                    .background(placeholderColor),
+            )
+            Spacer(Modifier.width((9 * scale).dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(0.62f)
+                    .height((16 * scale).dp)
+                    .clip(RoundedCornerShape((6 * scale).dp))
+                    .background(placeholderColor),
+            )
+            Spacer(Modifier.width((10 * scale).dp))
+            Box(
+                modifier = Modifier
+                    .width((54 * scale).dp)
+                    .height((25 * scale).dp)
+                    .clip(RoundedCornerShape(99.dp))
+                    .background(placeholderColor),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PromocodeHistoryHeaderLoading(
+    alpha: Float,
+    scale: Float,
+) {
+    val placeholderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(alpha),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size((24 * scale).dp)
+                .clip(RoundedCornerShape((7 * scale).dp))
+                .background(placeholderColor),
+        )
+        Spacer(Modifier.width((9 * scale).dp))
+        Box(
+            modifier = Modifier
+                .width((178 * scale).dp)
+                .height((21 * scale).dp)
+                .clip(RoundedCornerShape((6 * scale).dp))
+                .background(placeholderColor),
+        )
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .width((28 * scale).dp)
+                .height((17 * scale).dp)
+                .clip(RoundedCornerShape((6 * scale).dp))
+                .background(placeholderColor),
+        )
+    }
+}
+
+@Composable
+private fun PromocodeHistoryLoadingCard(
+    alpha: Float,
+    scale: Float,
+) {
+    val placeholderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding((14 * scale).dp)
+                .alpha(alpha),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size((28 * scale).dp)
+                    .clip(RoundedCornerShape((8 * scale).dp))
+                    .background(placeholderColor),
+            )
+            Spacer(Modifier.width((10 * scale).dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy((7 * scale).dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.52f)
+                        .height((17 * scale).dp)
+                        .clip(RoundedCornerShape((6 * scale).dp))
+                        .background(placeholderColor),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.76f)
+                        .height((14 * scale).dp)
+                        .clip(RoundedCornerShape((6 * scale).dp))
+                        .background(placeholderColor),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.38f)
+                        .height((12 * scale).dp)
+                        .clip(RoundedCornerShape((6 * scale).dp))
+                        .background(placeholderColor),
+                )
             }
         }
     }

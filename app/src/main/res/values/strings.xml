@@ -51,6 +51,15 @@
     <string name="subscription_qr_unavailable">QR code is not available, try again later</string>
     <string name="plan_unlimited_access">Unlimited access</string>
     <string name="plan_renew">Renew subscription</string>
+    <!-- Subscription renewal reminder -->
+    <string name="subscription_expired_title">Subscription expired</string>
+    <string name="subscription_expiry_today">Subscription expires today</string>
+    <plurals name="subscription_expiring_title">
+        <item quantity="one">Subscription expires in %1$d day</item>
+        <item quantity="other">Subscription expires in %1$d days</item>
+    </plurals>
+    <string name="subscription_renew_reminder_desc">Renew to keep your server access</string>
+    <string name="subscription_renew_action">Renew</string>
     <string name="plan_limited_traffic">Limited traffic</string>
     <string name="current_plan">Current plan</string>
     <string name="payment_via_telegram">Payment via Telegram</string>
@@ -389,6 +398,12 @@
     <string name="whats_new_version">Version %1$s</string>
     <string name="whats_new_intro">The main improvements in the installed TV version</string>
     <string name="whats_new_done">Got it</string>
+    <string name="whats_new_subscription_status_title">Subscription status at a glance</string>
+    <string name="whats_new_subscription_status_desc">The Home screen now warns when a subscription is about to expire, dates use clear urgency colors, and Renew opens the current plan directly.</string>
+    <string name="whats_new_device_traffic_title">Traffic from this TV</string>
+    <string name="whats_new_device_traffic_desc">Current session now counts only traffic and time from this TV. The plan card separately shows total account usage against the subscription limit.</string>
+    <string name="whats_new_tv_polish_title">Smoother and more predictable</string>
+    <string name="whats_new_tv_polish_desc">Devices and promo codes now show smooth refresh placeholders. Focus stays on active controls, while logout and restart dialogs are centered consistently.</string>
     <string name="whats_new_stability_title">More reliable startup and VPN</string>
     <string name="whats_new_stability_desc">The encrypted session now restores correctly at startup. VPN start, stop and reconnect are protected from stale service events.</string>
     <string name="whats_new_servers_title">Servers update faster</string>

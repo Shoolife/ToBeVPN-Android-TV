@@ -42,6 +42,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -63,6 +64,7 @@ fun TvConfirmationDialog(
     onConfirm: () -> Unit,
     onDismissRequest: () -> Unit,
     destructive: Boolean = false,
+    centeredContent: Boolean = false,
 ) {
     val cancelFocusRequester = remember { FocusRequester() }
     val confirmFocusRequester = remember { FocusRequester() }
@@ -103,25 +105,40 @@ fun TvConfirmationDialog(
                 elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
                 border = BorderStroke(1.dp, outlineColor),
             ) {
-                Column(modifier = Modifier.padding(24.dp)) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = if (centeredContent) {
+                        Alignment.CenterHorizontally
+                    } else {
+                        Alignment.Start
+                    },
+                ) {
                     Text(
                         text = title,
+                        modifier = if (centeredContent) Modifier.fillMaxWidth() else Modifier,
                         fontSize = 22.sp,
                         lineHeight = 27.sp,
                         fontWeight = FontWeight.Bold,
                         color = primaryText,
+                        textAlign = if (centeredContent) TextAlign.Center else TextAlign.Start,
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = message,
+                        modifier = if (centeredContent) Modifier.fillMaxWidth() else Modifier,
                         fontSize = 15.sp,
                         lineHeight = 21.sp,
                         color = secondaryText,
+                        textAlign = if (centeredContent) TextAlign.Center else TextAlign.Start,
                     )
                     Spacer(modifier = Modifier.height(20.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = if (centeredContent) {
+                            Arrangement.Center
+                        } else {
+                            Arrangement.End
+                        },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val buttonShape = RoundedCornerShape(10.dp)

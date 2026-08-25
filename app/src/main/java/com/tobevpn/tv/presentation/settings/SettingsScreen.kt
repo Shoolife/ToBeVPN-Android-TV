@@ -79,6 +79,7 @@ import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.subscriptionExpiryDateColor
 import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.util.LocaleManager
 import com.tobevpn.tv.presentation.theme.VpnGreen
@@ -430,7 +431,17 @@ fun SettingsScreen(
                                     InfoRow(stringResource(R.string.plan), planLabel, planColor, bodySize, rowPadV, tightStyle)
 
                                     if ((auth.plan == UserPlan.PAID || auth.plan == UserPlan.ADMIN) && auth.planExpiresAt != null) {
-                                        InfoRow(stringResource(R.string.expires), formatDate(auth.planExpiresAt), bodySize = bodySize, rowPadV = rowPadV, tightStyle = tightStyle)
+                                        InfoRow(
+                                            label = stringResource(R.string.expires),
+                                            value = formatDate(auth.planExpiresAt),
+                                            valueColor = subscriptionExpiryDateColor(
+                                                expiresAtMillis = auth.planExpiresAt,
+                                                normalColor = MaterialTheme.colorScheme.onSurface,
+                                            ),
+                                            bodySize = bodySize,
+                                            rowPadV = rowPadV,
+                                            tightStyle = tightStyle,
+                                        )
                                     }
                                     if (auth.plan == UserPlan.EXPIRED) {
                                         Spacer(modifier = Modifier.height(smallGap))
@@ -739,6 +750,7 @@ fun SettingsScreen(
                 confirmLabel = stringResource(R.string.language_restart_button),
                 cancelLabel = stringResource(R.string.cancel),
                 darkTheme = themeMode == AppThemeMode.DARK,
+                centeredContent = true,
                 onConfirm = {
                     viewModel.setLanguage(pending)
                     pendingLanguage = null
@@ -756,6 +768,7 @@ fun SettingsScreen(
                 cancelLabel = stringResource(R.string.cancel),
                 darkTheme = themeMode == AppThemeMode.DARK,
                 destructive = true,
+                centeredContent = true,
                 onConfirm = {
                     dialogReturnFocusRequester = englishFocusRequester
                     showLogoutConfirm = false

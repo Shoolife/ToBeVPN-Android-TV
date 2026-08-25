@@ -1,6 +1,7 @@
 package com.tobevpn.tv.presentation.devices
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tobevpn.tv.R
@@ -12,6 +13,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -35,29 +39,39 @@ class DevicesViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(LinkedDevicesUiState())
     val state: StateFlow<LinkedDevicesUiState> = _state.asStateFlow()
+    private var refreshJob: Job? = null
 
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
+            val before = _state.value
+            val refreshFeedbackStartedAt = if (
+                before.devices.isNotEmpty() || before.currentCount != null
+            ) {
+                SystemClock.elapsedRealtime()
+            } else {
+                null
+            }
             val currentDeviceId = authRepository.getOrCreateDeviceId()
             val currentDeviceAliases = authRepository.getCurrentDeviceAliases()
-            _state.value = _state.value.copy(
+            _state.value = before.copy(
                 isLoading = true,
                 errorMessage = null,
                 currentDeviceId = currentDeviceId,
                 currentDeviceAliases = currentDeviceAliases,
             )
 
-            authRepository.registerCurrentDevice()
-            runCatching { authRepository.pingHwidOnly() }
-
             _state.value = try {
+                authRepository.registerCurrentDevice()
+                runCatching { authRepository.pingHwidOnly() }
                 val response = botApi.getDevices()
                 val data = response.data
                 if (response.success && data != null) {
+                    awaitMinimumRefreshFeedback(refreshFeedbackStartedAt)
                     LinkedDevicesUiState(
                         isLoading = false,
                         currentDeviceId = currentDeviceId,
@@ -67,18 +81,29 @@ class DevicesViewModel @Inject constructor(
                         devices = data.devices.orEmpty(),
                     )
                 } else {
+                    awaitMinimumRefreshFeedback(refreshFeedbackStartedAt)
                     _state.value.copy(
                         isLoading = false,
                         errorMessage = response.message ?: context.getString(R.string.devices_load_error),
                     )
                 }
+            } catch (error: CancellationException) {
+                throw error
             } catch (e: Exception) {
+                awaitMinimumRefreshFeedback(refreshFeedbackStartedAt)
                 _state.value.copy(
                     isLoading = false,
                     errorMessage = e.message ?: context.getString(R.string.devices_load_error),
                 )
             }
         }
+    }
+
+    private suspend fun awaitMinimumRefreshFeedback(startedAt: Long?) {
+        if (startedAt == null) return
+        val elapsed = SystemClock.elapsedRealtime() - startedAt
+        val remaining = MIN_REFRESH_FEEDBACK_MS - elapsed
+        if (remaining > 0L) delay(remaining)
     }
 
     fun disconnectDevice(deviceId: String) {
@@ -107,5 +132,9 @@ class DevicesViewModel @Inject constructor(
 
     fun clearError() {
         _state.value = _state.value.copy(errorMessage = null)
+    }
+
+    private companion object {
+        const val MIN_REFRESH_FEEDBACK_MS = 900L
     }
 }

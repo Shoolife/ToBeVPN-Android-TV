@@ -1,5 +1,6 @@
 package com.tobevpn.tv.presentation.promocodes
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
@@ -21,6 +22,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,6 +65,9 @@ class PromocodesViewModel @Inject constructor(
     private fun requestRefresh() {
         if (!_uiState.value.isAuthenticated || loadJob?.isActive == true) return
         loadJob = viewModelScope.launch {
+            val refreshFeedbackStartedAt = _uiState.value.history?.let {
+                SystemClock.elapsedRealtime()
+            }
             _uiState.value = _uiState.value.copy(isLoading = true, loadError = null)
             try {
                 val (history, discount) = coroutineScope {
@@ -72,6 +77,7 @@ class PromocodesViewModel @Inject constructor(
                     }
                     history.await() to discount.await()
                 }
+                awaitMinimumRefreshFeedback(refreshFeedbackStartedAt)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     history = history,
@@ -81,12 +87,20 @@ class PromocodesViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 SafeDiagnostics.warn(TAG, "Promocode history failed: ${SafeDiagnostics.failureCategory(error)}")
+                awaitMinimumRefreshFeedback(refreshFeedbackStartedAt)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     loadError = error.toLoadError(),
                 )
             }
         }
+    }
+
+    private suspend fun awaitMinimumRefreshFeedback(startedAt: Long?) {
+        if (startedAt == null) return
+        val elapsed = SystemClock.elapsedRealtime() - startedAt
+        val remaining = MIN_REFRESH_FEEDBACK_MS - elapsed
+        if (remaining > 0L) delay(remaining)
     }
 
     fun activate(rawCode: String) {
@@ -126,6 +140,7 @@ class PromocodesViewModel @Inject constructor(
     private companion object {
         const val TAG = "PromocodesViewModel"
         const val PAGE_SIZE = 50
+        const val MIN_REFRESH_FEEDBACK_MS = 900L
     }
 }
 

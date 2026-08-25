@@ -43,7 +43,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -91,6 +90,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextMeasurer
@@ -116,6 +116,8 @@ import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.subscriptionExpiryDateColor
+import com.tobevpn.tv.presentation.components.textWithAccentedDate
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
@@ -144,7 +146,7 @@ private data class PurchaseTariff(
 
 private data class CurrentPlanUi(
     val title: String,
-    val subtitle: String,
+    val subtitle: AnnotatedString,
     val accentColor: Color,
 )
 
@@ -152,6 +154,7 @@ private data class CurrentPlanUi(
 fun SubscriptionScreen(
     onBack: () -> Unit,
     onLongBack: () -> Unit = onBack,
+    selectCurrentPlan: Boolean = false,
     viewModel: SubscriptionViewModel = hiltViewModel(),
 ) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
@@ -165,6 +168,9 @@ fun SubscriptionScreen(
     var selectedPlanKey by rememberSaveable { mutableStateOf("month") }
     var showQr by rememberSaveable { mutableStateOf(false) }
     var lastFocusedTariffIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var initialTariffSelectionApplied by rememberSaveable(selectCurrentPlan) {
+        mutableStateOf(false)
+    }
 
     BackHandler(enabled = showQr) {
         showQr = false
@@ -217,6 +223,18 @@ fun SubscriptionScreen(
             ?.filter { it.durations.orEmpty().any { d -> d.days > 0 } }
             ?.sortedWith(compareBy<PurchasePlanDto> { it.orderIndex }.thenBy { it.name })
             ?: emptyList()
+
+        val currentPlanDisplayName = (authState as? AuthState.Authenticated)?.planDisplayName
+        LaunchedEffect(sourcePlans, currentPlanDisplayName, selectCurrentPlan) {
+            if (!initialTariffSelectionApplied && sourcePlans.isNotEmpty()) {
+                selectedTariffKey = initialPurchasePlanTabKey(
+                    plans = sourcePlans,
+                    currentPlanDisplayName = currentPlanDisplayName,
+                    selectCurrentPlan = selectCurrentPlan,
+                )
+                initialTariffSelectionApplied = true
+            }
+        }
 
         val shouldLoadLimits = (authState as? AuthState.Authenticated)?.let {
             it.plan == UserPlan.PAID || it.plan == UserPlan.ADMIN
@@ -1231,24 +1249,13 @@ private fun CurrentPlanCard(
                     style = tightStyle,
                 )
                 Spacer(modifier = Modifier.height(smallGap))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(smallGap),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = currentPlan.accentColor,
-                        modifier = Modifier.size(iconSize),
-                    )
-                    Text(
-                        text = currentPlan.title,
-                        fontSize = titleSize,
-                        fontWeight = FontWeight.Bold,
-                        color = currentPlan.accentColor,
-                        style = tightStyle,
-                    )
-                }
+                Text(
+                    text = currentPlan.title,
+                    fontSize = titleSize,
+                    fontWeight = FontWeight.Bold,
+                    color = currentPlan.accentColor,
+                    style = tightStyle,
+                )
                 if (currentPlan.subtitle.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(smallGap))
                     Text(
@@ -1655,36 +1662,44 @@ private fun currentPlanUi(authState: AuthState): CurrentPlanUi {
     return when (authState) {
         AuthState.Unauthenticated -> CurrentPlanUi(
             title = stringResource(R.string.plan_free),
-            subtitle = stringResource(R.string.sign_in_required_hint),
+            subtitle = AnnotatedString(stringResource(R.string.sign_in_required_hint)),
             accentColor = VpnOrange,
         )
         is AuthState.Authenticated -> {
             val serverPlanName = authState.planDisplayName?.takeIf {
                 it.isNotBlank() && authState.plan != UserPlan.EXPIRED
             }
+            val activeSubtitle = authState.planExpiresAt?.let { expiresAt ->
+                val date = formatDate(expiresAt)
+                val text = stringResource(R.string.plan_active_until, date)
+                textWithAccentedDate(
+                    text = text,
+                    date = date,
+                    dateColor = subscriptionExpiryDateColor(
+                        expiresAtMillis = expiresAt,
+                        normalColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                )
+            } ?: AnnotatedString("")
             when (authState.plan) {
                 UserPlan.PAID -> CurrentPlanUi(
                     title = serverPlanName ?: stringResource(R.string.plan_unknown_name),
-                    subtitle = authState.planExpiresAt?.let {
-                        stringResource(R.string.plan_active_until, formatDate(it))
-                    } ?: "",
+                    subtitle = activeSubtitle,
                     accentColor = VpnGreen,
                 )
                 UserPlan.ADMIN -> CurrentPlanUi(
                     title = serverPlanName ?: stringResource(R.string.plan_unknown_name),
-                    subtitle = authState.planExpiresAt?.let {
-                        stringResource(R.string.plan_active_until, formatDate(it))
-                    } ?: "",
+                    subtitle = activeSubtitle,
                     accentColor = VpnGreen,
                 )
                 UserPlan.EXPIRED -> CurrentPlanUi(
                     title = stringResource(R.string.plan_expired),
-                    subtitle = stringResource(R.string.renew_in_bot),
+                    subtitle = AnnotatedString(stringResource(R.string.renew_in_bot)),
                     accentColor = VpnRed,
                 )
                 UserPlan.FREE_TRIAL -> CurrentPlanUi(
                     title = serverPlanName ?: stringResource(R.string.plan_free),
-                    subtitle = stringResource(R.string.plan_limited_traffic),
+                    subtitle = AnnotatedString(stringResource(R.string.plan_limited_traffic)),
                     accentColor = VpnOrange,
                 )
             }

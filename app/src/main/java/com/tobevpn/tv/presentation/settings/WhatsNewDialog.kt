@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Shield
@@ -90,18 +91,18 @@ private data class WhatsNewHighlight(
 private val currentHighlights = listOf(
     WhatsNewHighlight(
         icon = Icons.Filled.SystemUpdateAlt,
-        titleRes = R.string.whats_new_signin_title,
-        descriptionRes = R.string.whats_new_signin_desc,
+        titleRes = R.string.whats_new_subscription_status_title,
+        descriptionRes = R.string.whats_new_subscription_status_desc,
     ),
     WhatsNewHighlight(
-        icon = Icons.Filled.Shield,
-        titleRes = R.string.whats_new_signin_code_title,
-        descriptionRes = R.string.whats_new_signin_code_desc,
+        icon = Icons.Filled.DataUsage,
+        titleRes = R.string.whats_new_device_traffic_title,
+        descriptionRes = R.string.whats_new_device_traffic_desc,
     ),
     WhatsNewHighlight(
         icon = Icons.Filled.AutoAwesome,
-        titleRes = R.string.whats_new_signin_scale_title,
-        descriptionRes = R.string.whats_new_signin_scale_desc,
+        titleRes = R.string.whats_new_tv_polish_title,
+        descriptionRes = R.string.whats_new_tv_polish_desc,
     ),
 )
 

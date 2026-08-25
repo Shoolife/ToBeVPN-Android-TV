@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -23,8 +24,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PowerSettingsNew
@@ -38,13 +41,16 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,17 +60,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -79,6 +89,8 @@ import com.tobevpn.tv.domain.model.UsageInfo
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.countryFlagForUi
+import com.tobevpn.tv.presentation.components.subscriptionExpiryDateColor
+import com.tobevpn.tv.presentation.components.textWithAccentedDate
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.serverCountryNameForUi
 import com.tobevpn.tv.presentation.serverDisplayName
@@ -86,12 +98,13 @@ import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
+import kotlinx.coroutines.delay
 
 @Composable
 fun MainScreen(
     onNavigateToServers: () -> Unit,
     onNavigateToPairing: () -> Unit,
-    onNavigateToSubscription: () -> Unit,
+    onNavigateToSubscription: (selectCurrentPlan: Boolean) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToStats: () -> Unit,
     onNavigateToSpeedTest: () -> Unit = {},
@@ -99,10 +112,14 @@ fun MainScreen(
 ) {
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val usageInfo by viewModel.usageInfo.collectAsStateWithLifecycle()
+    val sessionBytes by viewModel.sessionBytes.collectAsStateWithLifecycle()
+    val sessionTimeSeconds by viewModel.sessionTimeSeconds.collectAsStateWithLifecycle()
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val currentServer by viewModel.currentServer.collectAsStateWithLifecycle()
     val automaticServerSelection by viewModel.automaticServerSelection.collectAsStateWithLifecycle()
     val subscriptionUsageBlocked by viewModel.subscriptionUsageBlocked.collectAsStateWithLifecycle()
+    val subscriptionReminderSnooze by
+        viewModel.subscriptionReminderSnooze.collectAsStateWithLifecycle()
     var showBlockedDialog by remember { mutableStateOf(false) }
     val activity = LocalActivity.current
 
@@ -156,6 +173,10 @@ fun MainScreen(
         val cardIconSize = (32 * scale).dp
         val cardSpacing = (16 * scale).dp
         val flagSize = (36 * scale).sp
+        val leftVerticalPadding = maxOf(
+            screenPadding - (28 * scale).dp,
+            0.dp,
+        )
 
         // Tight text style
         val tightStyle = TextStyle(
@@ -176,13 +197,14 @@ fun MainScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(screenPadding),
+                .padding(horizontal = screenPadding),
         ) {
             // Left panel — connect button + status
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .padding(vertical = leftVerticalPadding),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -208,13 +230,27 @@ fun MainScreen(
                     style = tightStyle,
                 )
 
-                Spacer(modifier = Modifier.height(leftGap2))
+                Spacer(modifier = Modifier.height(leftGap2 * 0.5f))
 
-                // The updater dialog now lives at MainActivity level — it
-                // overlays every NavHost route as a modal, scrim-backed
-                // window instead of an inline card on Home.
+                (authState as? AuthState.Authenticated)?.let { auth ->
+                    SubscriptionReminderBanner(
+                        auth = auth,
+                        snoozedUntilMillis = subscriptionReminderSnooze.untilMillis,
+                        snoozedForExpiryMillis = subscriptionReminderSnooze.expiresAtMillis,
+                        onRenew = { onNavigateToSubscription(true) },
+                        onSnooze = {
+                            viewModel.snoozeSubscriptionReminder(auth.planExpiresAt)
+                        },
+                        scale = scale,
+                        cardPad = cardPad,
+                        cardCorner = cardCorner,
+                        titleSize = titleSize,
+                        labelSize = labelSize,
+                        tightStyle = tightStyle,
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(leftGap2))
+                Spacer(modifier = Modifier.height(cardGap))
 
                 // Server selector
                 ServerSelectorCard(
@@ -239,12 +275,15 @@ fun MainScreen(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .padding(vertical = screenPadding),
                 verticalArrangement = Arrangement.Center,
             ) {
 
             TrafficCard(
                 usageInfo = usageInfo,
+                sessionBytes = sessionBytes,
+                sessionTimeSeconds = sessionTimeSeconds,
                 authState = authState,
                 onClick = onNavigateToStats,
                 scale = scale,
@@ -262,7 +301,7 @@ fun MainScreen(
             TvMenuCard(
                 icon = Icons.Default.Speed,
                 title = stringResource(R.string.speed_test_title),
-                subtitle = stringResource(R.string.speed_test_subtitle),
+                subtitle = AnnotatedString(stringResource(R.string.speed_test_subtitle)),
                 onClick = onNavigateToSpeedTest,
                 scale = scale,
                 cardPad = cardPad,
@@ -282,7 +321,7 @@ fun MainScreen(
                     TvMenuCard(
                         icon = Icons.Default.Star,
                         title = stringResource(R.string.subscription),
-                        subtitle = stringResource(R.string.sign_in_required_hint),
+                        subtitle = AnnotatedString(stringResource(R.string.sign_in_required_hint)),
                         onClick = onNavigateToPairing,
                         scale = scale,
                         cardPad = cardPad,
@@ -305,26 +344,49 @@ fun MainScreen(
                         UserPlan.EXPIRED -> stringResource(R.string.plan_expired) to VpnRed
                         UserPlan.FREE_TRIAL -> (serverPlanName ?: stringResource(R.string.plan_free)) to VpnOrange
                     }
+                    val planSubtitle = when (auth.plan) {
+                        UserPlan.PAID,
+                        UserPlan.ADMIN,
+                        -> auth.planExpiresAt?.let { expiresAt ->
+                            val date = formatDate(expiresAt)
+                            val text = stringResource(R.string.plan_until, date)
+                            textWithAccentedDate(
+                                text = text,
+                                date = date,
+                                dateColor = subscriptionExpiryDateColor(
+                                    expiresAtMillis = expiresAt,
+                                    normalColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        .copy(alpha = 0.7f),
+                                ),
+                            )
+                        } ?: AnnotatedString("")
+                        UserPlan.EXPIRED -> AnnotatedString(stringResource(R.string.plan_renew))
+                        UserPlan.FREE_TRIAL -> AnnotatedString(
+                            stringResource(R.string.plan_limited_traffic),
+                        )
+                    }
                     TvMenuCard(
                         icon = Icons.Default.Star,
-                        title = "${stringResource(R.string.subscription)}: $planLabel",
-                        subtitle = when (auth.plan) {
-                            UserPlan.PAID -> auth.planExpiresAt?.let { stringResource(R.string.plan_until, formatDate(it)) } ?: ""
-                            UserPlan.ADMIN -> auth.planExpiresAt?.let { stringResource(R.string.plan_until, formatDate(it)) }
-                                ?: ""
-                            UserPlan.EXPIRED -> stringResource(R.string.plan_renew)
-                            UserPlan.FREE_TRIAL -> stringResource(R.string.plan_limited_traffic)
-                        },
+                        title = planLabel,
+                        subtitle = planSubtitle,
                         titleColor = planColor,
-                        onClick = onNavigateToSubscription,
+                        onClick = { onNavigateToSubscription(false) },
                         scale = scale,
                         cardPad = cardPad,
                         cardCorner = cardCorner,
                         cardSpacing = cardSpacing,
                         iconSize = cardIconSize,
-                        titleSize = titleSize,
+                        titleSize = titleSize * 1.15f,
                         bodySize = bodySize,
                         tightStyle = tightStyle,
+                        trailingContent = {
+                            SubscriptionUsageSummary(
+                                usageInfo = usageInfo,
+                                scale = scale,
+                                bodySize = bodySize,
+                                tightStyle = tightStyle,
+                            )
+                        },
                     )
                 }
             }
@@ -334,7 +396,7 @@ fun MainScreen(
             TvMenuCard(
                 icon = Icons.Default.Settings,
                 title = stringResource(R.string.settings),
-                subtitle = "",
+                subtitle = AnnotatedString(""),
                 onClick = onNavigateToSettings,
                 scale = scale,
                 cardPad = cardPad,
@@ -352,8 +414,213 @@ fun MainScreen(
     if (showBlockedDialog) {
         BlockedDialog(onDismiss = { showBlockedDialog = false })
     }
-
 }
+
+@Composable
+private fun SubscriptionReminderBanner(
+    auth: AuthState.Authenticated,
+    snoozedUntilMillis: Long,
+    snoozedForExpiryMillis: Long?,
+    onRenew: () -> Unit,
+    onSnooze: () -> Unit,
+    scale: Float,
+    cardPad: Dp,
+    cardCorner: Dp,
+    titleSize: androidx.compose.ui.unit.TextUnit,
+    labelSize: androidx.compose.ui.unit.TextUnit,
+    tightStyle: TextStyle,
+) {
+    val expiresAt = auth.planExpiresAt
+    var nowMillis by remember(
+        auth.plan,
+        expiresAt,
+        snoozedUntilMillis,
+        snoozedForExpiryMillis,
+    ) {
+        mutableLongStateOf(System.currentTimeMillis())
+    }
+
+    LaunchedEffect(auth.plan, expiresAt, snoozedUntilMillis, snoozedForExpiryMillis) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            nowMillis = now
+            val thresholdAt = expiresAt?.minus(3L * SUBSCRIPTION_DAY_MS)
+            val nextRelevantEvent = listOfNotNull(
+                thresholdAt?.takeIf { it > now },
+                expiresAt?.takeIf { it > now },
+                snoozedUntilMillis.takeIf { it > now },
+            ).minOrNull()
+            val untilNextEvent = nextRelevantEvent
+                ?.minus(now)
+                ?.coerceAtLeast(1_000L)
+                ?: SUBSCRIPTION_REMINDER_CLOCK_MAX_DELAY_MS
+            delay(minOf(untilNextEvent, SUBSCRIPTION_REMINDER_CLOCK_MAX_DELAY_MS))
+        }
+    }
+
+    if (!shouldShowSubscriptionReminder(auth.plan, expiresAt, nowMillis)) return
+
+    val persistentlySnoozed = isSubscriptionReminderSnoozed(
+        snoozedUntilMillis = snoozedUntilMillis,
+        snoozedForExpiryMillis = snoozedForExpiryMillis,
+        currentExpiryMillis = expiresAt,
+        nowMillis = nowMillis,
+    )
+    var dismissedLocally by remember(auth.plan, expiresAt) { mutableStateOf(false) }
+    if (persistentlySnoozed || dismissedLocally) return
+
+    val title = when {
+        auth.plan == UserPlan.EXPIRED -> stringResource(R.string.subscription_expired_title)
+        expiresAt == null -> return
+        else -> {
+            val daysLeft = subscriptionReminderDaysLeft(expiresAt, nowMillis)
+            if (daysLeft <= 0) {
+                stringResource(R.string.subscription_expiry_today)
+            } else {
+                pluralStringResource(
+                    R.plurals.subscription_expiring_title,
+                    daysLeft,
+                    daysLeft,
+                )
+            }
+        }
+    }
+
+    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val cardColor = if (darkTheme) Color(0xFF2A1A1A) else Color(0xFFFFEBEE)
+    val actionShape = RoundedCornerShape((10 * scale).dp)
+    val actionHeight = (36 * scale).dp
+    val focusBorderWidth = (2 * scale).dp
+    var renewFocused by remember { mutableStateOf(false) }
+    var laterFocused by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = cardPad),
+        shape = RoundedCornerShape(cardCorner),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = (14 * scale).dp,
+                    vertical = (16 * scale).dp,
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = title,
+                fontSize = titleSize * 0.9f,
+                lineHeight = titleSize,
+                fontWeight = FontWeight.Bold,
+                color = VpnRed,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = tightStyle,
+            )
+            Spacer(modifier = Modifier.height((8 * scale).dp))
+            Text(
+                text = stringResource(R.string.subscription_renew_reminder_desc),
+                fontSize = labelSize,
+                lineHeight = labelSize * 1.2f,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = tightStyle,
+            )
+            Spacer(modifier = Modifier.height((12 * scale).dp))
+
+            CompositionLocalProvider(
+                LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy((6 * scale).dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Button(
+                        onClick = onRenew,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(actionHeight)
+                            .then(
+                                if (renewFocused) {
+                                    Modifier.border(
+                                        focusBorderWidth,
+                                        MaterialTheme.colorScheme.onSurface,
+                                        actionShape,
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .onFocusChanged { renewFocused = it.isFocused },
+                        shape = actionShape,
+                        contentPadding = PaddingValues(horizontal = (12 * scale).dp),
+                        colors = if (darkTheme) {
+                            ButtonDefaults.buttonColors()
+                        } else {
+                            ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF3F3F3F),
+                                contentColor = Color.White,
+                            )
+                        },
+                    ) {
+                        Text(
+                            text = stringResource(R.string.subscription_renew_action),
+                            fontSize = labelSize,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            style = tightStyle,
+                        )
+                    }
+
+                    TextButton(
+                        onClick = {
+                            dismissedLocally = true
+                            onSnooze()
+                        },
+                        modifier = Modifier
+                            .height(actionHeight)
+                            .then(
+                                if (laterFocused) {
+                                    Modifier.border(
+                                        focusBorderWidth,
+                                        MaterialTheme.colorScheme.onSurface,
+                                        actionShape,
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .onFocusChanged { laterFocused = it.isFocused },
+                        shape = actionShape,
+                        contentPadding = PaddingValues(horizontal = (12 * scale).dp),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (darkTheme) Color.White else Color.Black,
+                        ),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.update_banner_later),
+                            fontSize = labelSize,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            style = tightStyle,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val SUBSCRIPTION_REMINDER_CLOCK_MAX_DELAY_MS = 60L * 60L * 1000L
 
 @Composable
 private fun BlockedDialog(onDismiss: () -> Unit) {
@@ -609,6 +876,8 @@ private fun ServerSelectorCard(
 @Composable
 private fun TrafficCard(
     usageInfo: UsageInfo,
+    sessionBytes: Long,
+    sessionTimeSeconds: Long,
     authState: AuthState,
     onClick: () -> Unit,
     scale: Float,
@@ -677,7 +946,7 @@ private fun TrafficCard(
                 ) {
                     StatItem(
                         label = stringResource(R.string.traffic),
-                        value = formatBytes(usageInfo.bytesUsed),
+                        value = formatBytes(sessionBytes),
                         modifier = Modifier.weight(1f),
                         valueSize = statValueSize,
                         labelSize = labelSize,
@@ -685,7 +954,7 @@ private fun TrafficCard(
                     )
                     StatItem(
                         label = stringResource(R.string.time),
-                        value = formatTime(usageInfo.timeUsedSeconds),
+                        value = formatTime(sessionTimeSeconds),
                         modifier = Modifier.weight(1f),
                         valueSize = statValueSize,
                         labelSize = labelSize,
@@ -741,7 +1010,7 @@ private fun TrafficCard(
 private fun TvMenuCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
-    subtitle: String,
+    subtitle: AnnotatedString,
     titleColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
     onClick: () -> Unit,
     scale: Float,
@@ -752,6 +1021,7 @@ private fun TvMenuCard(
     titleSize: androidx.compose.ui.unit.TextUnit,
     bodySize: androidx.compose.ui.unit.TextUnit,
     tightStyle: TextStyle,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val borderWidth = (2 * scale).dp
@@ -808,6 +1078,7 @@ private fun TvMenuCard(
                     )
                 }
             }
+            trailingContent?.invoke()
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
@@ -815,6 +1086,57 @@ private fun TvMenuCard(
                 modifier = Modifier.size((24 * scale).dp),
             )
         }
+    }
+}
+
+@Composable
+private fun SubscriptionUsageSummary(
+    usageInfo: UsageInfo,
+    scale: Float,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    tightStyle: TextStyle,
+) {
+    if (usageInfo.bytesLimit <= 0L) return
+
+    val progress = usageInfo.trafficProgress
+    Column(
+        modifier = Modifier
+            .widthIn(
+                min = (116 * scale).dp,
+                max = (148 * scale).dp,
+            )
+            .padding(
+                start = (12 * scale).dp,
+                end = (8 * scale).dp,
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "${formatBytes(usageInfo.bytesUsed)} / ${formatBytes(usageInfo.bytesLimit)}",
+            fontSize = bodySize,
+            autoSize = TextAutoSize.StepBased(
+                minFontSize = (11 * scale).sp,
+                maxFontSize = bodySize,
+                stepSize = (0.5f * scale).sp,
+            ),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            style = tightStyle,
+        )
+        Spacer(modifier = Modifier.height((4 * scale).dp))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height((9 * scale).dp)
+                .clip(RoundedCornerShape(99.dp)),
+            color = progressColor(progress),
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
     }
 }
 

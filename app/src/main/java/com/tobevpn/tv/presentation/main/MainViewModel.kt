@@ -6,6 +6,7 @@ import android.net.VpnService
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tobevpn.tv.data.local.PrefsDataStore
+import com.tobevpn.tv.data.local.SubscriptionReminderSnooze
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.data.repository.ServerQualityRepository
 import com.tobevpn.tv.data.repository.VpnRepository
@@ -43,6 +44,8 @@ class MainViewModel @Inject constructor(
 
     val connectionState: StateFlow<ConnectionState> = connectionManager.connectionState
     val usageInfo: StateFlow<UsageInfo> = connectionManager.usageInfo
+    val sessionTimeSeconds: StateFlow<Long> = connectionManager.sessionTimeSeconds
+    val sessionBytes: StateFlow<Long> = connectionManager.sessionBytes
 
     private val _serverPing = MutableStateFlow<Long>(0)
 
@@ -79,6 +82,14 @@ class MainViewModel @Inject constructor(
 
     val updateRequired: StateFlow<Boolean> = authRepository.observeUpdateRequired()
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val subscriptionReminderSnooze: StateFlow<SubscriptionReminderSnooze> =
+        prefsDataStore.subscriptionReminderSnooze
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5000),
+                SubscriptionReminderSnooze(),
+            )
 
     private val screenActive = MutableStateFlow(false)
 
@@ -198,6 +209,16 @@ class MainViewModel @Inject constructor(
 
     fun onPause() {
         screenActive.value = false
+    }
+
+    fun snoozeSubscriptionReminder(expiresAtMillis: Long?) {
+        viewModelScope.launch {
+            val nowMillis = System.currentTimeMillis()
+            prefsDataStore.setSubscriptionReminderSnooze(
+                untilMillis = subscriptionReminderSnoozeUntil(nowMillis, expiresAtMillis),
+                expiresAtMillis = expiresAtMillis,
+            )
+        }
     }
 
     /** Re-sync subscription & servers when app returns to foreground (throttled to 5s). */

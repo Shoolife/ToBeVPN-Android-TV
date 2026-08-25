@@ -239,8 +239,15 @@ private fun SettingsUpdateCheckRowContent(
         if (showCheckButton) {
             Spacer(Modifier.width(12.dp))
             OutlinedButton(
-                onClick = onCheck,
-                enabled = !checkInFlight,
+                // A focused TV control must stay enabled while its action is
+                // running. Disabling it makes Compose evict focus immediately,
+                // which looks like the active tab jumps to another control.
+                // The ViewModel also guards duplicate checks, but keep the
+                // click locally inert so repeated OK presses do no work.
+                onClick = {
+                    if (!checkInFlight) onCheck()
+                },
+                enabled = true,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = buttonTextColor,
