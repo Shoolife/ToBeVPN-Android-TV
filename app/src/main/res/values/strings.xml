@@ -520,4 +520,10 @@
     <string name="diagnostics_share_title">Export ToBeVPN log</string>
     <string name="diagnostics_share_subject">ToBeVPN diagnostic log</string>
     <string name="diagnostics_export_saved">No sharing app is installed. Log saved to:</string>
+    <string name="whats_new_safe_logout_v1029_title">Safe sign-out</string>
+    <string name="whats_new_safe_logout_v1029_desc">Signing out on the current TV no longer reissues the subscription link. The protective reset remains only when disconnecting another device.</string>
+    <string name="whats_new_session_recovery_v1029_title">Session recovery after updates</string>
+    <string name="whats_new_session_recovery_v1029_desc">Duplicate local sessions and false sign-outs after an update or temporary token error have been fixed.</string>
+    <string name="whats_new_pairing_v1029_title">Reliable sign-in</string>
+    <string name="whats_new_pairing_v1029_desc">The TV identity is synchronized before QR sign-in to prevent HTTP 403 errors.</string>
 </resources>

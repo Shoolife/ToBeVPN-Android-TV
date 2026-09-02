@@ -62,6 +62,20 @@ data class CurrentSubscriptionPlanInfo(
 
 private const val DEMO_TELEGRAM_ID = -1L
 
+internal fun isConfirmedRemoteDeviceUnlink(
+    httpCode: Int?,
+    message: String?,
+    responseBody: String?,
+): Boolean {
+    if (httpCode != null && httpCode !in setOf(400, 403)) return false
+    val text = listOfNotNull(message, responseBody)
+        .joinToString("\n")
+        .lowercase(Locale.US)
+    return (text.contains("current device") && text.contains("not linked")) ||
+        (text.contains("telegram_id") && text.contains("not authenticated")) ||
+        (text.contains("telegram_id") && text.contains("required"))
+}
+
 @Singleton
 class AuthRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -576,19 +590,17 @@ class AuthRepository @Inject constructor(
     }
 
     private fun Throwable.isRemoteDeviceUnlinkedError(): Boolean {
-        if (this is HttpException && code() == 401) return true
-        if (this is HttpException && code() !in setOf(400, 403)) return false
-        val body = if (this is HttpException) {
-            runCatching { response()?.errorBody()?.string() }.getOrDefault("")
+        val httpError = this as? HttpException
+        val body = if (httpError != null) {
+            runCatching { httpError.response()?.errorBody()?.string() }.getOrDefault("")
         } else {
             ""
         }
-        val text = listOfNotNull(message, body)
-            .joinToString("\n")
-            .lowercase(Locale.US)
-        return (text.contains("current device") && text.contains("not linked")) ||
-            (text.contains("telegram_id") && text.contains("not authenticated")) ||
-            (text.contains("telegram_id") && text.contains("required"))
+        return isConfirmedRemoteDeviceUnlink(
+            httpCode = httpError?.code(),
+            message = message,
+            responseBody = body,
+        )
     }
 
     private suspend fun clearLinkedIdentity() {
@@ -675,11 +687,10 @@ class AuthRepository @Inject constructor(
     /** Requests a server-generated Telegram auth token for the current TV session. */
     suspend fun requestTelegramAuth(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val session = sessionDao.getSession()
+            val session = preparePairingSession()
             val response = botApi.requestAuth(
                 AuthRequestDto(
-                    deviceId = getOrCreateDeviceId(),
-                    panelUserUuid = session?.panelUserUuid,
+                    panelUserUuid = session.panelUserUuid,
                 )
             )
             if (!response.success) {
@@ -697,6 +708,7 @@ class AuthRepository @Inject constructor(
 
     suspend fun requestDevicePairing(): Result<TvPairCreateResponseDto> = withContext(Dispatchers.IO) {
         return@withContext try {
+            preparePairingSession()
             val response = botApi.createTvPairing(TvPairCreateRequestDto())
             if (!response.success) {
                 return@withContext Result.failure(
@@ -711,6 +723,17 @@ class AuthRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Pairing must start from a freshly bootstrapped canonical device session.
+     * This repairs installs that still carry a pre-HWID device identity before
+     * the server binds the Telegram account to the TV.
+     */
+    private suspend fun preparePairingSession(): SessionEntity {
+        bootstrapManager.bootstrap()
+        return sessionDao.getSession()
+            ?: error("Device session missing after bootstrap")
     }
 
     /** Polls bot backend for auth completion. Returns true when Telegram auth is confirmed. */
@@ -951,16 +974,18 @@ class AuthRepository @Inject constructor(
         if (sessionDao.getSession() == null) return
 
         if (unlinkRemote) {
-            val deviceId = sessionDao.getSession()?.deviceId
-            if (!deviceId.isNullOrBlank()) {
-                try {
-                    botApi.unlinkDevice(DeviceUnlinkRequestDto(deviceId = deviceId))
-                } catch (_: Exception) {
-                }
-            }
-            try {
-                botApi.logoutDevice()
-            } catch (_: Exception) {
+            // Do not send a locally cached device_id here. The backend already
+            // derives the current device from the bearer session. Passing a
+            // stale ID makes the server treat logout as removal of another
+            // device and intentionally reissue the subscription link.
+            val currentDeviceUnlinked = runCatching {
+                botApi.unlinkDevice(DeviceUnlinkRequestDto()).success
+            }.getOrDefault(false)
+
+            // A successful current-device unlink already revokes its session.
+            // Fall back to the session-only endpoint only when unlink failed.
+            if (!currentDeviceUnlinked) {
+                runCatching { botApi.logoutDevice() }
             }
         }
 

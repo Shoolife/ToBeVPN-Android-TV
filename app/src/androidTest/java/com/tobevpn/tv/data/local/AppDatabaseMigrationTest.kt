@@ -82,15 +82,62 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
-    fun fullMigration10To12PreservesServerAndCreatesPromocodeQueue() {
+    fun migration12To13KeepsAuthenticatedSessionAndRemovesDuplicates() {
+        helper.createDatabase(TEST_DATABASE, 12).use { database ->
+            insertVersion12Session(
+                database = database,
+                deviceId = "stale-device",
+                authState = "UNAUTHENTICATED",
+                telegramId = null,
+                isLinked = false,
+                accessToken = "stale-access",
+                refreshToken = "stale-refresh",
+                accessExpiresAt = 9_000L,
+                refreshExpiresAt = 10_000L,
+            )
+            insertVersion12Session(
+                database = database,
+                deviceId = "linked-device",
+                authState = "AUTHENTICATED",
+                telegramId = 123L,
+                isLinked = true,
+                accessToken = "linked-access",
+                refreshToken = "linked-refresh",
+                accessExpiresAt = 1_000L,
+                refreshExpiresAt = 2_000L,
+            )
+        }
+
+        helper.runMigrationsAndValidate(
+            TEST_DATABASE,
+            13,
+            true,
+            DatabaseModule.MIGRATION_12_13,
+        ).use { database ->
+            database.query(
+                "SELECT deviceId, authState, telegramId, isLinked FROM session",
+            ).use { cursor ->
+                assertEquals(1, cursor.count)
+                cursor.moveToFirst()
+                assertEquals("linked-device", cursor.getString(cursor.getColumnIndexOrThrow("deviceId")))
+                assertEquals("AUTHENTICATED", cursor.getString(cursor.getColumnIndexOrThrow("authState")))
+                assertEquals(123L, cursor.getLong(cursor.getColumnIndexOrThrow("telegramId")))
+                assertEquals(1, cursor.getInt(cursor.getColumnIndexOrThrow("isLinked")))
+            }
+        }
+    }
+
+    @Test
+    fun fullMigration10To13PreservesServerAndCreatesPromocodeQueue() {
         helper.createDatabase(TEST_DATABASE, 10).use(::insertVersion10Server)
 
         helper.runMigrationsAndValidate(
             TEST_DATABASE,
-            12,
+            13,
             true,
             DatabaseModule.MIGRATION_10_11,
             DatabaseModule.MIGRATION_11_12,
+            DatabaseModule.MIGRATION_12_13,
         ).use { database ->
             database.query("SELECT COUNT(*) FROM servers").use { cursor ->
                 cursor.moveToFirst()
@@ -104,6 +151,41 @@ class AppDatabaseMigrationTest {
                 assertEquals(1, cursor.getInt(0))
             }
         }
+    }
+
+    private fun insertVersion12Session(
+        database: SupportSQLiteDatabase,
+        deviceId: String,
+        authState: String,
+        telegramId: Long?,
+        isLinked: Boolean,
+        accessToken: String,
+        refreshToken: String,
+        accessExpiresAt: Long,
+        refreshExpiresAt: Long,
+    ) {
+        database.execSQL(
+            "INSERT INTO session (deviceId, authState, telegramId, userPlan, planDisplayName, " +
+                "planExpiresAt, shortUuid, panelUserUuid, accessToken, refreshToken, " +
+                "accessExpiresAt, refreshExpiresAt, isLinked, isAdminProfile) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            arrayOf<Any?>(
+                deviceId,
+                authState,
+                telegramId,
+                if (isLinked) "PAID" else "FREE_TRIAL",
+                null,
+                null,
+                null,
+                null,
+                accessToken,
+                refreshToken,
+                accessExpiresAt,
+                refreshExpiresAt,
+                if (isLinked) 1 else 0,
+                0,
+            ),
+        )
     }
 
     private fun insertVersion10Server(database: SupportSQLiteDatabase) {

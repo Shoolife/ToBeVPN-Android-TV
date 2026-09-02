@@ -528,4 +528,10 @@
     <string name="diagnostics_share_title">Выгрузить лог ToBeVPN</string>
     <string name="diagnostics_share_subject">Диагностический лог ToBeVPN</string>
     <string name="diagnostics_export_saved">Приложения для отправки нет. Лог сохранён:</string>
+    <string name="whats_new_safe_logout_v1029_title">Безопасный выход</string>
+    <string name="whats_new_safe_logout_v1029_desc">Выход с текущего телевизора больше не перевыпускает ссылку подписки. Защитный сброс сохраняется только при отключении другого устройства.</string>
+    <string name="whats_new_session_recovery_v1029_title">Сессия сохраняется после обновления</string>
+    <string name="whats_new_session_recovery_v1029_desc">Устранены дубли локальной сессии и ложный выход из аккаунта после обновления или временной ошибки токена.</string>
+    <string name="whats_new_pairing_v1029_title">Надёжный повторный вход</string>
+    <string name="whats_new_pairing_v1029_desc">Перед QR-входом синхронизируется идентификатор телевизора, чтобы исключить ошибку HTTP 403.</string>
 </resources>

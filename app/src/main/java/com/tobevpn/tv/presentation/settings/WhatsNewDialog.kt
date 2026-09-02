@@ -91,18 +91,18 @@ private data class WhatsNewHighlight(
 private val currentHighlights = listOf(
     WhatsNewHighlight(
         icon = Icons.Filled.Shield,
-        titleRes = R.string.whats_new_server_selection_v1028_title,
-        descriptionRes = R.string.whats_new_server_selection_v1028_desc,
+        titleRes = R.string.whats_new_safe_logout_v1029_title,
+        descriptionRes = R.string.whats_new_safe_logout_v1029_desc,
     ),
     WhatsNewHighlight(
         icon = Icons.Filled.QrCode2,
-        titleRes = R.string.whats_new_qr_style_v1028_title,
-        descriptionRes = R.string.whats_new_qr_style_v1028_desc,
+        titleRes = R.string.whats_new_session_recovery_v1029_title,
+        descriptionRes = R.string.whats_new_session_recovery_v1029_desc,
     ),
     WhatsNewHighlight(
         icon = Icons.AutoMirrored.Filled.Login,
-        titleRes = R.string.whats_new_signin_layout_v1028_title,
-        descriptionRes = R.string.whats_new_signin_layout_v1028_desc,
+        titleRes = R.string.whats_new_pairing_v1029_title,
+        descriptionRes = R.string.whats_new_pairing_v1029_desc,
     ),
 )
 

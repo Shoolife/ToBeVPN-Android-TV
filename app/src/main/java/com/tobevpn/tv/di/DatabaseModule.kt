@@ -44,6 +44,7 @@ object DatabaseModule {
                 MIGRATION_9_10,
                 MIGRATION_10_11,
                 MIGRATION_11_12,
+                MIGRATION_12_13,
             )
             .fallbackToDestructiveMigration(dropAllTables = false)
             // Usage is updated while the tunnel is active. Keep committed
@@ -94,6 +95,28 @@ object DatabaseModule {
                 "CREATE UNIQUE INDEX IF NOT EXISTS " +
                     "index_pending_promocode_activations_requestId " +
                     "ON pending_promocode_activations(requestId)",
+            )
+        }
+    }
+
+    /**
+     * The session table is a logical singleton, but its deviceId primary key
+     * previously allowed an ID migration to insert a second row without
+     * removing the old one. Keep the authenticated/linked row when possible;
+     * otherwise retain the row with the freshest usable token pair.
+     */
+    internal val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "DELETE FROM session WHERE deviceId NOT IN (" +
+                    "SELECT deviceId FROM session ORDER BY " +
+                    "CASE WHEN authState = 'AUTHENTICATED' AND telegramId IS NOT NULL " +
+                    "THEN 1 ELSE 0 END DESC, " +
+                    "CASE WHEN isLinked = 1 THEN 1 ELSE 0 END DESC, " +
+                    "CASE WHEN accessToken IS NOT NULL AND refreshToken IS NOT NULL " +
+                    "THEN 1 ELSE 0 END DESC, " +
+                    "COALESCE(refreshExpiresAt, 0) DESC, " +
+                    "COALESCE(accessExpiresAt, 0) DESC, rowid DESC LIMIT 1)",
             )
         }
     }

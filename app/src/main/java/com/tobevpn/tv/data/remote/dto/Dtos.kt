@@ -139,7 +139,7 @@ data class LinkedDevicesDto(
 )
 
 data class DeviceUnlinkRequestDto(
-    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("device_id") val deviceId: String? = null,
 )
 
 data class DeviceUnlinkResponseDto(
