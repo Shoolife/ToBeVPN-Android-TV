@@ -23,6 +23,9 @@ import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.RealityFingerprintPolicy
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.domain.model.UsageInfo
+import com.tobevpn.tv.presentation.servers.isSelectedServer
+import com.tobevpn.tv.presentation.servers.serverSelectionKey
+import com.tobevpn.tv.presentation.servers.stableServerId
 import com.tobevpn.tv.util.SafeDiagnostics
 import com.tobevpn.tv.util.diagnosticServerDescriptor
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -630,8 +633,13 @@ class VpnConnectionManager @Inject constructor(
             .let { refreshed ->
                 val availableServers = refreshed.filter { it.isAvailable }
                 if (preserveServerSelection) {
-                    availableServers.firstOrNull { it.id == server.id }
-                        ?: availableServers.firstOrNull { it.name == server.name }
+                    availableServers.firstOrNull {
+                        isSelectedServer(
+                            server = it,
+                            selectedId = server.id,
+                            selectedKey = serverSelectionKey(server),
+                        )
+                    }
                 } else if (automatic) {
                     serverQualityRepository.selectBestServer(
                         servers = availableServers,
@@ -643,8 +651,13 @@ class VpnConnectionManager @Inject constructor(
                         forceProbe = excludedAutoServers.isNotEmpty(),
                     )
                 } else {
-                    availableServers.firstOrNull { it.id == server.id }
-                        ?: availableServers.firstOrNull { it.name == server.name }
+                    availableServers.firstOrNull {
+                        isSelectedServer(
+                            server = it,
+                            selectedId = server.id,
+                            selectedKey = serverSelectionKey(server),
+                        )
+                    }
                 }
             }
         val staleAllowed = resolved == null && allowStaleOnRefreshMiss &&
@@ -670,7 +683,10 @@ class VpnConnectionManager @Inject constructor(
 
     private suspend fun persistAutomaticSelectionIfNeeded(server: Server) {
         if (!prefsDataStore.isAutomaticServerSelection()) return
-        prefsDataStore.setAutomaticSelectedServerId(server.id)
+        prefsDataStore.setAutomaticSelectedServer(
+            id = stableServerId(server),
+            key = serverSelectionKey(server),
+        )
     }
 
     /**

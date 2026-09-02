@@ -357,6 +357,17 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         }
+                        if (splashFinished) {
+                            // Keep the mandatory update overlay inside the same
+                            // theme as the rest of the app. Dialog content keeps
+                            // the CompositionLocals from its call site, so
+                            // mounting it outside ToBeVPNTvTheme made a dark-app
+                            // update prompt fall back to Material's light scheme.
+                            MandatoryUpdateGate(
+                                updateRequired = updateRequired,
+                                onQuit = { finishAffinity() },
+                            )
+                        }
                     }
                 }
 
@@ -364,12 +375,6 @@ class MainActivity : AppCompatActivity() {
                     SplashScreen(
                         darkTheme = themeMode == AppThemeMode.DARK,
                         onFinished = { splashFinished = true },
-                    )
-                }
-                if (splashFinished) {
-                    MandatoryUpdateGate(
-                        updateRequired = updateRequired,
-                        onQuit = { finishAffinity() },
                     )
                 }
             }

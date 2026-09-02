@@ -127,8 +127,17 @@ fun ServerListScreen(
     viewModel: ServerListViewModel = hiltViewModel(),
 ) {
     val servers by viewModel.servers.collectAsStateWithLifecycle()
-    val selectedServerId by viewModel.selectedServerId.collectAsStateWithLifecycle()
-    val automaticServerSelection by viewModel.automaticServerSelection.collectAsStateWithLifecycle()
+    val serverSelection by viewModel.serverSelection.collectAsStateWithLifecycle()
+    val selectedManualServer = if (serverSelection.automatic) {
+        null
+    } else {
+        resolveSelectedServer(
+            servers = servers,
+            selectedId = serverSelection.selectedId,
+            selectedKey = serverSelection.selectedKey,
+            allowFallback = false,
+        )
+    }
     val isAdminProfile by viewModel.isAdminProfile.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -311,7 +320,7 @@ fun ServerListScreen(
                             LazyColumn(modifier = Modifier.fillMaxSize()) {
                                 item(key = "automatic") {
                                     AutomaticServerItem(
-                                        selected = automaticServerSelection,
+                                        selected = serverSelection.automatic,
                                         enabled = servers.any { it.isSelectable },
                                         onClick = {
                                             scope.launch {
@@ -331,7 +340,7 @@ fun ServerListScreen(
                                     val selectable = server.isSelectable
                                     ServerItem(
                                         server = server,
-                                        selected = !automaticServerSelection && selectable && server.id == selectedServerId,
+                                        selected = selectable && server.id == selectedManualServer?.id,
                                         enabled = selectable,
                                         onClick = {
                                             scope.launch {
@@ -879,24 +888,4 @@ private fun pingColor(ping: Long) = when {
     ping < 100 -> VpnGreen
     ping < 200 -> VpnOrange
     else -> VpnRed
-}
-
-private fun serverListItemKey(server: Server): String = buildString {
-    append(server.id)
-    append('|')
-    append(server.name)
-    append('|')
-    append(server.country)
-    append('|')
-    append(server.address)
-    append(':')
-    append(server.port)
-    append('|')
-    append(server.uuid)
-    append('|')
-    append(server.sni)
-    append('|')
-    append(server.publicKey)
-    append('|')
-    append(server.shortId)
 }

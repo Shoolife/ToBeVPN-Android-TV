@@ -14,6 +14,10 @@ import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.domain.model.UsageInfo
+import com.tobevpn.tv.presentation.servers.isSelectedServer
+import com.tobevpn.tv.presentation.servers.resolveSelectedServer
+import com.tobevpn.tv.presentation.servers.serverSelectionKey
+import com.tobevpn.tv.presentation.servers.stableServerId
 import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
@@ -50,22 +54,25 @@ class MainViewModel @Inject constructor(
     private val _serverPing = MutableStateFlow<Long>(0)
 
     private val selectedServerSnapshot: StateFlow<SelectedServerSnapshot> = combine(
-        prefsDataStore.selectedServerId,
-        prefsDataStore.automaticServerSelection,
+        prefsDataStore.serverSelection,
         vpnRepository.observeServers(),
         _serverPing,
-    ) { selectedId, automatic, servers, ping ->
-        val availableServers = servers.filter { it.isAvailable }
-        val selected = selectedId?.let { id -> availableServers.find { it.id == id } }
-        val server = selected ?: availableServers.firstOrNull().takeIf { automatic }
+    ) { selection, servers, ping ->
+        val server = resolveSelectedServer(
+            servers = servers,
+            selectedId = selection.selectedId,
+            selectedKey = selection.selectedKey,
+            allowFallback = selection.automatic,
+        )
         val selectionKey = server?.let {
-            "${if (automatic) "auto" else "manual"}:${selectedId ?: it.id}"
+            "${if (selection.automatic) "auto" else "manual"}:" +
+                (selection.selectedKey ?: selection.selectedId ?: stableServerId(it))
         }
         SelectedServerSnapshot(
             server = server?.copy(ping = if (ping >= 0) ping else server.ping),
             selectionKey = selectionKey,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SelectedServerSnapshot(null, null))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, SelectedServerSnapshot(null, null))
 
     val currentServer: StateFlow<Server?> = selectedServerSnapshot
         .map { it.server }
@@ -99,6 +106,7 @@ class MainViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             authRepository.getOrCreateDeviceId()
+            migrateLegacyServerSelection()
             // Start the subscription/server request immediately. Bot account
             // sync may be slow or unavailable and must not postpone learning
             // which VPN endpoints are usable.
@@ -164,12 +172,21 @@ class MainViewModel @Inject constructor(
         forceSelection: Boolean = false,
     ) {
         if (!prefsDataStore.isAutomaticServerSelection()) return
-        val selectedId = prefsDataStore.getSelectedServerId()
-        if (!forceSelection && selectedId != null && servers.any { it.id == selectedId && it.isAvailable }) {
+        val selection = prefsDataStore.getServerSelection()
+        if (!forceSelection && resolveSelectedServer(
+                servers = servers,
+                selectedId = selection.selectedId,
+                selectedKey = selection.selectedKey,
+                allowFallback = false,
+            ) != null
+        ) {
             return
         }
         val best = serverQualityRepository.selectBestServer(servers) ?: return
-        prefsDataStore.setAutomaticSelectedServerId(best.id)
+        prefsDataStore.setAutomaticSelectedServer(
+            id = stableServerId(best),
+            key = serverSelectionKey(best),
+        )
     }
 
     private suspend fun selectAutomaticServer(excludeServerId: String? = null): Server? {
@@ -179,8 +196,29 @@ class MainViewModel @Inject constructor(
             excludeServerId = excludeServerId,
             forceProbe = true,
         ) ?: return null
-        prefsDataStore.setAutomaticSelectedServerId(best.id)
+        prefsDataStore.setAutomaticSelectedServer(
+            id = stableServerId(best),
+            key = serverSelectionKey(best),
+        )
         return best
+    }
+
+    /** Backfill the durable key before the first refresh can replace old rows. */
+    private suspend fun migrateLegacyServerSelection() {
+        val selection = prefsDataStore.getServerSelection()
+        val selectedId = selection.selectedId ?: return
+        if (selection.selectedKey != null) return
+        val cached = vpnRepository.getServers().firstOrNull {
+            isSelectedServer(
+                server = it,
+                selectedId = selectedId,
+                selectedKey = null,
+            )
+        } ?: return
+        prefsDataStore.setSelectedServer(
+            id = stableServerId(cached),
+            key = serverSelectionKey(cached),
+        )
     }
 
     fun toggleConnection() {

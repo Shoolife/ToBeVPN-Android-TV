@@ -1,6 +1,5 @@
 package com.tobevpn.tv.presentation.subscription
 
-import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
@@ -13,7 +12,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -75,8 +73,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.focus.onFocusChanged
@@ -86,7 +82,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -106,23 +101,18 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.EncodeHintType
-import com.google.zxing.qrcode.QRCodeWriter
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.remote.dto.PurchasePlanDto
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.TvQrDialog
 import com.tobevpn.tv.presentation.components.subscriptionExpiryDateColor
 import com.tobevpn.tv.presentation.components.textWithAccentedDate
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -205,10 +195,6 @@ fun SubscriptionScreen(
         val buttonHeight = (48 * scale).dp
         val buttonPadH = (24 * scale).dp
         val buttonPadV = (10 * scale).dp
-        val qrDialogWidth = min(maxWidth * 0.56f, (520 * scale).dp)
-        val qrDialogSize = min(maxHeight * 0.52f, maxWidth * 0.34f)
-        val qrDialogCorner = (24 * scale).dp
-        val qrDialogPad = (28 * scale).dp
         val headerColor = MaterialTheme.colorScheme.onBackground
 
         val tightStyle = TextStyle(
@@ -624,21 +610,6 @@ fun SubscriptionScreen(
             PurchaseQrOverlay(
                 qrUrl = qrUrl,
                 onDismiss = { showQr = false },
-                dialogWidth = qrDialogWidth,
-                qrSize = qrDialogSize,
-                cardCorner = qrDialogCorner,
-                qrCorner = planCardCorner,
-                cardPad = qrDialogPad,
-                cardGap = cardGap,
-                smallGap = smallGap,
-                bodySize = bodySize,
-                labelSize = labelSize,
-                buttonHeight = buttonHeight,
-                buttonPadH = buttonPadH,
-                buttonPadV = buttonPadV,
-                borderWidth = borderWidth,
-                buttonCorner = planCardCorner,
-                tightStyle = tightStyle,
             )
         }
     }
@@ -1017,95 +988,15 @@ private fun measureTariffTitleWidthPx(
 private fun PurchaseQrOverlay(
     qrUrl: String,
     onDismiss: () -> Unit,
-    dialogWidth: Dp,
-    qrSize: Dp,
-    cardCorner: Dp,
-    qrCorner: Dp,
-    cardPad: Dp,
-    cardGap: Dp,
-    smallGap: Dp,
-    bodySize: androidx.compose.ui.unit.TextUnit,
-    labelSize: androidx.compose.ui.unit.TextUnit,
-    buttonHeight: Dp,
-    buttonPadH: Dp,
-    buttonPadV: Dp,
-    borderWidth: Dp,
-    buttonCorner: Dp,
-    tightStyle: TextStyle,
 ) {
-    val closeFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        closeFocusRequester.requestFocus()
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.56f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Card(
-            modifier = Modifier.width(dialogWidth),
-            shape = RoundedCornerShape(cardCorner),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-            ),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(cardPad),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(qrSize)
-                        .clip(RoundedCornerShape(qrCorner))
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    QrCode(
-                        data = qrUrl,
-                        modifier = Modifier
-                            .padding(cardPad * 0.55f)
-                            .fillMaxSize(),
-                    )
-                }
-                Spacer(modifier = Modifier.height(cardGap))
-                Text(
-                    text = stringResource(R.string.subscription_qr_hint),
-                    fontSize = labelSize,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    style = tightStyle,
-                )
-                Spacer(modifier = Modifier.height(smallGap))
-                Text(
-                    text = stringResource(R.string.subscription_sync_hint),
-                    fontSize = labelSize,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    style = tightStyle,
-                )
-                Spacer(modifier = Modifier.height(cardGap))
-                SubscriptionOutlinedActionButton(
-                    text = stringResource(R.string.subscription_change_plan),
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(closeFocusRequester),
-                    minHeight = buttonHeight,
-                    corner = buttonCorner,
-                    padding = PaddingValues(horizontal = buttonPadH, vertical = buttonPadV),
-                    borderWidth = borderWidth,
-                    textSize = bodySize,
-                    textWeight = FontWeight.Medium,
-                    tightStyle = tightStyle,
-                )
-            }
-        }
-    }
+    TvQrDialog(
+        data = qrUrl,
+        title = stringResource(R.string.subscription_qr_title),
+        description = stringResource(R.string.subscription_qr_hint),
+        supportingText = stringResource(R.string.subscription_sync_hint),
+        actionLabel = stringResource(R.string.subscription_change_plan),
+        onDismiss = onDismiss,
+    )
 }
 
 @Composable
@@ -1502,48 +1393,6 @@ private fun PlanOptionCard(
                     style = tightStyle,
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun QrCode(
-    data: String,
-    modifier: Modifier = Modifier,
-) {
-    var bitmap by remember(data) { mutableStateOf<ImageBitmap?>(null) }
-    var error by remember(data) { mutableStateOf(false) }
-
-    LaunchedEffect(data) {
-        val result = withContext(Dispatchers.Default) {
-            runCatching {
-                val hints = mapOf(
-                    EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
-                    EncodeHintType.MARGIN to 0,
-                )
-                val matrix = QRCodeWriter().encode(data, BarcodeFormat.QR_CODE, 512, 512, hints)
-                val w = matrix.width
-                val h = matrix.height
-                val pixels = IntArray(w * h) { i ->
-                    if (matrix[i % w, i / w]) android.graphics.Color.BLACK
-                    else android.graphics.Color.WHITE
-                }
-                Bitmap.createBitmap(pixels, w, h, Bitmap.Config.RGB_565).asImageBitmap()
-            }.getOrNull()
-        }
-        if (result != null) bitmap = result else error = true
-    }
-
-    when {
-        error -> Text(stringResource(R.string.error_generic), color = Color.Red)
-        bitmap == null -> Text("...", color = Color.Black)
-        else -> {
-            Image(
-                bitmap = bitmap!!,
-                contentDescription = "QR",
-                modifier = modifier,
-                contentScale = ContentScale.Fit,
-            )
         }
     }
 }

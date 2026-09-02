@@ -79,6 +79,7 @@
     <string name="subscription_buy_in_telegram">Купить в Telegram</string>
     <string name="subscription_renew_in_telegram">Продлить в Telegram</string>
     <string name="subscription_qr_hint">Отсканируйте телефоном, чтобы открыть Telegram и продолжить покупку.</string>
+    <string name="subscription_qr_title">Оплата подписки</string>
     <string name="subscription_sync_hint">Тариф обновится автоматически после оплаты.</string>
     <string name="subscription_change_plan">Выбрать другой тариф</string>
     <string name="subscription_loading_plans">Загружаем условия и цены тарифов…</string>
@@ -406,6 +407,12 @@
     <string name="whats_new_version">Версия %1$s</string>
     <string name="whats_new_intro">Главные улучшения установленной ТВ-версии</string>
     <string name="whats_new_done">Понятно</string>
+    <string name="whats_new_server_selection_v1028_title">Надёжный выбор серверов</string>
+    <string name="whats_new_server_selection_v1028_desc">Выбранный сервер больше не сбрасывается после обновления профиля. Исправлены флаги стран и сохранение ручного и автоматического выбора.</string>
+    <string name="whats_new_qr_style_v1028_title">Единый стиль QR-кодов</string>
+    <string name="whats_new_qr_style_v1028_desc">QR оплаты, рефералов и поддержки получили одинаковые карточки и кнопки. Цвета QR-окон и обязательного обновления теперь корректны в светлой и тёмной темах.</string>
+    <string name="whats_new_signin_layout_v1028_title">Свободнее экраны входа</string>
+    <string name="whats_new_signin_layout_v1028_desc">Увеличены боковые поля и расстояние между QR и подсказками. Блок входа через Telegram-бот расположен аккуратнее.</string>
     <string name="whats_new_subscription_status_title">Срок подписки всегда заметен</string>
     <string name="whats_new_subscription_status_desc">На главном экране появилось предупреждение о скором окончании подписки, даты получили понятный цветовой акцент, а кнопка продления сразу открывает текущий тариф.</string>
     <string name="whats_new_device_traffic_title">Трафик этого телевизора</string>

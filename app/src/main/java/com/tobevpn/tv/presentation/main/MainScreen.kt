@@ -91,6 +91,7 @@ import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.countryFlagForUi
 import com.tobevpn.tv.presentation.components.subscriptionExpiryDateColor
 import com.tobevpn.tv.presentation.components.textWithAccentedDate
+import com.tobevpn.tv.presentation.components.TvQrDialog
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.serverCountryNameForUi
 import com.tobevpn.tv.presentation.serverDisplayName
@@ -662,43 +663,12 @@ private fun BlockedDialog(onDismiss: () -> Unit) {
 @Composable
 private fun SupportQrDialog(onDismiss: () -> Unit) {
     val link = stringResource(R.string.block_appeal_link)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.block_appeal_button),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .size(320.dp)
-                        .background(Color.White, RoundedCornerShape(16.dp))
-                        .padding(16.dp),
-                ) {
-                    com.tobevpn.tv.presentation.components.QrCode(
-                        data = link,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(R.string.block_appeal_scan_hint),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK") }
-        },
+    TvQrDialog(
+        data = link,
+        title = stringResource(R.string.block_appeal_button),
+        description = stringResource(R.string.block_appeal_scan_hint),
+        actionLabel = stringResource(R.string.close),
+        onDismiss = onDismiss,
     )
 }
 

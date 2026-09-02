@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -128,11 +129,12 @@ fun PairingScreen(
         // Same adaptive sizing as the rest of the TV UI: one scale factor, every
         // dimension as (n * scale). The Telegram variants carry a caption under
         // the plate, so their QR is a step smaller.
-        val screenPad = (36 * scale).dp
+        val horizontalScreenPad = (44 * scale).dp
+        val verticalScreenPad = (36 * scale).dp
         val gap = (11 * scale).dp
         val qrSize = (maxHeight * (if (entry.usesTelegram()) 0.72f else 0.70f))
             .coerceAtMost(maxWidth * (if (entry.usesTelegram()) 0.44f else 0.40f))
-        val colSpacing = (30 * scale).dp
+        val colSpacing = (40 * scale).dp
         val titleSize = (40 * scale).sp
         val instructionSize = (21 * scale).sp
         val statusSize = (21 * scale).sp
@@ -147,7 +149,10 @@ fun PairingScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(screenPad),
+                    .padding(
+                        horizontal = horizontalScreenPad,
+                        vertical = verticalScreenPad,
+                    ),
             ) {
                 Row(
                     modifier = Modifier.weight(1f),
@@ -159,7 +164,11 @@ fun PairingScreen(
                         scale = scale,
                         footer = if (entry.usesTelegram()) {
                             {
-                                TelegramBotCaption(scale = scale, width = qrSize)
+                                TelegramBotCaption(
+                                    scale = scale,
+                                    width = qrSize,
+                                    modifier = Modifier.offset(y = (6 * scale).dp),
+                                )
                             }
                         } else {
                             null
@@ -354,9 +363,10 @@ private fun PairingEntry.waitingRes(): Int = when (this) {
 private fun TelegramBotCaption(
     scale: Float,
     width: Dp,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .width(width)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))

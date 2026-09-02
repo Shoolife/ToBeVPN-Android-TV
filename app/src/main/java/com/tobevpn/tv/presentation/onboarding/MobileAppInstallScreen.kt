@@ -68,8 +68,9 @@ fun MobileAppInstallScreen(
         // rememberTvProportionalScale, every dimension expressed as (n * scale),
         val scale = rememberTvProportionalScale(maxHeight = maxHeight)
 
-        val screenPad = (36 * scale).dp
-        val columnGap = (30 * scale).dp
+        val horizontalScreenPad = (44 * scale).dp
+        val verticalScreenPad = (36 * scale).dp
+        val columnGap = (40 * scale).dp
         val gap = (11 * scale).dp
         val qrSize = (maxHeight * 0.60f).coerceAtMost(maxWidth * 0.36f)
         val titleSize = (40 * scale).sp
@@ -92,7 +93,10 @@ fun MobileAppInstallScreen(
             scale = scale,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(screenPad),
+                .padding(
+                    horizontal = horizontalScreenPad,
+                    vertical = verticalScreenPad,
+                ),
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),

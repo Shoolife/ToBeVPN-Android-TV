@@ -61,8 +61,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tobevpn.tv.R
-import com.tobevpn.tv.presentation.components.QrCode
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.TvQrDialog
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import kotlinx.coroutines.launch
 
@@ -302,34 +302,11 @@ private fun TvSupportButton(
 @Composable
 private fun SupportQrDialog(onDismiss: () -> Unit) {
     val link = stringResource(R.string.block_appeal_link)
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                stringResource(R.string.support_contact_button),
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-            )
-        },
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    Modifier.size(300.dp).background(Color.White, RoundedCornerShape(14.dp)).padding(14.dp),
-                ) {
-                    QrCode(data = link, modifier = Modifier.fillMaxSize())
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.block_appeal_scan_hint),
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.close))
-            }
-        },
+    TvQrDialog(
+        data = link,
+        title = stringResource(R.string.support_contact_button),
+        description = stringResource(R.string.block_appeal_scan_hint),
+        actionLabel = stringResource(R.string.close),
+        onDismiss = onDismiss,
     )
 }

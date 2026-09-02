@@ -77,6 +77,7 @@
     <string name="subscription_buy_in_telegram">Buy in Telegram</string>
     <string name="subscription_renew_in_telegram">Renew in Telegram</string>
     <string name="subscription_qr_hint">Scan with your phone to open Telegram and continue the purchase.</string>
+    <string name="subscription_qr_title">Subscription payment</string>
     <string name="subscription_sync_hint">The plan updates automatically after payment.</string>
     <string name="subscription_change_plan">Choose another plan</string>
     <string name="subscription_loading_plans">Loading plan conditions and pricing…</string>
@@ -398,6 +399,12 @@
     <string name="whats_new_version">Version %1$s</string>
     <string name="whats_new_intro">The main improvements in the installed TV version</string>
     <string name="whats_new_done">Got it</string>
+    <string name="whats_new_server_selection_v1028_title">Reliable server selection</string>
+    <string name="whats_new_server_selection_v1028_desc">The selected server no longer resets after a profile refresh. Country flags and saved manual or automatic selection are now handled correctly.</string>
+    <string name="whats_new_qr_style_v1028_title">Consistent QR design</string>
+    <string name="whats_new_qr_style_v1028_desc">Payment, referral, and support QR codes now share the same cards and buttons. QR and required-update dialogs use correct colors in both themes.</string>
+    <string name="whats_new_signin_layout_v1028_title">Roomier sign-in screens</string>
+    <string name="whats_new_signin_layout_v1028_desc">Side padding and spacing between QR codes and instructions were increased. The Telegram bot sign-in label is positioned more cleanly.</string>
     <string name="whats_new_subscription_status_title">Subscription status at a glance</string>
     <string name="whats_new_subscription_status_desc">The Home screen now warns when a subscription is about to expire, dates use clear urgency colors, and Renew opens the current plan directly.</string>
     <string name="whats_new_device_traffic_title">Traffic from this TV</string>

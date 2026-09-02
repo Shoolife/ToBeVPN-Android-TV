@@ -116,9 +116,9 @@ import com.tobevpn.tv.R
 import com.tobevpn.tv.data.remote.dto.ReferralListItemDto
 import com.tobevpn.tv.data.remote.dto.ReferralUserDto
 import com.tobevpn.tv.data.remote.dto.ReferralsDto
-import com.tobevpn.tv.presentation.components.QrCode
 import com.tobevpn.tv.presentation.components.SpinningRefreshIcon
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.TvQrDialog
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.presentation.theme.VpnGreen
@@ -412,8 +412,6 @@ fun ReferralsScreen(
                     showReferralQr = false
                     restoreFocus(qrFocusRequester)
                 },
-                scale = scale,
-                tightStyle = tightStyle,
             )
         }
 
@@ -1757,92 +1755,14 @@ private fun InvitedFriendsDialog(
 private fun ReferralQrDialog(
     referralUrl: String,
     onDismiss: () -> Unit,
-    scale: Float,
-    tightStyle: TextStyle,
 ) {
-    val closeFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        withFrameNanos { }
-        runCatching { closeFocusRequester.requestFocus() }
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.62f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.48f)
-                    .widthIn(max = (560 * scale).dp),
-                shape = RoundedCornerShape((22 * scale).dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-                border = BorderStroke(
-                    (1 * scale).dp,
-                    MaterialTheme.colorScheme.outlineVariant,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding((22 * scale).dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = stringResource(R.string.referrals_qr_title),
-                        fontSize = (22 * scale).sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        style = tightStyle,
-                    )
-                    Spacer(modifier = Modifier.height((8 * scale).dp))
-                    Text(
-                        text = stringResource(R.string.referrals_qr_description),
-                        fontSize = (14 * scale).sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        style = tightStyle,
-                    )
-                    Spacer(modifier = Modifier.height((15 * scale).dp))
-                    Box(
-                        modifier = Modifier
-                            .size((236 * scale).dp)
-                            .clip(RoundedCornerShape((14 * scale).dp))
-                            .background(Color.White)
-                            .padding((14 * scale).dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        QrCode(
-                            data = referralUrl,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                    Spacer(modifier = Modifier.height((15 * scale).dp))
-                    ReferralActionButton(
-                        text = stringResource(R.string.close),
-                        onClick = onDismiss,
-                        focusRequester = closeFocusRequester,
-                        upFocusRequester = FocusRequester.Cancel,
-                        downFocusRequester = FocusRequester.Cancel,
-                        leftFocusRequester = FocusRequester.Cancel,
-                        rightFocusRequester = FocusRequester.Cancel,
-                        primary = true,
-                        scale = scale,
-                        tightStyle = tightStyle,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
-    }
+    TvQrDialog(
+        data = referralUrl,
+        title = stringResource(R.string.referrals_qr_title),
+        description = stringResource(R.string.referrals_qr_description),
+        actionLabel = stringResource(R.string.close),
+        onDismiss = onDismiss,
+    )
 }
 
 @Composable

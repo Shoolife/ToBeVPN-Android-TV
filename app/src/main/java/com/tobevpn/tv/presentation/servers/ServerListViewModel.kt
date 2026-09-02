@@ -3,6 +3,7 @@ package com.tobevpn.tv.presentation.servers
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tobevpn.tv.data.local.PrefsDataStore
+import com.tobevpn.tv.data.local.ServerSelectionPreferences
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.data.repository.ServerQualityRepository
 import com.tobevpn.tv.data.repository.VpnRepository
@@ -50,11 +51,16 @@ class ServerListViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val selectedServerId: StateFlow<String?> = prefsDataStore.selectedServerId
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    val automaticServerSelection: StateFlow<Boolean> = prefsDataStore.automaticServerSelection
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val serverSelection: StateFlow<ServerSelectionPreferences> = prefsDataStore.serverSelection
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            ServerSelectionPreferences(
+                selectedId = null,
+                selectedKey = null,
+                automatic = true,
+            ),
+        )
 
     val isAdminProfile: StateFlow<Boolean> = authRepository.observeAuthState()
         .map { state -> (state as? AuthState.Authenticated)?.isAdminProfile == true }
@@ -115,7 +121,10 @@ class ServerListViewModel @Inject constructor(
     suspend fun selectAutomaticServer(): Boolean {
         val best = serverQualityRepository.selectBestServer(servers.value, forceProbe = true)
             ?: return false
-        prefsDataStore.setAutomaticSelectedServerId(best.id)
+        prefsDataStore.setAutomaticSelectedServer(
+            id = stableServerId(best),
+            key = serverSelectionKey(best),
+        )
         return true
     }
 
@@ -123,7 +132,10 @@ class ServerListViewModel @Inject constructor(
         // Focus and server metadata can update between key-down and this call.
         // Never persist an offline or failed-probe entry.
         if (!server.isSelectable) return false
-        prefsDataStore.setManualSelectedServerId(server.id)
+        prefsDataStore.setManualSelectedServer(
+            id = stableServerId(server),
+            key = serverSelectionKey(server),
+        )
         return true
     }
 }

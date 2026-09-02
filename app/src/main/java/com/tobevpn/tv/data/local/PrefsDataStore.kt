@@ -25,6 +25,17 @@ data class SubscriptionReminderSnooze(
     val expiresAtMillis: Long? = null,
 )
 
+/**
+ * Read and write the complete server selection atomically. A profile can keep
+ * its visible name while its endpoint rotates, so the durable name key must
+ * never be observed together with an ID from another DataStore emission.
+ */
+data class ServerSelectionPreferences(
+    val selectedId: String?,
+    val selectedKey: String?,
+    val automatic: Boolean,
+)
+
 @Singleton
 class PrefsDataStore @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -33,6 +44,7 @@ class PrefsDataStore @Inject constructor(
         val DEVICE_ID = stringPreferencesKey("device_id")
         val ONBOARDING_SEEN = booleanPreferencesKey("onboarding_seen")
         val SELECTED_SERVER_ID = stringPreferencesKey("selected_server_id")
+        val SELECTED_SERVER_KEY = stringPreferencesKey("selected_server_key")
         val AUTOMATIC_SERVER_SELECTION = booleanPreferencesKey("automatic_server_selection")
         val SERVER_QUALITY_STATE = stringPreferencesKey("server_quality_state")
         val USD_RATE = doublePreferencesKey("usd_rate")
@@ -61,10 +73,26 @@ class PrefsDataStore @Inject constructor(
 
     val deviceId: Flow<String?> = context.dataStore.data.map { it[Keys.DEVICE_ID] }
     val onboardingSeen: Flow<Boolean> = context.dataStore.data.map { it[Keys.ONBOARDING_SEEN] ?: false }
-    val selectedServerId: Flow<String?> = context.dataStore.data.map { it[Keys.SELECTED_SERVER_ID] }
-    val automaticServerSelection: Flow<Boolean> = context.dataStore.data.map {
-        it[Keys.AUTOMATIC_SERVER_SELECTION] ?: (it[Keys.SELECTED_SERVER_ID] == null)
-    }
+    val serverSelection: Flow<ServerSelectionPreferences> = context.dataStore.data
+        .map { preferences ->
+            val selectedId = preferences[Keys.SELECTED_SERVER_ID]
+            ServerSelectionPreferences(
+                selectedId = selectedId,
+                selectedKey = preferences[Keys.SELECTED_SERVER_KEY],
+                automatic = preferences[Keys.AUTOMATIC_SERVER_SELECTION]
+                    ?: (selectedId == null),
+            )
+        }
+        .distinctUntilChanged()
+    val selectedServerId: Flow<String?> = serverSelection
+        .map { it.selectedId }
+        .distinctUntilChanged()
+    val selectedServerKey: Flow<String?> = serverSelection
+        .map { it.selectedKey }
+        .distinctUntilChanged()
+    val automaticServerSelection: Flow<Boolean> = serverSelection
+        .map { it.automatic }
+        .distinctUntilChanged()
     val themeModeOrNull: Flow<AppThemeMode?> = context.dataStore.data
         .map { preferences ->
             AppThemeMode.entries.firstOrNull { it.name == preferences[Keys.THEME_MODE] }
@@ -129,32 +157,45 @@ class PrefsDataStore @Inject constructor(
         context.dataStore.edit {
             val automatic = it[Keys.AUTOMATIC_SERVER_SELECTION] ?: (it[Keys.SELECTED_SERVER_ID] == null)
             it[Keys.SELECTED_SERVER_ID] = id
+            it.remove(Keys.SELECTED_SERVER_KEY)
             it[Keys.AUTOMATIC_SERVER_SELECTION] = automatic
         }
     }
 
-    suspend fun setManualSelectedServerId(id: String) {
+    suspend fun setSelectedServer(id: String, key: String) {
+        context.dataStore.edit {
+            val automatic = it[Keys.AUTOMATIC_SERVER_SELECTION] ?: (it[Keys.SELECTED_SERVER_ID] == null)
+            it[Keys.SELECTED_SERVER_ID] = id
+            it[Keys.SELECTED_SERVER_KEY] = key
+            it[Keys.AUTOMATIC_SERVER_SELECTION] = automatic
+        }
+    }
+
+    suspend fun setManualSelectedServer(id: String, key: String) {
         context.dataStore.edit {
             it[Keys.SELECTED_SERVER_ID] = id
+            it[Keys.SELECTED_SERVER_KEY] = key
             it[Keys.AUTOMATIC_SERVER_SELECTION] = false
         }
     }
 
-    suspend fun setAutomaticSelectedServerId(id: String) {
+    suspend fun setAutomaticSelectedServer(id: String, key: String) {
         context.dataStore.edit {
             it[Keys.SELECTED_SERVER_ID] = id
+            it[Keys.SELECTED_SERVER_KEY] = key
             it[Keys.AUTOMATIC_SERVER_SELECTION] = true
         }
     }
 
     suspend fun isAutomaticServerSelection(): Boolean {
-        val prefs = context.dataStore.data.first()
-        return prefs[Keys.AUTOMATIC_SERVER_SELECTION] ?: (prefs[Keys.SELECTED_SERVER_ID] == null)
+        return getServerSelection().automatic
     }
 
     suspend fun getSelectedServerId(): String? {
-        return context.dataStore.data.first()[Keys.SELECTED_SERVER_ID]
+        return getServerSelection().selectedId
     }
+
+    suspend fun getServerSelection(): ServerSelectionPreferences = serverSelection.first()
 
     suspend fun getServerQualityState(): String? {
         return context.dataStore.data.first()[Keys.SERVER_QUALITY_STATE]
