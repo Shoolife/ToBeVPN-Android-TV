@@ -71,6 +71,9 @@ import com.tobevpn.tv.R
 import com.tobevpn.tv.data.remote.dto.LinkedDeviceDto
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
 import com.tobevpn.tv.presentation.theme.VpnGreen
 
 @Composable
@@ -151,6 +154,11 @@ fun DevicesScreen(
         } else {
             1f
         }
+        val scrollState = rememberScrollState()
+        val cues = rememberVerticalScrollCueState(
+            canScrollBackward = scrollState.canScrollBackward,
+            canScrollForward = scrollState.canScrollForward,
+        )
 
         val tightStyle = TextStyle(
             platformStyle = PlatformTextStyle(includeFontPadding = false),
@@ -160,12 +168,21 @@ fun DevicesScreen(
             ),
         )
 
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(screenPad)
-                .verticalScroll(rememberScrollState()),
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalFadingEdges(
+                        topAlpha = cues.topAlpha,
+                        bottomAlpha = cues.bottomAlpha,
+                        fadeHeight = (38 * scale).dp,
+                    )
+                    .verticalScroll(scrollState),
+            ) {
             // Header: back, title, refresh
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -365,6 +382,8 @@ fun DevicesScreen(
                     }
                 }
             }
+            }
+            VerticalScrollCues(state = cues, scale = scale)
         }
     }
 }

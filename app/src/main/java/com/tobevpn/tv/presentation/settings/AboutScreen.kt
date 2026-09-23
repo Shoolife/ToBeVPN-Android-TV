@@ -10,7 +10,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -35,6 +34,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,8 +47,6 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Share
@@ -75,7 +73,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -102,6 +99,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnRed
@@ -512,6 +512,8 @@ internal fun DiagnosticCard(
     infoButtonModifier: Modifier = Modifier,
     startButtonModifier: Modifier = Modifier,
     historyButtonModifier: Modifier = Modifier,
+    compact: Boolean = false,
+    compactLogSpacing: Boolean = false,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val summary = if (state.hasCurrentLog && state.currentLogDate != null) {
@@ -523,6 +525,12 @@ internal fun DiagnosticCard(
     } else {
         stringResource(R.string.diagnostics_log_empty)
     }
+    val useCompactLogSpacing = compact || compactLogSpacing
+    val sectionGap = if (useCompactLogSpacing) 5.dp else 10.dp
+    val summaryVerticalPadding = if (useCompactLogSpacing) 3.dp else 9.dp
+    val summaryTopGap = if (compactLogSpacing) 2.dp else sectionGap
+    val summaryTopPadding = if (compactLogSpacing) 0.dp else summaryVerticalPadding
+    val infoButtonSize = if (compact) 40.dp else 44.dp
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -555,21 +563,24 @@ internal fun DiagnosticCard(
                     icon = Icons.Default.Info,
                     fontSize = bodySize,
                     onClick = onInfo,
-                    modifier = Modifier.size(44.dp).then(infoButtonModifier),
+                    modifier = Modifier.size(infoButtonSize).then(infoButtonModifier),
                 )
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(summaryTopGap))
             Text(
                 summary,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 9.dp, bottom = 9.dp),
+                    .padding(
+                        top = summaryTopPadding,
+                        bottom = summaryVerticalPadding,
+                    ),
                 fontSize = bodySize,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(sectionGap))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TvOutlinedAction(
                     label = stringResource(
@@ -655,15 +666,9 @@ internal fun DiagnosticInfoDialog(
     val scrollFocus = remember { FocusRequester() }
     val doneFocus = remember { FocusRequester() }
     var doneFocused by remember { mutableStateOf(false) }
-    val topAlpha by animateFloatAsState(
-        if (scrollState.value > 0) 1f else 0f,
-        tween(180),
-        label = "diagnostic-info-top",
-    )
-    val bottomAlpha by animateFloatAsState(
-        if (scrollState.value < scrollState.maxValue) 1f else 0f,
-        tween(180),
-        label = "diagnostic-info-bottom",
+    val cues = rememberVerticalScrollCueState(
+        canScrollBackward = scrollState.canScrollBackward,
+        canScrollForward = scrollState.canScrollForward,
     )
     val dialogBackground = if (darkTheme) Color(0xFF202020) else Color.White
     val outline = if (darkTheme) Color(0xFF494949) else Color(0xFFD2D4D8)
@@ -712,6 +717,11 @@ internal fun DiagnosticInfoDialog(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .verticalFadingEdges(
+                                    topAlpha = cues.topAlpha,
+                                    bottomAlpha = cues.bottomAlpha,
+                                    fadeHeight = 38.dp,
+                                )
                                 .verticalScroll(scrollState)
                                 .focusRequester(scrollFocus)
                                 .focusProperties { down = doneFocus }
@@ -756,18 +766,7 @@ internal fun DiagnosticInfoDialog(
                                 if (index != paragraphs.lastIndex) Spacer(Modifier.height(10.dp))
                             }
                         }
-                        Icon(
-                            Icons.Default.KeyboardArrowUp,
-                            null,
-                            modifier = Modifier.align(Alignment.TopCenter).scale(topAlpha),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Icon(
-                            Icons.Default.KeyboardArrowDown,
-                            null,
-                            modifier = Modifier.align(Alignment.BottomCenter).scale(bottomAlpha),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        VerticalScrollCues(state = cues)
                     }
                     Spacer(Modifier.height(16.dp))
                     Button(
@@ -806,6 +805,11 @@ internal fun DiagnosticHistoryDialog(
     val dialogBackground = MaterialTheme.colorScheme.background
     val outline = if (darkTheme) Color(0xFF494949) else Color(0xFFD2D4D8)
     val closeFocus = remember { FocusRequester() }
+    val listState = rememberLazyListState()
+    val listCues = rememberVerticalScrollCueState(
+        canScrollBackward = listState.canScrollBackward,
+        canScrollForward = listState.canScrollForward,
+    )
     LaunchedEffect(Unit) {
         withFrameNanos { }
         runCatching { closeFocus.requestFocus() }
@@ -854,18 +858,32 @@ internal fun DiagnosticHistoryDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        else -> LazyColumn(
-                            modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
-                            verticalArrangement = Arrangement.spacedBy(9.dp),
+                        else -> Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp),
                         ) {
-                            items(state.logs, key = DiagnosticLogFileInfo::fileName) { log ->
-                                DiagnosticHistoryRow(
-                                    log = log,
-                                    deleting = state.deletingFileName == log.fileName,
-                                    onShare = { onShare(log.fileName) },
-                                    onDelete = { onDelete(log) },
-                                )
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalFadingEdges(
+                                        topAlpha = listCues.topAlpha,
+                                        bottomAlpha = listCues.bottomAlpha,
+                                        fadeHeight = 38.dp,
+                                    ),
+                                verticalArrangement = Arrangement.spacedBy(9.dp),
+                            ) {
+                                items(state.logs, key = DiagnosticLogFileInfo::fileName) { log ->
+                                    DiagnosticHistoryRow(
+                                        log = log,
+                                        deleting = state.deletingFileName == log.fileName,
+                                        onShare = { onShare(log.fileName) },
+                                        onDelete = { onDelete(log) },
+                                    )
+                                }
                             }
+                            VerticalScrollCues(state = listCues)
                         }
                     }
                     Spacer(Modifier.height(14.dp))

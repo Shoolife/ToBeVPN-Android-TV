@@ -1,10 +1,15 @@
 package com.tobevpn.tv
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.ViewConfiguration
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.core.animateFloatAsState
@@ -14,6 +19,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.setValue
@@ -24,6 +30,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavHostController
+import androidx.core.content.ContextCompat
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.repository.AuthRepository
@@ -172,9 +179,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Back is intentionally disabled at the graph root. On an
-        // authenticated session this is the Home/connect screen, which must
-        // stay open for both a short click and a held remote key.
+        // A short Back click at the graph root follows the normal Android TV
+        // convention and returns to the launcher without killing the process
+        // (or an active VPN service). A held Back key never reaches this path:
+        // dispatchKeyEvent marks it as longBackHandled and consumes ACTION_UP,
+        // while the quiet-period guard swallows any trailing remote events.
+        moveTaskToBack(true)
     }
 
     private fun armBackSuppression() {
@@ -246,7 +256,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private companion object {
-        const val BACK_RELEASE_QUIET_PERIOD_MS = 2_500L
+        const val BACK_RELEASE_QUIET_PERIOD_MS = 500L
         const val ACTIVATION_RELEASE_QUIET_PERIOD_MS = 1_500L
     }
 
@@ -294,6 +304,27 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val updateRequired by prefsDataStore.observeUpdateRequired()
                 .collectAsStateWithLifecycle(initialValue = false)
+            val notificationPermissionPrompted by prefsDataStore.notificationPermissionPrompted
+                .collectAsStateWithLifecycle(initialValue = false)
+            val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission(),
+            ) {
+                lifecycleScope.launch {
+                    prefsDataStore.setNotificationPermissionPrompted()
+                }
+            }
+            LaunchedEffect(notificationPermissionPrompted) {
+                if (
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    !notificationPermissionPrompted &&
+                    ContextCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.POST_NOTIFICATIONS,
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
             val savedThemeMode by prefsDataStore.themeModeOrNull.collectAsStateWithLifecycle(
                 initialValue = null,
             )

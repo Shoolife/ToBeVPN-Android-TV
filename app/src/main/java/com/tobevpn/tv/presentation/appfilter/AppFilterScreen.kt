@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -58,6 +60,9 @@ import com.tobevpn.tv.data.InstalledAppItem
 import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
@@ -295,32 +300,47 @@ fun AppFilterScreen(
                         }
                         state.mode == AppFilterMode.OFF -> Unit
                         else -> {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = (8 * scale).dp),
-                            ) {
-                                items(state.visibleApps, key = { it.packageName }) { app ->
-                                    val focusRequester = remember(app.packageName) {
-                                        FocusRequester()
+                            val listState = rememberLazyListState()
+                            val cues = rememberVerticalScrollCueState(
+                                canScrollBackward = listState.canScrollBackward,
+                                canScrollForward = listState.canScrollForward,
+                            )
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalFadingEdges(
+                                            topAlpha = cues.topAlpha,
+                                            bottomAlpha = cues.bottomAlpha,
+                                            fadeHeight = (38 * scale).dp,
+                                        ),
+                                    contentPadding = PaddingValues(bottom = (8 * scale).dp),
+                                ) {
+                                    items(state.visibleApps, key = { it.packageName }) { app ->
+                                        val focusRequester = remember(app.packageName) {
+                                            FocusRequester()
+                                        }
+                                        AppRow(
+                                            app = app,
+                                            selected = app.packageName in state.selected,
+                                            mode = state.mode,
+                                            provider = viewModel.installedAppsProvider,
+                                            onToggle = {
+                                                runKeepingFocus(focusRequester) {
+                                                    viewModel.toggle(app.packageName)
+                                                }
+                                            },
+                                            focusRequester = focusRequester,
+                                            scale = scale,
+                                            titleSize = bodySize,
+                                            secondarySize = secondarySize,
+                                            tightStyle = tightStyle,
+                                        )
+                                        Spacer(modifier = Modifier.height((8 * scale).dp))
                                     }
-                                    AppRow(
-                                        app = app,
-                                        selected = app.packageName in state.selected,
-                                        mode = state.mode,
-                                        provider = viewModel.installedAppsProvider,
-                                        onToggle = {
-                                            runKeepingFocus(focusRequester) {
-                                                viewModel.toggle(app.packageName)
-                                            }
-                                        },
-                                        focusRequester = focusRequester,
-                                        scale = scale,
-                                        titleSize = bodySize,
-                                        secondarySize = secondarySize,
-                                        tightStyle = tightStyle,
-                                    )
-                                    Spacer(modifier = Modifier.height((8 * scale).dp))
                                 }
+                                VerticalScrollCues(state = cues, scale = scale)
                             }
                         }
                     }

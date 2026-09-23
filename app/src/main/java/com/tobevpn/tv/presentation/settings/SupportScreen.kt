@@ -26,8 +26,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,7 +47,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -63,6 +60,9 @@ import androidx.compose.ui.unit.sp
 import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.components.TvQrDialog
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import kotlinx.coroutines.launch
 
@@ -97,15 +97,9 @@ fun SupportScreen(
     var expandedIndex by remember { mutableStateOf<Int?>(null) }
     val scrollState = rememberScrollState()
     val scrollScope = rememberCoroutineScope()
-    val topAlpha by animateFloatAsState(
-        if (scrollState.value > 0) 1f else 0f,
-        tween(180),
-        label = "faq-top",
-    )
-    val bottomAlpha by animateFloatAsState(
-        if (scrollState.value < scrollState.maxValue) 1f else 0f,
-        tween(180),
-        label = "faq-bottom",
+    val cues = rememberVerticalScrollCueState(
+        canScrollBackward = scrollState.canScrollBackward,
+        canScrollForward = scrollState.canScrollForward,
     )
 
     LaunchedEffect(Unit) {
@@ -155,6 +149,11 @@ fun SupportScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .verticalFadingEdges(
+                            topAlpha = cues.topAlpha,
+                            bottomAlpha = cues.bottomAlpha,
+                            fadeHeight = (38 * scale).dp,
+                        )
                         .verticalScroll(scrollState)
                         .padding(horizontal = (4 * scale).dp),
                     verticalArrangement = Arrangement.spacedBy((9 * scale).dp),
@@ -174,22 +173,7 @@ fun SupportScreen(
                     }
                     Spacer(Modifier.height(6.dp))
                 }
-                Icon(
-                    Icons.Default.KeyboardArrowUp,
-                    null,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .graphicsLayer { alpha = topAlpha },
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Icon(
-                    Icons.Default.KeyboardArrowDown,
-                    null,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .graphicsLayer { alpha = bottomAlpha },
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                VerticalScrollCues(state = cues, scale = scale)
             }
             Spacer(Modifier.height((10 * scale).dp))
             TvSupportButton(

@@ -1517,8 +1517,7 @@ class VpnConnectionManager @Inject constructor(
             downlinkEvidenceAccumulator.reset()
             _sessionTimeSeconds.value = 0L
             // Startup probe bytes do not belong to the user session.
-            XRayCore.queryStats("proxy", "uplink")
-            XRayCore.queryStats("proxy", "downlink")
+            XRayCore.queryOutboundTrafficStats("proxy")
             probeDownlinkEvidenceGate.reset()
             usageRepository.setLastConnected(connectionStartTime)
             sessionStartUsageBytes = usageRepository.getUsage().bytesUsed
@@ -1878,8 +1877,17 @@ class VpnConnectionManager @Inject constructor(
     private suspend fun drainTrafficCounters(addTimeSeconds: Long) {
         withContext(NonCancellable) {
             statsMutex.withLock {
-                val upBytes = XRayCore.queryStats("proxy", "uplink")
-                val downBytes = XRayCore.queryStats("proxy", "downlink")
+                val loopGenerationBeforeQuery = XRayCore.currentLoopGeneration
+                val trafficStats = XRayCore.queryOutboundTrafficStats("proxy")
+                val upBytes = trafficStats.uplinkBytes
+                val downBytes = trafficStats.downlinkBytes
+                val loopGenerationAfterQuery = XRayCore.currentLoopGeneration
+                val stableLoopGeneration =
+                    if (loopGenerationBeforeQuery == loopGenerationAfterQuery) {
+                        loopGenerationAfterQuery
+                    } else {
+                        -1
+                    }
                 val delta = upBytes + downBytes
                 if (delta <= 0L && addTimeSeconds <= 0L) return@withLock
 
@@ -1889,15 +1897,18 @@ class VpnConnectionManager @Inject constructor(
                 diagnosticIntervalDownlinkBytes += downBytes
                 val suppressDownlinkEvidence = probeDownlinkEvidenceGate
                     .suppressEvidenceForCurrentDrain()
-                if (downBytes > 0L && !suppressDownlinkEvidence) {
+                if (downBytes > 0L && !suppressDownlinkEvidence && stableLoopGeneration > 0) {
                     val now = SystemClock.elapsedRealtime()
                     lastTunnelDownlinkElapsedMs = now
                     downlinkEvidenceAccumulator.record(
                         observedAtMs = now,
-                        loopGeneration = XRayCore.currentLoopGeneration,
+                        loopGeneration = stableLoopGeneration,
                         bytes = downBytes,
                     )
-                    qualityDownlinkBytesAccumulated += downBytes
+                    qualityDownlinkBytesAccumulated = saturatingTrafficAdd(
+                        qualityDownlinkBytesAccumulated,
+                        downBytes,
+                    )
                 }
                 if (!trafficQualityConfirmed &&
                     qualityDownlinkBytesAccumulated >= QUALITY_DOWNLINK_CONFIRM_BYTES
@@ -1930,6 +1941,9 @@ class VpnConnectionManager @Inject constructor(
         diagnosticIntervalUplinkBytes = 0L
         diagnosticIntervalDownlinkBytes = 0L
     }
+
+    private fun saturatingTrafficAdd(current: Long, value: Long): Long =
+        if (current > Long.MAX_VALUE - value) Long.MAX_VALUE else current + value
 
     private fun logDiagnosticTrafficIntervalIfDue() {
         val now = SystemClock.elapsedRealtime()

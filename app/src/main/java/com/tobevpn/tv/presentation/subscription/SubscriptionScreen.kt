@@ -37,6 +37,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -102,6 +103,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
 import com.tobevpn.tv.data.remote.dto.PurchasePlanDto
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
@@ -158,6 +162,7 @@ fun SubscriptionScreen(
     var selectedPlanKey by rememberSaveable { mutableStateOf("month") }
     var showQr by rememberSaveable { mutableStateOf(false) }
     var lastFocusedTariffIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var leftPaneReturnFocusRequester by remember { mutableStateOf<FocusRequester?>(null) }
     var initialTariffSelectionApplied by rememberSaveable(selectCurrentPlan) {
         mutableStateOf(false)
     }
@@ -273,6 +278,7 @@ fun SubscriptionScreen(
         val selectedPlan = selectedTariff?.periods?.firstOrNull { it.key == selectedPlanKey }
             ?: selectedTariff?.periods?.firstOrNull { it.key.endsWith(":month") || it.key == "month" }
             ?: selectedTariff?.periods?.firstOrNull()
+        val purchaseActionFocusRequester = remember { FocusRequester() }
         val currentPlan = currentPlanUi(authState)
         val currentAuth = authState as? AuthState.Authenticated
         val isPaidAccount = currentAuth?.plan?.let { it != UserPlan.FREE_TRIAL } == true
@@ -385,7 +391,11 @@ fun SubscriptionScreen(
                                         selectedTariffKey = selectedTariff?.key,
                                         tabFocusRequesters = tariffTabFocusRequesters,
                                         focusedTabIndex = lastFocusedTariffIndex,
-                                        onFocusedTabIndexChange = { lastFocusedTariffIndex = it },
+                                        onFocusedTabIndexChange = { index ->
+                                            lastFocusedTariffIndex = index
+                                            leftPaneReturnFocusRequester =
+                                                tariffTabFocusRequesters.getOrNull(index)
+                                        },
                                         onSelect = { tariff ->
                                             selectedTariffKey = tariff.key
                                             selectedPlanKey = tariff.periods
@@ -431,28 +441,61 @@ fun SubscriptionScreen(
                                             ),
                                     ) { tariffKey ->
                                         val periods = tariffs.firstOrNull { it.key == tariffKey }?.periods.orEmpty()
-                                        LazyColumn(
-                                            modifier = Modifier.fillMaxSize(),
-                                            verticalArrangement = Arrangement.spacedBy(planListGap),
-                                            contentPadding = PaddingValues(bottom = planListGap),
-                                        ) {
-                                            items(periods, key = { it.key }) { plan ->
-                                                PlanOptionCard(
-                                                    plan = plan,
-                                                    selected = selectedPlan?.key == plan.key,
-                                                    upFocusRequester = rememberedTariffFocusRequester,
-                                                    onClick = {
-                                                        selectedPlanKey = plan.key
-                                                        showQr = false
-                                                    },
-                                                    corner = planCardCorner,
-                                                    cardPad = planCardPad,
-                                                    borderWidth = borderWidth,
-                                                    titleSize = bodySize,
-                                                    labelSize = labelSize,
-                                                    tightStyle = tightStyle,
-                                                )
+                                        val listState = rememberLazyListState()
+                                        val cues = rememberVerticalScrollCueState(
+                                            canScrollBackward = listState.canScrollBackward,
+                                            canScrollForward = listState.canScrollForward,
+                                        )
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                            LazyColumn(
+                                                state = listState,
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .verticalFadingEdges(
+                                                        topAlpha = cues.topAlpha,
+                                                        bottomAlpha = cues.bottomAlpha,
+                                                        fadeHeight = (38 * scale).dp,
+                                                    ),
+                                                verticalArrangement = Arrangement.spacedBy(planListGap),
+                                                contentPadding = PaddingValues(bottom = planListGap),
+                                            ) {
+                                                items(periods, key = { it.key }) { plan ->
+                                                    // AnimatedContent keeps the outgoing tariff composed
+                                                    // while the incoming tariff is already active. Keeping
+                                                    // one map for only the selected tariff made an outgoing
+                                                    // plan lookup crash when its key disappeared from that map.
+                                                    val planFocusRequester = remember(plan.key) {
+                                                        FocusRequester()
+                                                    }
+                                                    PlanOptionCard(
+                                                        plan = plan,
+                                                        selected = selectedPlan?.key == plan.key,
+                                                        focusRequester = planFocusRequester,
+                                                        upFocusRequester = if (
+                                                            plan.key == periods.firstOrNull()?.key
+                                                        ) {
+                                                            rememberedTariffFocusRequester
+                                                        } else {
+                                                            null
+                                                        },
+                                                        rightFocusRequester = purchaseActionFocusRequester,
+                                                        onFocused = {
+                                                            leftPaneReturnFocusRequester = planFocusRequester
+                                                        },
+                                                        onClick = {
+                                                            selectedPlanKey = plan.key
+                                                            showQr = false
+                                                        },
+                                                        corner = planCardCorner,
+                                                        cardPad = planCardPad,
+                                                        borderWidth = borderWidth,
+                                                        titleSize = bodySize,
+                                                        labelSize = labelSize,
+                                                        tightStyle = tightStyle,
+                                                    )
+                                                }
                                             }
+                                            VerticalScrollCues(state = cues, scale = scale)
                                         }
                                     }
                                 }
@@ -579,8 +622,11 @@ fun SubscriptionScreen(
                                                 showQr = true
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        leftFocusRequester = rememberedTariffFocusRequester,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .focusRequester(purchaseActionFocusRequester),
+                                        leftFocusRequester = leftPaneReturnFocusRequester
+                                            ?: rememberedTariffFocusRequester,
                                         upFocusRequester = rememberedTariffFocusRequester,
                                         minHeight = buttonHeight,
                                         corner = planCardCorner,
@@ -1279,7 +1325,10 @@ private fun LimitStat(
 private fun PlanOptionCard(
     plan: PurchasePlan,
     selected: Boolean,
+    focusRequester: FocusRequester,
     upFocusRequester: FocusRequester?,
+    rightFocusRequester: FocusRequester,
+    onFocused: () -> Unit,
     onClick: () -> Unit,
     corner: Dp,
     cardPad: Dp,
@@ -1310,18 +1359,21 @@ private fun PlanOptionCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .focusRequester(focusRequester)
             .then(
-                if (upFocusRequester != null) {
-                    Modifier.focusProperties { up = upFocusRequester }
-                } else {
-                    Modifier
+                Modifier.focusProperties {
+                    if (upFocusRequester != null) up = upFocusRequester
+                    right = rightFocusRequester
                 }
             )
             .then(
                 if (isFocused || selected) Modifier.border(borderWidth, borderColor, shape)
                 else Modifier
             )
-            .onFocusChanged { isFocused = it.isFocused }
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (it.isFocused) onFocused()
+            }
             .focusable()
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyUp &&

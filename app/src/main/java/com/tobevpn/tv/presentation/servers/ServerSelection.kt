@@ -55,6 +55,31 @@ fun resolveSelectedServer(
 }
 
 /**
+ * Preserve the panel order until the explicit end-to-end Xray check finishes.
+ * Afterwards confirmed profiles are placed first by real delay, unmeasured
+ * entries follow them, and failed/offline profiles stay at the bottom.
+ */
+fun sortVerifiedServersForDisplay(
+    servers: List<Server>,
+    pingsMeasured: Boolean,
+): List<Server> {
+    if (!pingsMeasured) return servers
+    return servers.withIndex()
+        .sortedWith(
+            compareBy<IndexedValue<Server>> { indexed ->
+                when {
+                    !indexed.value.isAvailable || indexed.value.ping < 0L -> 2
+                    indexed.value.ping == 0L -> 1
+                    else -> 0
+                }
+            }.thenBy { indexed ->
+                indexed.value.ping.takeIf { it > 0L } ?: Long.MAX_VALUE
+            }.thenBy(IndexedValue<Server>::index),
+        )
+        .map(IndexedValue<Server>::value)
+}
+
+/**
  * Compose list identity must not include asynchronously enriched country or
  * ping metadata, otherwise TV focus is recreated while the user presses OK.
  */

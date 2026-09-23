@@ -23,12 +23,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -51,20 +50,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -78,6 +71,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tobevpn.tv.BuildConfig
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
 import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import kotlinx.coroutines.launch
@@ -90,19 +86,24 @@ private data class WhatsNewHighlight(
 
 private val currentHighlights = listOf(
     WhatsNewHighlight(
+        icon = Icons.Filled.Dns,
+        titleRes = R.string.whats_new_server_probe_v1030_title,
+        descriptionRes = R.string.whats_new_server_probe_v1030_desc,
+    ),
+    WhatsNewHighlight(
+        icon = Icons.Filled.Speed,
+        titleRes = R.string.whats_new_speed_test_v1030_title,
+        descriptionRes = R.string.whats_new_speed_test_v1030_desc,
+    ),
+    WhatsNewHighlight(
+        icon = Icons.Filled.DataUsage,
+        titleRes = R.string.whats_new_traffic_alerts_v1030_title,
+        descriptionRes = R.string.whats_new_traffic_alerts_v1030_desc,
+    ),
+    WhatsNewHighlight(
         icon = Icons.Filled.Shield,
-        titleRes = R.string.whats_new_safe_logout_v1029_title,
-        descriptionRes = R.string.whats_new_safe_logout_v1029_desc,
-    ),
-    WhatsNewHighlight(
-        icon = Icons.Filled.QrCode2,
-        titleRes = R.string.whats_new_session_recovery_v1029_title,
-        descriptionRes = R.string.whats_new_session_recovery_v1029_desc,
-    ),
-    WhatsNewHighlight(
-        icon = Icons.AutoMirrored.Filled.Login,
-        titleRes = R.string.whats_new_pairing_v1029_title,
-        descriptionRes = R.string.whats_new_pairing_v1029_desc,
+        titleRes = R.string.whats_new_stability_v1030_title,
+        descriptionRes = R.string.whats_new_stability_v1030_desc,
     ),
 )
 
@@ -144,15 +145,9 @@ fun WhatsNewDialog(
         animationSpec = tween(durationMillis = 220),
         label = "whatsNewIn",
     )
-    val topCueAlpha by animateFloatAsState(
-        targetValue = if (highlightsScrollState.value > 0) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "whatsNewTopCue",
-    )
-    val bottomCueAlpha by animateFloatAsState(
-        targetValue = if (highlightsScrollState.value < highlightsScrollState.maxValue) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "whatsNewBottomCue",
+    val cues = rememberVerticalScrollCueState(
+        canScrollBackward = highlightsScrollState.canScrollBackward,
+        canScrollForward = highlightsScrollState.canScrollForward,
     )
 
     Dialog(
@@ -263,8 +258,8 @@ fun WhatsNewDialog(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .verticalFadingEdges(
-                                        topAlpha = topCueAlpha,
-                                        bottomAlpha = bottomCueAlpha,
+                                        topAlpha = cues.topAlpha,
+                                        bottomAlpha = cues.bottomAlpha,
                                         fadeHeight = 34.dp,
                                     )
                                     .verticalScroll(highlightsScrollState)
@@ -323,16 +318,7 @@ fun WhatsNewDialog(
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
-                            ScrollCue(
-                                isTop = true,
-                                alpha = topCueAlpha,
-                                modifier = Modifier.align(Alignment.TopCenter),
-                            )
-                            ScrollCue(
-                                isTop = false,
-                                alpha = bottomCueAlpha,
-                                modifier = Modifier.align(Alignment.BottomCenter),
-                            )
+                            VerticalScrollCues(state = cues)
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -418,62 +404,6 @@ fun WhatsNewDialog(
         }
     }
 }
-
-@Composable
-private fun ScrollCue(
-    isTop: Boolean,
-    alpha: Float,
-    modifier: Modifier = Modifier,
-) {
-    Icon(
-        imageVector = if (isTop) {
-            Icons.Filled.KeyboardArrowUp
-        } else {
-            Icons.Filled.KeyboardArrowDown
-        },
-        contentDescription = null,
-        modifier = modifier
-            .size(22.dp)
-            .graphicsLayer { this.alpha = alpha.coerceIn(0f, 1f) },
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-private fun Modifier.verticalFadingEdges(
-    topAlpha: Float,
-    bottomAlpha: Float,
-    fadeHeight: androidx.compose.ui.unit.Dp,
-): Modifier = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-    .drawWithContent {
-        drawContent()
-        val fadeHeightPx = fadeHeight.toPx().coerceAtMost(size.height / 2f)
-        if (fadeHeightPx <= 0f) return@drawWithContent
-
-        if (topAlpha > 0.001f) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    listOf(Color.Black.copy(alpha = 1f - topAlpha.coerceIn(0f, 1f)), Color.Black),
-                    startY = 0f,
-                    endY = fadeHeightPx,
-                ),
-                topLeft = Offset.Zero,
-                size = Size(size.width, fadeHeightPx),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-        if (bottomAlpha > 0.001f) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    listOf(Color.Black, Color.Black.copy(alpha = 1f - bottomAlpha.coerceIn(0f, 1f))),
-                    startY = size.height - fadeHeightPx,
-                    endY = size.height,
-                ),
-                topLeft = Offset(0f, size.height - fadeHeightPx),
-                size = Size(size.width, fadeHeightPx),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-    }
 
 @Composable
 private fun WhatsNewHighlightCard(

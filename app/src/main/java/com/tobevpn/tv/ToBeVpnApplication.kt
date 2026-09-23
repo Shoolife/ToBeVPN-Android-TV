@@ -9,6 +9,7 @@ import com.tobevpn.tv.data.remote.BootstrapManager
 import com.tobevpn.tv.update.UpdateDownloader
 import com.tobevpn.tv.util.DiagnosticLogManager
 import com.tobevpn.tv.util.SafeDiagnostics
+import com.tobevpn.tv.util.TrafficLimitNotifications
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,9 @@ class ToBeVpnApplication : Application() {
     @Inject
     lateinit var diagnosticLogManager: DiagnosticLogManager
 
+    @Inject
+    lateinit var trafficLimitNotifications: TrafficLimitNotifications
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -41,6 +45,7 @@ class ToBeVpnApplication : Application() {
             isDetailedLoggingEnabled = diagnosticLogManager::isCollectionActive,
         )
         installCrashDiagnostics()
+        trafficLimitNotifications.start(appScope)
         // Hydrate cached tokens from the encrypted DB and obtain a fresh access token
         // before the UI starts hitting the API. If we're offline this fails silently
         // and TokenAuthenticator will re-try on the first 401.

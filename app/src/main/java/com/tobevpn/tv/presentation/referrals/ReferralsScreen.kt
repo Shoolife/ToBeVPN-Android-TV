@@ -119,6 +119,9 @@ import com.tobevpn.tv.data.remote.dto.ReferralsDto
 import com.tobevpn.tv.presentation.components.SpinningRefreshIcon
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.components.TvQrDialog
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.presentation.theme.VpnGreen
@@ -1566,6 +1569,10 @@ private fun InvitedFriendsDialog(
     val scrollScope = rememberCoroutineScope()
     val hasMore = items.size < total
     val hasBottomAction = error != null || hasMore
+    val cues = rememberVerticalScrollCueState(
+        canScrollBackward = listState.canScrollBackward,
+        canScrollForward = listState.canScrollForward,
+    )
 
     LaunchedEffect(Unit) {
         withFrameNanos { }
@@ -1652,75 +1659,86 @@ private fun InvitedFriendsDialog(
 
                     Spacer(modifier = Modifier.height((16 * scale).dp))
 
-                    LazyColumn(
-                        state = listState,
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
-                            .focusRequester(listFocusRequester)
-                            .focusable()
-                            .onPreviewKeyEvent { event ->
-                                if (event.type != KeyEventType.KeyDown) {
-                                    return@onPreviewKeyEvent false
-                                }
-                                when (event.key) {
-                                    Key.DirectionDown -> {
-                                        if (listState.canScrollForward) {
-                                            scrollScope.launch {
-                                                listState.animateScrollBy((170 * scale))
-                                            }
-                                        } else if (hasBottomAction) {
-                                            actionFocusRequester.requestFocus()
-                                        }
-                                        true
-                                    }
-
-                                    Key.DirectionUp -> {
-                                        if (listState.canScrollBackward) {
-                                            scrollScope.launch {
-                                                listState.animateScrollBy((-170 * scale))
-                                            }
-                                        } else {
-                                            closeFocusRequester.requestFocus()
-                                        }
-                                        true
-                                    }
-
-                                    Key.DirectionLeft,
-                                    Key.DirectionRight,
-                                    -> true
-
-                                    else -> false
-                                }
-                            },
-                        contentPadding = PaddingValues(bottom = (8 * scale).dp),
-                        verticalArrangement = Arrangement.spacedBy((10 * scale).dp),
+                            .weight(1f),
                     ) {
-                        if (isRefreshing) {
-                            items(3) { index ->
-                                ReferralListLoadingRow(
-                                    key = index,
-                                    scale = scale,
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalFadingEdges(
+                                    topAlpha = cues.topAlpha,
+                                    bottomAlpha = cues.bottomAlpha,
+                                    fadeHeight = (38 * scale).dp,
                                 )
-                            }
-                        } else if (items.isEmpty()) {
-                            item {
-                                ReferralEmptyList(scale = scale, tightStyle = tightStyle)
-                            }
-                        } else {
-                            itemsIndexed(
-                                items = items,
-                                key = { index, item ->
-                                    "${item.telegramId}-${item.createdAt}-${item.displayName}-$index"
+                                .focusRequester(listFocusRequester)
+                                .focusable()
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type != KeyEventType.KeyDown) {
+                                        return@onPreviewKeyEvent false
+                                    }
+                                    when (event.key) {
+                                        Key.DirectionDown -> {
+                                            if (listState.canScrollForward) {
+                                                scrollScope.launch {
+                                                    listState.animateScrollBy((170 * scale))
+                                                }
+                                            } else if (hasBottomAction) {
+                                                actionFocusRequester.requestFocus()
+                                            }
+                                            true
+                                        }
+
+                                        Key.DirectionUp -> {
+                                            if (listState.canScrollBackward) {
+                                                scrollScope.launch {
+                                                    listState.animateScrollBy((-170 * scale))
+                                                }
+                                            } else {
+                                                closeFocusRequester.requestFocus()
+                                            }
+                                            true
+                                        }
+
+                                        Key.DirectionLeft,
+                                        Key.DirectionRight,
+                                        -> true
+
+                                        else -> false
+                                    }
                                 },
-                            ) { _, item ->
-                                ReferralListRow(
-                                    item = item,
-                                    scale = scale,
-                                    tightStyle = tightStyle,
-                                )
+                            contentPadding = PaddingValues(bottom = (8 * scale).dp),
+                            verticalArrangement = Arrangement.spacedBy((10 * scale).dp),
+                        ) {
+                            if (isRefreshing) {
+                                items(3) { index ->
+                                    ReferralListLoadingRow(
+                                        key = index,
+                                        scale = scale,
+                                    )
+                                }
+                            } else if (items.isEmpty()) {
+                                item {
+                                    ReferralEmptyList(scale = scale, tightStyle = tightStyle)
+                                }
+                            } else {
+                                itemsIndexed(
+                                    items = items,
+                                    key = { index, item ->
+                                        "${item.telegramId}-${item.createdAt}-${item.displayName}-$index"
+                                    },
+                                ) { _, item ->
+                                    ReferralListRow(
+                                        item = item,
+                                        scale = scale,
+                                        tightStyle = tightStyle,
+                                    )
+                                }
                             }
                         }
+                        VerticalScrollCues(state = cues, scale = scale)
                     }
 
                     if (hasBottomAction) {

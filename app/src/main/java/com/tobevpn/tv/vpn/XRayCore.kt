@@ -77,11 +77,20 @@ object XRayCore {
     val isRunning: Boolean
         get() = controller?.isRunning == true
 
-    fun queryStats(tag: String, direct: String): Long {
+    /**
+     * Atomically drains all native outbound counters. AndroidLibXrayLite
+     * v26.9.9 exposes both directions in one snapshot, preventing uplink and
+     * downlink from being read from different Xray loop generations.
+     */
+    @Synchronized
+    internal fun queryOutboundTrafficStats(tag: String): XRayOutboundTrafficStats {
         return try {
-            controller?.queryStats(tag, direct) ?: 0
+            parseXRayOutboundTrafficStats(
+                raw = controller?.queryAllOutboundTrafficStats().orEmpty(),
+                tag = tag,
+            )
         } catch (_: Exception) {
-            0
+            XRayOutboundTrafficStats()
         }
     }
 
@@ -137,3 +146,31 @@ object XRayCore {
         return targetDir
     }
 }
+
+internal data class XRayOutboundTrafficStats(
+    val uplinkBytes: Long = 0L,
+    val downlinkBytes: Long = 0L,
+)
+
+internal fun parseXRayOutboundTrafficStats(
+    raw: String,
+    tag: String,
+): XRayOutboundTrafficStats {
+    var uplink = 0L
+    var downlink = 0L
+
+    raw.splitToSequence(';').forEach { record ->
+        if (record.isBlank()) return@forEach
+        val parts = record.split(',', limit = 3)
+        if (parts.size != 3 || parts[0] != tag) return@forEach
+        val value = parts[2].toLongOrNull()?.takeIf { it > 0L } ?: return@forEach
+        when (parts[1]) {
+            "uplink" -> uplink = saturatingAdd(uplink, value)
+            "downlink" -> downlink = saturatingAdd(downlink, value)
+        }
+    }
+    return XRayOutboundTrafficStats(uplink, downlink)
+}
+
+private fun saturatingAdd(current: Long, value: Long): Long =
+    if (current > Long.MAX_VALUE - value) Long.MAX_VALUE else current + value

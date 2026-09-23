@@ -34,6 +34,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -76,6 +77,8 @@ import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.domain.model.AppFilterState
 import com.tobevpn.tv.domain.model.AppThemeMode
 import com.tobevpn.tv.domain.model.AuthState
+import com.tobevpn.tv.domain.model.MAX_SERVER_PING_TIMEOUT_SECONDS
+import com.tobevpn.tv.domain.model.MIN_SERVER_PING_TIMEOUT_SECONDS
 import com.tobevpn.tv.domain.model.UserPlan
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
@@ -107,6 +110,7 @@ fun SettingsScreen(
     val language by viewModel.language.collectAsStateWithLifecycle()
     val appFilterState by viewModel.appFilterState.collectAsStateWithLifecycle()
     val savedThemeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val serverPingTimeoutSeconds by viewModel.serverPingTimeoutSeconds.collectAsStateWithLifecycle()
     val diagnosticState by diagnosticViewModel.diagnosticState.collectAsStateWithLifecycle()
     val diagnosticHistoryState by diagnosticViewModel.history.collectAsStateWithLifecycle()
     val systemThemeMode = if (isSystemInDarkTheme()) AppThemeMode.DARK else AppThemeMode.LIGHT
@@ -133,13 +137,15 @@ fun SettingsScreen(
     val diagnosticInfoFocusRequester = remember { FocusRequester() }
     val diagnosticStartFocusRequester = remember { FocusRequester() }
     val diagnosticHistoryFocusRequester = remember { FocusRequester() }
+    val pingTimeoutDecreaseFocusRequester = remember { FocusRequester() }
+    val pingTimeoutIncreaseFocusRequester = remember { FocusRequester() }
+    val darkThemeFocusRequester = remember { FocusRequester() }
+    val lightThemeFocusRequester = remember { FocusRequester() }
     val supportFocusRequester = remember { FocusRequester() }
     val devicesFocusRequester = remember { FocusRequester() }
     val appFilterFocusRequester = remember { FocusRequester() }
     val referralsFocusRequester = remember { FocusRequester() }
     val promocodesFocusRequester = remember { FocusRequester() }
-    val darkThemeFocusRequester = remember { FocusRequester() }
-    val lightThemeFocusRequester = remember { FocusRequester() }
     val pageFocusRequesters = remember { List(3) { FocusRequester() } }
     var dialogReturnFocusRequester by remember { mutableStateOf<FocusRequester?>(null) }
     var initialFocusApplied by remember { mutableStateOf(false) }
@@ -330,11 +336,7 @@ fun SettingsScreen(
                             right = when (settingsPage) {
                                 0 -> diagnosticLogoFocusRequester
                                 1 -> referralsFocusRequester
-                                else -> if (diagnosticState.debugModeEnabled) {
-                                    diagnosticStartFocusRequester
-                                } else {
-                                    promocodesFocusRequester
-                                }
+                                else -> darkThemeFocusRequester
                             }
                         },
                     shape = RoundedCornerShape(backCorner),
@@ -644,8 +646,8 @@ fun SettingsScreen(
                             navigationReturnFocus = "support"
                             onNavigateToSupport()
                         },
-                        themeMode = themeMode,
-                        onThemeSelected = viewModel::setThemeMode,
+                        pingTimeoutSeconds = serverPingTimeoutSeconds,
+                        onPingTimeoutChanged = viewModel::setServerPingTimeoutSeconds,
                         cardPad = cardPad,
                         cardCorner = cardCorner,
                         cardSpacing = cardSpacing,
@@ -659,8 +661,8 @@ fun SettingsScreen(
                         appFilterFocusRequester = appFilterFocusRequester,
                         referralsFocusRequester = referralsFocusRequester,
                         supportFocusRequester = supportFocusRequester,
-                        darkThemeFocusRequester = darkThemeFocusRequester,
-                        lightThemeFocusRequester = lightThemeFocusRequester,
+                        pingTimeoutDecreaseFocusRequester = pingTimeoutDecreaseFocusRequester,
+                        pingTimeoutIncreaseFocusRequester = pingTimeoutIncreaseFocusRequester,
                         firstPageIndicatorFocusRequester = pageFocusRequesters[0],
                         thirdPageIndicatorFocusRequester = pageFocusRequesters[2],
                     )
@@ -690,9 +692,13 @@ fun SettingsScreen(
                         diagnosticInfoFocusRequester = diagnosticInfoFocusRequester,
                         diagnosticStartFocusRequester = diagnosticStartFocusRequester,
                         diagnosticHistoryFocusRequester = diagnosticHistoryFocusRequester,
+                        darkThemeFocusRequester = darkThemeFocusRequester,
+                        lightThemeFocusRequester = lightThemeFocusRequester,
                         firstPageIndicatorFocusRequester = pageFocusRequesters[0],
                         thirdPageIndicatorFocusRequester = pageFocusRequesters[2],
                         diagnosticState = diagnosticState,
+                        themeMode = themeMode,
+                        onThemeSelected = viewModel::setThemeMode,
                         onToggleDiagnosticCollection = diagnosticViewModel::toggleCollection,
                         onOpenDiagnosticHistory = {
                             dialogReturnFocusRequester = diagnosticHistoryFocusRequester
@@ -715,18 +721,22 @@ fun SettingsScreen(
             focusRequesters = pageFocusRequesters,
             upFocusRequesters = when (settingsPage) {
                 0 -> listOf(englishFocusRequester, whatsNewFocusRequester, checkUpdateFocusRequester)
-                1 -> listOf(supportFocusRequester, darkThemeFocusRequester, darkThemeFocusRequester)
+                1 -> listOf(
+                    supportFocusRequester,
+                    pingTimeoutDecreaseFocusRequester,
+                    pingTimeoutIncreaseFocusRequester,
+                )
                 else -> listOf(
                     if (authState is AuthState.Authenticated) devicesFocusRequester else promocodesFocusRequester,
-                    when {
-                        diagnosticState.debugModeEnabled -> diagnosticStartFocusRequester
-                        authState is AuthState.Authenticated -> devicesFocusRequester
-                        else -> promocodesFocusRequester
+                    if (diagnosticState.debugModeEnabled) {
+                        diagnosticStartFocusRequester
+                    } else {
+                        darkThemeFocusRequester
                     },
-                    when {
-                        diagnosticState.debugModeEnabled -> diagnosticStartFocusRequester
-                        authState is AuthState.Authenticated -> devicesFocusRequester
-                        else -> promocodesFocusRequester
+                    if (diagnosticState.debugModeEnabled) {
+                        diagnosticHistoryFocusRequester
+                    } else {
+                        lightThemeFocusRequester
                     },
                 )
             },
@@ -828,8 +838,8 @@ private fun SettingsAppsPage(
     onNavigateToAppFilter: () -> Unit,
     onNavigateToReferrals: () -> Unit,
     onNavigateToSupport: () -> Unit,
-    themeMode: AppThemeMode,
-    onThemeSelected: (AppThemeMode) -> Unit,
+    pingTimeoutSeconds: Int,
+    onPingTimeoutChanged: (Int) -> Unit,
     cardPad: androidx.compose.ui.unit.Dp,
     cardCorner: androidx.compose.ui.unit.Dp,
     cardSpacing: androidx.compose.ui.unit.Dp,
@@ -843,13 +853,15 @@ private fun SettingsAppsPage(
     appFilterFocusRequester: FocusRequester,
     referralsFocusRequester: FocusRequester,
     supportFocusRequester: FocusRequester,
-    darkThemeFocusRequester: FocusRequester,
-    lightThemeFocusRequester: FocusRequester,
+    pingTimeoutDecreaseFocusRequester: FocusRequester,
+    pingTimeoutIncreaseFocusRequester: FocusRequester,
     firstPageIndicatorFocusRequester: FocusRequester,
     thirdPageIndicatorFocusRequester: FocusRequester,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = (4 * scale).dp),
         verticalAlignment = Alignment.Top,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -934,7 +946,7 @@ private fun SettingsAppsPage(
                         focusRequester = supportFocusRequester,
                         upFocusRequester = appFilterFocusRequester,
                         downFocusRequester = firstPageIndicatorFocusRequester,
-                        rightFocusRequester = darkThemeFocusRequester,
+                        rightFocusRequester = pingTimeoutDecreaseFocusRequester,
                     )
                 }
             }
@@ -973,7 +985,7 @@ private fun SettingsAppsPage(
                         buttonPadV = buttonPadV,
                         focusRequester = referralsFocusRequester,
                         upFocusRequester = backFocusRequester,
-                        downFocusRequester = darkThemeFocusRequester,
+                        downFocusRequester = pingTimeoutDecreaseFocusRequester,
                         leftFocusRequester = appFilterFocusRequester,
                     )
                 }
@@ -981,56 +993,21 @@ private fun SettingsAppsPage(
 
             Spacer(modifier = Modifier.height(cardSpacing))
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(cardCorner),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                ),
-            ) {
-                Column(modifier = Modifier.padding(cardPad)) {
-                    Text(
-                        stringResource(R.string.settings_theme),
-                        fontSize = titleSize,
-                        fontWeight = FontWeight.SemiBold,
-                        style = tightStyle,
-                    )
-                    Spacer(modifier = Modifier.height((8 * scale).dp))
-                    Text(
-                        stringResource(R.string.settings_theme_hint),
-                        fontSize = bodySize,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = tightStyle,
-                    )
-                    Spacer(modifier = Modifier.height((18 * scale).dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        SettingsChoiceChip(
-                            label = stringResource(R.string.theme_dark),
-                            selected = themeMode == AppThemeMode.DARK,
-                            onClick = { onThemeSelected(AppThemeMode.DARK) },
-                            bodySize = bodySize,
-                            scale = scale,
-                            focusRequester = darkThemeFocusRequester,
-                            upFocusRequester = referralsFocusRequester,
-                            downFocusRequester = thirdPageIndicatorFocusRequester,
-                            leftFocusRequester = supportFocusRequester,
-                            rightFocusRequester = lightThemeFocusRequester,
-                        )
-                        Spacer(modifier = Modifier.width((12 * scale).dp))
-                        SettingsChoiceChip(
-                            label = stringResource(R.string.theme_light),
-                            selected = themeMode == AppThemeMode.LIGHT,
-                            onClick = { onThemeSelected(AppThemeMode.LIGHT) },
-                            bodySize = bodySize,
-                            scale = scale,
-                            focusRequester = lightThemeFocusRequester,
-                            upFocusRequester = referralsFocusRequester,
-                            downFocusRequester = thirdPageIndicatorFocusRequester,
-                            leftFocusRequester = darkThemeFocusRequester,
-                        )
-                    }
-                }
-            }
+            PingTimeoutCard(
+                timeoutSeconds = pingTimeoutSeconds,
+                onTimeoutChanged = onPingTimeoutChanged,
+                cardPad = cardPad,
+                cardCorner = cardCorner,
+                titleSize = titleSize,
+                bodySize = bodySize,
+                scale = scale,
+                tightStyle = tightStyle,
+                decreaseFocusRequester = pingTimeoutDecreaseFocusRequester,
+                increaseFocusRequester = pingTimeoutIncreaseFocusRequester,
+                backFocusRequester = referralsFocusRequester,
+                leftFocusRequester = supportFocusRequester,
+                downFocusRequester = thirdPageIndicatorFocusRequester,
+            )
         }
 
     }
@@ -1056,9 +1033,13 @@ private fun SettingsMorePage(
     diagnosticInfoFocusRequester: FocusRequester,
     diagnosticStartFocusRequester: FocusRequester,
     diagnosticHistoryFocusRequester: FocusRequester,
+    darkThemeFocusRequester: FocusRequester,
+    lightThemeFocusRequester: FocusRequester,
     firstPageIndicatorFocusRequester: FocusRequester,
     thirdPageIndicatorFocusRequester: FocusRequester,
     diagnosticState: DiagnosticLogState,
+    themeMode: AppThemeMode,
+    onThemeSelected: (AppThemeMode) -> Unit,
     onToggleDiagnosticCollection: () -> Unit,
     onOpenDiagnosticHistory: () -> Unit,
     onOpenDiagnosticInfo: () -> Unit,
@@ -1105,11 +1086,7 @@ private fun SettingsMorePage(
                         } else {
                             firstPageIndicatorFocusRequester
                         },
-                        rightFocusRequester = if (diagnosticState.debugModeEnabled) {
-                            diagnosticStartFocusRequester
-                        } else {
-                            null
-                        },
+                        rightFocusRequester = darkThemeFocusRequester,
                     )
                 }
             }
@@ -1150,9 +1127,9 @@ private fun SettingsMorePage(
                             upFocusRequester = promocodesFocusRequester,
                             downFocusRequester = firstPageIndicatorFocusRequester,
                             rightFocusRequester = if (diagnosticState.debugModeEnabled) {
-                                diagnosticStartFocusRequester
+                                diagnosticInfoFocusRequester
                             } else {
-                                null
+                                darkThemeFocusRequester
                             },
                         )
                     }
@@ -1163,20 +1140,81 @@ private fun SettingsMorePage(
         Spacer(modifier = Modifier.width(cardSpacing))
 
         Column(modifier = Modifier.weight(1f)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(cardCorner),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(cardPad)) {
+                    Text(
+                        stringResource(R.string.settings_theme),
+                        fontSize = titleSize,
+                        fontWeight = FontWeight.SemiBold,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((8 * scale).dp))
+                    Text(
+                        stringResource(R.string.settings_theme_hint),
+                        fontSize = bodySize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((18 * scale).dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SettingsChoiceChip(
+                            label = stringResource(R.string.theme_dark),
+                            selected = themeMode == AppThemeMode.DARK,
+                            onClick = { onThemeSelected(AppThemeMode.DARK) },
+                            bodySize = bodySize,
+                            scale = scale,
+                            focusRequester = darkThemeFocusRequester,
+                            upFocusRequester = backFocusRequester,
+                            downFocusRequester = if (diagnosticState.debugModeEnabled) {
+                                diagnosticInfoFocusRequester
+                            } else {
+                                thirdPageIndicatorFocusRequester
+                            },
+                            leftFocusRequester = promocodesFocusRequester,
+                            rightFocusRequester = lightThemeFocusRequester,
+                        )
+                        Spacer(modifier = Modifier.width((12 * scale).dp))
+                        SettingsChoiceChip(
+                            label = stringResource(R.string.theme_light),
+                            selected = themeMode == AppThemeMode.LIGHT,
+                            onClick = { onThemeSelected(AppThemeMode.LIGHT) },
+                            bodySize = bodySize,
+                            scale = scale,
+                            focusRequester = lightThemeFocusRequester,
+                            upFocusRequester = backFocusRequester,
+                            downFocusRequester = if (diagnosticState.debugModeEnabled) {
+                                diagnosticInfoFocusRequester
+                            } else {
+                                thirdPageIndicatorFocusRequester
+                            },
+                            leftFocusRequester = darkThemeFocusRequester,
+                            rightFocusRequester = FocusRequester.Cancel,
+                        )
+                    }
+                }
+            }
             if (diagnosticState.debugModeEnabled) {
+                Spacer(modifier = Modifier.height(cardSpacing))
                 DiagnosticCard(
                     state = diagnosticState,
                     bodySize = bodySize,
-                    cardPadding = cardPad * 0.75f,
+                    cardPadding = cardPad,
+                    compactLogSpacing = true,
                     onToggleCollection = onToggleDiagnosticCollection,
                     onHistory = onOpenDiagnosticHistory,
                     onInfo = onOpenDiagnosticInfo,
                     infoButtonModifier = Modifier
                         .focusRequester(diagnosticInfoFocusRequester)
                         .focusProperties {
-                            up = backFocusRequester
+                            up = darkThemeFocusRequester
                             down = diagnosticStartFocusRequester
-                            left = promocodesFocusRequester
+                            left = if (showDevices) devicesFocusRequester else promocodesFocusRequester
                         },
                     startButtonModifier = Modifier
                         .focusRequester(diagnosticStartFocusRequester)
@@ -1194,6 +1232,110 @@ private fun SettingsMorePage(
                             left = diagnosticStartFocusRequester
                             right = FocusRequester.Cancel
                         },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PingTimeoutCard(
+    timeoutSeconds: Int,
+    onTimeoutChanged: (Int) -> Unit,
+    cardPad: androidx.compose.ui.unit.Dp,
+    cardCorner: androidx.compose.ui.unit.Dp,
+    titleSize: androidx.compose.ui.unit.TextUnit,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    scale: Float,
+    tightStyle: TextStyle,
+    decreaseFocusRequester: FocusRequester,
+    increaseFocusRequester: FocusRequester,
+    backFocusRequester: FocusRequester,
+    leftFocusRequester: FocusRequester,
+    downFocusRequester: FocusRequester,
+) {
+    val normalized = timeoutSeconds.coerceIn(
+        MIN_SERVER_PING_TIMEOUT_SECONDS,
+        MAX_SERVER_PING_TIMEOUT_SECONDS,
+    )
+    val progress = (normalized - MIN_SERVER_PING_TIMEOUT_SECONDS).toFloat() /
+        (MAX_SERVER_PING_TIMEOUT_SECONDS - MIN_SERVER_PING_TIMEOUT_SECONDS).toFloat()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(cardCorner),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(cardPad)) {
+            Text(
+                text = stringResource(R.string.server_ping_timeout_title),
+                fontSize = titleSize,
+                fontWeight = FontWeight.SemiBold,
+                style = tightStyle,
+            )
+            Spacer(modifier = Modifier.height((7 * scale).dp))
+            Text(
+                text = stringResource(R.string.server_ping_timeout_description),
+                fontSize = bodySize,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = tightStyle,
+            )
+            Spacer(modifier = Modifier.height((14 * scale).dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SettingsChoiceChip(
+                    label = "−",
+                    selected = false,
+                    onClick = { onTimeoutChanged(normalized - 1) },
+                    bodySize = titleSize,
+                    scale = scale,
+                    focusRequester = decreaseFocusRequester,
+                    upFocusRequester = backFocusRequester,
+                    downFocusRequester = downFocusRequester,
+                    leftFocusRequester = leftFocusRequester,
+                    rightFocusRequester = increaseFocusRequester,
+                    horizontalPadding = (13 * scale).dp,
+                    verticalPadding = (3 * scale).dp,
+                )
+                Spacer(modifier = Modifier.width((14 * scale).dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = stringResource(R.string.server_ping_timeout_value, normalized),
+                        textAlign = TextAlign.Center,
+                        fontSize = bodySize,
+                        fontWeight = FontWeight.SemiBold,
+                        style = tightStyle,
+                    )
+                    Spacer(modifier = Modifier.height((7 * scale).dp))
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height((6 * scale).dp),
+                        color = VpnGreen,
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f),
+                    )
+                }
+                Spacer(modifier = Modifier.width((14 * scale).dp))
+                SettingsChoiceChip(
+                    label = "+",
+                    selected = false,
+                    onClick = { onTimeoutChanged(normalized + 1) },
+                    bodySize = titleSize,
+                    scale = scale,
+                    focusRequester = increaseFocusRequester,
+                    upFocusRequester = backFocusRequester,
+                    downFocusRequester = downFocusRequester,
+                    leftFocusRequester = decreaseFocusRequester,
+                    rightFocusRequester = FocusRequester.Cancel,
+                    horizontalPadding = (13 * scale).dp,
+                    verticalPadding = (3 * scale).dp,
                 )
             }
         }
@@ -1349,6 +1491,8 @@ private fun SettingsChoiceChip(
     downFocusRequester: FocusRequester? = null,
     leftFocusRequester: FocusRequester? = null,
     rightFocusRequester: FocusRequester? = null,
+    horizontalPadding: androidx.compose.ui.unit.Dp = (16 * scale).dp,
+    verticalPadding: androidx.compose.ui.unit.Dp = (6 * scale).dp,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape((10 * scale).dp)
@@ -1376,7 +1520,10 @@ private fun SettingsChoiceChip(
                 selected -> null
                 else -> ButtonDefaults.outlinedButtonBorder(enabled = true)
             },
-            contentPadding = PaddingValues(horizontal = (16 * scale).dp, vertical = (6 * scale).dp),
+            contentPadding = PaddingValues(
+                horizontal = horizontalPadding,
+                vertical = verticalPadding,
+            ),
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = if (selected) VpnGreen else Color.Transparent,
                 contentColor = if (selected) Color.Black else MaterialTheme.colorScheme.onBackground,

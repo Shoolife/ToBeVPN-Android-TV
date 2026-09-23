@@ -11,6 +11,7 @@ import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.domain.model.AppFilterState
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.ConnectionState
+import com.tobevpn.tv.domain.model.DEFAULT_SERVER_PING_TIMEOUT_SECONDS
 import com.tobevpn.tv.util.LocaleManager
 import com.tobevpn.tv.vpn.VpnConnectionManager
 import com.tobevpn.tv.vpn.XRayCore
@@ -47,6 +48,13 @@ class SettingsViewModel @Inject constructor(
     val themeMode: StateFlow<AppThemeMode?> = prefsDataStore.themeModeOrNull
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    val serverPingTimeoutSeconds: StateFlow<Int> = prefsDataStore.serverPingTimeoutSeconds
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            DEFAULT_SERVER_PING_TIMEOUT_SECONDS,
+        )
+
     private val _language = MutableStateFlow(LocaleManager.current())
     val language: StateFlow<String> = _language.asStateFlow()
 
@@ -57,6 +65,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: AppThemeMode) {
         viewModelScope.launch { prefsDataStore.setThemeMode(mode) }
+    }
+
+    fun setServerPingTimeoutSeconds(value: Int) {
+        viewModelScope.launch { prefsDataStore.setServerPingTimeoutSeconds(value) }
     }
 
     init {

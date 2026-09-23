@@ -526,4 +526,27 @@
     <string name="whats_new_session_recovery_v1029_desc">Duplicate local sessions and false sign-outs after an update or temporary token error have been fixed.</string>
     <string name="whats_new_pairing_v1029_title">Reliable sign-in</string>
     <string name="whats_new_pairing_v1029_desc">The TV identity is synchronized before QR sign-in to prevent HTTP 403 errors.</string>
+    <string name="whats_new_server_probe_v1030_title">Accurate server checks</string>
+    <string name="whats_new_server_probe_v1030_desc">The complete VPN profile is validated, progress is shown, and available servers are sorted by ping. The check timeout can be set from 5 to 15 seconds.</string>
+    <string name="whats_new_speed_test_v1030_title">New speed test</string>
+    <string name="whats_new_speed_test_v1030_desc">Measurement accuracy and animations were improved, with a history of up to 100 results that can be deleted.</string>
+    <string name="whats_new_traffic_alerts_v1030_title">Traffic alerts</string>
+    <string name="whats_new_traffic_alerts_v1030_desc" formatted="false">TV now warns when 20%, 10%, or 5% of the monthly allowance remains and shows the remaining amount in gigabytes.</string>
+    <string name="whats_new_stability_v1030_title">More stable VPN and UI</string>
+    <string name="whats_new_stability_v1030_desc">Xray-core was updated to 26.9.9. Connection handling, traffic accounting, the tariff-switch crash, and D-pad navigation across screens and lists were fixed.</string>
+    <string name="server_probe_progress">Checked %1$d of %2$d</string>
+    <string name="server_ping_timeout_title">Server check timeout</string>
+    <string name="server_ping_timeout_description">How long to wait for a complete profile check. Increase it for slow or restricted networks.</string>
+    <string name="server_ping_timeout_value">%1$d s</string>
+    <string name="speed_checking_connection">Checking connection…</string>
+    <string name="speed_history_button">History: %1$d</string>
+    <string name="speed_history_title">Measurement history</string>
+    <string name="speed_history_local_hint">Up to 100 results, stored only on this TV</string>
+    <string name="speed_history_empty">Successful speed tests will appear here</string>
+    <string name="speed_history_delete">Delete measurement</string>
+    <string name="speed_history_download_value">%1$.1f Mbps</string>
+    <string name="speed_history_ping_value">%1$d ms</string>
+    <string name="traffic_limit_notification_channel">Traffic balance</string>
+    <string name="traffic_limit_notification_title">Traffic is running out</string>
+    <string name="traffic_limit_notification_description">%1$s GB left. Renew your plan or reduce traffic usage.</string>
 </resources>

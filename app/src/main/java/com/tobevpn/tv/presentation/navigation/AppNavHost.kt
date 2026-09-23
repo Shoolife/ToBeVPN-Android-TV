@@ -31,6 +31,7 @@ import com.tobevpn.tv.presentation.settings.SettingsScreen
 import com.tobevpn.tv.presentation.settings.AboutScreen
 import com.tobevpn.tv.presentation.settings.SupportScreen
 import com.tobevpn.tv.presentation.speedtest.SpeedTestScreen
+import com.tobevpn.tv.presentation.speedtest.SpeedTestHistoryScreen
 import com.tobevpn.tv.presentation.stats.StatsScreen
 import com.tobevpn.tv.presentation.subscription.SubscriptionScreen
 
@@ -184,6 +185,13 @@ fun AppNavHost(
         }
         composable<SpeedTestRoute> {
             SpeedTestScreen(
+                onBack = navigateBackSafely,
+                onLongBack = navigateHomeSafely,
+                onNavigateToHistory = { navController.navigate(SpeedTestHistoryRoute) },
+            )
+        }
+        composable<SpeedTestHistoryRoute> {
+            SpeedTestHistoryScreen(
                 onBack = navigateBackSafely,
                 onLongBack = navigateHomeSafely,
             )

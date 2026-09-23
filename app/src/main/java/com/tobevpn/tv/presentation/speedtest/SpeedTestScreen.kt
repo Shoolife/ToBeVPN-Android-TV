@@ -1,8 +1,24 @@
 package com.tobevpn.tv.presentation.speedtest
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +38,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,6 +47,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -70,10 +89,12 @@ import kotlin.math.sin
 fun SpeedTestScreen(
     onBack: () -> Unit,
     onLongBack: () -> Unit = onBack,
+    onNavigateToHistory: () -> Unit = {},
     viewModel: SpeedTestViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val viaVpn by viewModel.viaVpn.collectAsStateWithLifecycle()
+    val history by viewModel.history.collectAsStateWithLifecycle()
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = rememberTvScreenScale(maxWidth = maxWidth, maxHeight = maxHeight)
@@ -97,7 +118,7 @@ fun SpeedTestScreen(
         val buttonPadV = (8 * scale).dp
         val borderWidth = (2 * scale).dp
         val backCorner = (8 * scale).dp
-        val colSpacing = (48 * scale).dp
+        val colSpacing = (96 * scale).dp
         val cardSpacing = (16 * scale).dp
         val headerButtonSize = (44 * scale).dp
         val headerIconSize = (20 * scale).dp
@@ -143,6 +164,62 @@ fun SpeedTestScreen(
                     style = tightStyle,
                 )
                 Spacer(modifier = Modifier.weight(1f))
+                var historyFocused by remember { mutableStateOf(false) }
+                CompositionLocalProvider(
+                    LocalMinimumInteractiveComponentSize provides androidx.compose.ui.unit.Dp.Unspecified,
+                ) {
+                    OutlinedButton(
+                        onClick = onNavigateToHistory,
+                        modifier = Modifier
+                            .height((40 * scale).dp)
+                            .onFocusChanged { historyFocused = it.isFocused },
+                        shape = RoundedCornerShape(percent = 50),
+                        contentPadding = PaddingValues(
+                            start = (16 * scale).dp,
+                            end = (12 * scale).dp,
+                        ),
+                        border = BorderStroke(
+                            if (historyFocused) borderWidth else (1 * scale).dp,
+                            if (historyFocused) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant
+                            },
+                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.speed_history_title),
+                            fontSize = bodySize,
+                            fontWeight = FontWeight.SemiBold,
+                            style = tightStyle,
+                        )
+                        if (history.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width((8 * scale).dp))
+                            Surface(
+                                modifier = Modifier
+                                    .width((30 * scale).dp)
+                                    .height((24 * scale).dp),
+                                shape = RoundedCornerShape(percent = 50),
+                                color = VpnBlue.copy(alpha = 0.14f),
+                                contentColor = VpnBlue,
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = history.size.toString(),
+                                        fontSize = (12 * scale).sp,
+                                        fontWeight = FontWeight.Bold,
+                                        style = tightStyle,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.width((12 * scale).dp))
                 VpnRouteBadge(viaVpn = viaVpn, scale = scale, tightStyle = tightStyle)
             }
 
@@ -160,6 +237,9 @@ fun SpeedTestScreen(
                     SpeedGauge(
                         speed = state.currentSpeed,
                         phase = state.phase,
+                        hasError = state.errorRes != null,
+                        successful = state.phase == SpeedTestPhase.Done &&
+                            state.errorRes == null && state.downloadSpeed > 0.0,
                         modifier = Modifier.size(gaugeSize),
                         gaugeTextSize = gaugeTextSize,
                         gaugeUnitSize = gaugeUnitSize,
@@ -173,32 +253,57 @@ fun SpeedTestScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        val errorRes = state.errorRes
-                        Text(
-                            text = when {
-                                errorRes != null -> stringResource(errorRes)
-                                state.phase == SpeedTestPhase.Idle -> stringResource(R.string.speed_press_start)
-                                state.phase == SpeedTestPhase.Ping -> stringResource(R.string.speed_measuring_ping)
-                                state.phase == SpeedTestPhase.Download -> stringResource(R.string.speed_downloading)
-                                state.phase == SpeedTestPhase.Done -> stringResource(R.string.speed_done)
-                                else -> ""
-                            },
-                            fontSize = titleSize,
-                            color = if (errorRes != null) VpnRed else MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = tightStyle,
-                        )
+                        AnimatedVisibility(
+                            visible = state.errorRes != null,
+                            enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.94f),
+                            exit = fadeOut(tween(140)) + scaleOut(tween(140), targetScale = 0.96f),
+                        ) {
+                            state.errorRes?.let { errorRes ->
+                                Text(
+                                    text = stringResource(errorRes),
+                                    fontSize = bodySize,
+                                    color = VpnRed,
+                                    textAlign = TextAlign.Center,
+                                    style = tightStyle,
+                                )
+                            }
+                        }
+                        AnimatedVisibility(
+                            visible = state.errorRes == null && (
+                                state.phase == SpeedTestPhase.Ping ||
+                                    state.phase == SpeedTestPhase.Download ||
+                                    state.phase == SpeedTestPhase.Done
+                                ),
+                            enter = fadeIn(tween(250)) +
+                                scaleIn(tween(250), initialScale = 0.94f) +
+                                expandVertically(
+                                    animationSpec = tween(250, easing = FastOutSlowInEasing),
+                                    expandFrom = Alignment.Top,
+                                ),
+                            exit = fadeOut(tween(220)) +
+                                scaleOut(tween(220), targetScale = 0.96f) +
+                                shrinkVertically(
+                                    animationSpec = tween(260, easing = FastOutSlowInEasing),
+                                    shrinkTowards = Alignment.Top,
+                                ),
+                        ) {
+                            MeasurementStages(
+                                phase = state.phase,
+                                scale = scale,
+                                bodySize = bodySize,
+                                tightStyle = tightStyle,
+                                modifier = Modifier.padding(top = (10 * scale).dp),
+                            )
+                        }
 
-                        Spacer(modifier = Modifier.height((32 * scale).dp))
+                        Spacer(modifier = Modifier.height((18 * scale).dp))
 
                         Row(horizontalArrangement = Arrangement.spacedBy(cardSpacing)) {
                             ResultCard(
                                 label = stringResource(R.string.speed_ping),
                                 value = if (state.ping > 0) "${state.ping}" else "—",
                                 unit = stringResource(R.string.speed_unit_ms),
-                                color = if (state.ping in 1..100) VpnGreen
-                                else if (state.ping in 101..200) VpnOrange
-                                else if (state.ping > 200) VpnRed
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = pingResultColor(state.ping),
                                 modifier = Modifier.width(cardWidth),
                                 cardCorner = cardCorner,
                                 cardPad = cardPad,
@@ -210,7 +315,11 @@ fun SpeedTestScreen(
                                 label = stringResource(R.string.speed_download),
                                 value = if (state.downloadSpeed > 0) "%.1f".format(state.downloadSpeed) else "—",
                                 unit = stringResource(R.string.speed_unit_mbps),
-                                color = VpnGreen,
+                                color = if (state.downloadSpeed > 0) {
+                                    downloadResultColor(state.downloadSpeed)
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
                                 modifier = Modifier.width(cardWidth),
                                 cardCorner = cardCorner,
                                 cardPad = cardPad,
@@ -281,9 +390,10 @@ private fun VpnRouteBadge(
     val content = if (viaVpn) VpnGreen else MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier = Modifier
+            .height((40 * scale).dp)
             .border((1.5f * scale).dp, border, RoundedCornerShape(percent = 50))
             .background(bg, RoundedCornerShape(percent = 50))
-            .padding(horizontal = (14 * scale).dp, vertical = (6 * scale).dp),
+            .padding(horizontal = (16 * scale).dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -300,30 +410,65 @@ private fun VpnRouteBadge(
 private fun SpeedGauge(
     speed: Double,
     phase: SpeedTestPhase,
+    hasError: Boolean,
+    successful: Boolean,
     modifier: Modifier = Modifier,
     gaugeTextSize: androidx.compose.ui.unit.TextUnit,
     gaugeUnitSize: androidx.compose.ui.unit.TextUnit,
     tightStyle: TextStyle,
     scale: Float,
 ) {
-    val maxSpeed = 100f
+    // Same scale as the phone: a 300 Mbps connection must not pin the needle.
+    val maxSpeed = 500f
     val fraction = (speed.toFloat() / maxSpeed).coerceIn(0f, 1f)
     val animatedFraction by animateFloatAsState(
         targetValue = fraction,
-        animationSpec = tween(300),
+        animationSpec = tween(420, easing = FastOutSlowInEasing),
         label = "gauge",
     )
 
+    val infiniteTransition = rememberInfiniteTransition(label = "speed-gauge-running")
+    val scanFraction by infiniteTransition.animateFloat(
+        initialValue = 0.06f,
+        targetValue = 0.94f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "speed-gauge-scan",
+    )
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1_100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "speed-gauge-pulse",
+    )
+    val inactiveVisual = phase == SpeedTestPhase.Idle ||
+        phase == SpeedTestPhase.Checking || hasError
+    val completionBurst by animateFloatAsState(
+        targetValue = if (successful) 1f else 0f,
+        animationSpec = tween(720, easing = FastOutSlowInEasing),
+        label = "speed-gauge-completion",
+    )
+    val isRunning = phase == SpeedTestPhase.Ping || phase == SpeedTestPhase.Download
+    val visualFraction = if (phase == SpeedTestPhase.Ping) scanFraction else animatedFraction
     val arcColor = when {
-        speed < 10 -> VpnRed
-        speed < 30 -> VpnOrange
-        speed < 60 -> VpnGreen
+        phase == SpeedTestPhase.Ping -> VpnBlue
+        speed < 25 -> VpnRed
+        speed < 75 -> VpnOrange
+        speed < 150 -> VpnGreen
         else -> VpnBlue
     }
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val textColor = MaterialTheme.colorScheme.onSurface
 
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val strokeWidth = (18 * scale).dp.toPx()
             val padding = strokeWidth / 2 + (8 * scale).dp.toPx()
@@ -332,6 +477,15 @@ private fun SpeedGauge(
 
             val startAngle = 150f
             val totalSweep = 240f
+            val center = Offset(size.width / 2, size.height / 2)
+
+            if (isRunning) {
+                drawCircle(
+                    color = VpnBlue.copy(alpha = 0.05f + pulse * 0.07f),
+                    radius = size.minDimension * (0.43f + pulse * 0.035f),
+                    center = center,
+                )
+            }
 
             drawArc(
                 color = trackColor,
@@ -343,11 +497,11 @@ private fun SpeedGauge(
                 style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
             )
 
-            if (animatedFraction > 0f) {
+            if (visualFraction > 0f) {
                 drawArc(
                     color = arcColor,
                     startAngle = startAngle,
-                    sweepAngle = totalSweep * animatedFraction,
+                    sweepAngle = totalSweep * visualFraction,
                     useCenter = false,
                     topLeft = topLeft,
                     size = arcSize,
@@ -355,7 +509,6 @@ private fun SpeedGauge(
                 )
             }
 
-            val center = Offset(size.width / 2, size.height / 2)
             val radius = arcSize.width / 2
             val tickCount = 10
             for (i in 0..tickCount) {
@@ -376,8 +529,8 @@ private fun SpeedGauge(
                 )
             }
 
-            if (phase != SpeedTestPhase.Idle) {
-                val needleAngle = Math.toRadians((startAngle + totalSweep * animatedFraction).toDouble())
+            if (!inactiveVisual) {
+                val needleAngle = Math.toRadians((startAngle + totalSweep * visualFraction).toDouble())
                 val needleLength = radius - strokeWidth - (16 * scale).dp.toPx()
                 drawLine(
                     color = arcColor,
@@ -395,11 +548,26 @@ private fun SpeedGauge(
                     center = center,
                 )
             }
+
+            if (completionBurst in 0.001f..0.999f) {
+                val particleRadius = radius * (0.82f + completionBurst * 0.22f)
+                repeat(12) { index ->
+                    val angle = Math.toRadians((index * 30.0) - 90.0)
+                    drawCircle(
+                        color = VpnGreen.copy(alpha = (1f - completionBurst) * 0.75f),
+                        radius = ((2.8f - completionBurst * 1.2f) * scale).dp.toPx(),
+                        center = Offset(
+                            center.x + particleRadius * cos(angle).toFloat(),
+                            center.y + particleRadius * sin(angle).toFloat(),
+                        ),
+                    )
+                }
+            }
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = if (phase == SpeedTestPhase.Idle) "0" else "%.1f".format(speed),
+                text = if (inactiveVisual) "0" else "%.1f".format(speed),
                 fontSize = gaugeTextSize,
                 fontWeight = FontWeight.Bold,
                 color = textColor,
@@ -412,7 +580,149 @@ private fun SpeedGauge(
                 style = tightStyle,
             )
         }
+
+        AnimatedVisibility(
+            visible = successful,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = (20 * scale).dp, end = (20 * scale).dp),
+            enter = fadeIn(tween(220, delayMillis = 180)) +
+                scaleIn(tween(360, delayMillis = 180), initialScale = 0.35f),
+            exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.7f),
+        ) {
+            Surface(
+                modifier = Modifier.size((42 * scale).dp),
+                shape = RoundedCornerShape(percent = 50),
+                color = VpnGreen,
+                contentColor = Color.White,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size((26 * scale).dp),
+                    )
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun MeasurementStages(
+    phase: SpeedTestPhase,
+    scale: Float,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    tightStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy((10 * scale).dp),
+    ) {
+        MeasurementStageChip(
+            label = stringResource(R.string.speed_ping),
+            active = phase == SpeedTestPhase.Ping,
+            completed = phase == SpeedTestPhase.Download || phase == SpeedTestPhase.Done,
+            modifier = Modifier.width((118 * scale).dp),
+            scale = scale,
+            bodySize = bodySize,
+            tightStyle = tightStyle,
+        )
+        MeasurementStageChip(
+            label = stringResource(R.string.speed_download),
+            active = phase == SpeedTestPhase.Download,
+            completed = phase == SpeedTestPhase.Done,
+            modifier = Modifier.width((118 * scale).dp),
+            scale = scale,
+            bodySize = bodySize,
+            tightStyle = tightStyle,
+        )
+    }
+}
+
+@Composable
+private fun MeasurementStageChip(
+    label: String,
+    active: Boolean,
+    completed: Boolean,
+    scale: Float,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    tightStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    val pulseTransition = rememberInfiniteTransition(label = "speed-stage-$label")
+    val pulse by pulseTransition.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(720),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "speed-stage-pulse-$label",
+    )
+    val accent = when {
+        completed -> VpnGreen
+        active -> VpnBlue
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val background = when {
+        completed -> VpnGreen.copy(alpha = 0.14f)
+        active -> VpnBlue.copy(alpha = 0.14f)
+        else -> MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    Surface(
+        modifier = modifier.height((38 * scale).dp),
+        shape = RoundedCornerShape(percent = 50),
+        color = background,
+        contentColor = accent,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = (12 * scale).dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (completed) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size((17 * scale).dp),
+                )
+            } else {
+                Canvas(modifier = Modifier.size((12 * scale).dp)) {
+                    drawCircle(
+                        color = accent.copy(alpha = if (active) pulse else 0.45f),
+                        radius = size.minDimension * if (active) 0.4f * pulse else 0.28f,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width((7 * scale).dp))
+            Text(
+                text = label,
+                fontSize = bodySize,
+                fontWeight = if (active || completed) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                softWrap = false,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                style = tightStyle,
+            )
+        }
+    }
+}
+
+private fun downloadResultColor(speed: Double): Color = when {
+    speed < 25.0 -> VpnRed
+    speed < 75.0 -> VpnOrange
+    speed < 150.0 -> VpnGreen
+    else -> VpnBlue
+}
+
+@Composable
+private fun pingResultColor(ping: Long): Color = when (ping) {
+    in 1..100 -> VpnGreen
+    in 101..200 -> VpnOrange
+    in 201..Long.MAX_VALUE -> VpnRed
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 @Composable
@@ -429,7 +739,7 @@ private fun ResultCard(
     tightStyle: TextStyle,
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.animateContentSize(),
         shape = RoundedCornerShape(cardCorner),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -448,14 +758,23 @@ private fun ResultCard(
                 style = tightStyle,
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                fontSize = valueSize,
-                fontWeight = FontWeight.Bold,
-                color = color,
-                textAlign = TextAlign.Center,
-                style = tightStyle,
-            )
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    (fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.86f)) togetherWith
+                        fadeOut(tween(120))
+                },
+                label = "speed-result-$label",
+            ) { animatedValue ->
+                Text(
+                    text = animatedValue,
+                    fontSize = valueSize,
+                    fontWeight = FontWeight.Bold,
+                    color = color,
+                    textAlign = TextAlign.Center,
+                    style = tightStyle,
+                )
+            }
             Text(
                 text = unit,
                 fontSize = labelSize,

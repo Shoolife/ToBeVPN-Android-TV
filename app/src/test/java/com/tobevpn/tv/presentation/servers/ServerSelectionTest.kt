@@ -64,6 +64,34 @@ class ServerSelectionTest {
         assertFalse(serverListItemKey(initial).contains("|RU|"))
     }
 
+    @Test
+    fun `measured servers put verified profiles first by ping and failures last`() {
+        val failed = server(name = "failed", address = "failed.example").copy(ping = -1)
+        val slow = server(name = "slow", address = "slow.example").copy(ping = 96)
+        val fast = server(name = "fast", address = "fast.example").copy(ping = 31)
+
+        val sorted = sortVerifiedServersForDisplay(
+            servers = listOf(failed, slow, fast),
+            pingsMeasured = true,
+        )
+
+        assertEquals(listOf(fast, slow, failed), sorted)
+    }
+
+    @Test
+    fun `servers retain panel order before full profile check finishes`() {
+        val first = server(name = "first", address = "first.example").copy(ping = -1)
+        val second = server(name = "second", address = "second.example").copy(ping = 20)
+
+        assertEquals(
+            listOf(first, second),
+            sortVerifiedServersForDisplay(
+                servers = listOf(first, second),
+                pingsMeasured = false,
+            ),
+        )
+    }
+
     private fun server(
         name: String = "Обход БС (работает медленно)",
         address: String = "gateway.example",

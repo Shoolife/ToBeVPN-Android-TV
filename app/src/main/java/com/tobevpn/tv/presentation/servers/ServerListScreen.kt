@@ -1,10 +1,21 @@
 package com.tobevpn.tv.presentation.servers
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -18,7 +29,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
@@ -29,10 +42,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,10 +58,12 @@ import com.tobevpn.tv.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
@@ -75,6 +92,9 @@ import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.presentation.countryFlagForUi
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
 import com.tobevpn.tv.presentation.serverCountryNameForUi
 import com.tobevpn.tv.presentation.serverDisplayName
 import com.tobevpn.tv.presentation.theme.VpnGreen
@@ -127,6 +147,10 @@ fun ServerListScreen(
     viewModel: ServerListViewModel = hiltViewModel(),
 ) {
     val servers by viewModel.servers.collectAsStateWithLifecycle()
+    val profilePingsMeasured by viewModel.profilePingsMeasured.collectAsStateWithLifecycle()
+    val displayedServers = remember(servers, profilePingsMeasured) {
+        sortVerifiedServersForDisplay(servers, profilePingsMeasured)
+    }
     val serverSelection by viewModel.serverSelection.collectAsStateWithLifecycle()
     val selectedManualServer = if (serverSelection.automatic) {
         null
@@ -140,6 +164,11 @@ fun ServerListScreen(
     }
     val isAdminProfile by viewModel.isAdminProfile.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val profileProbeProgress by viewModel.profileProbeProgress.collectAsStateWithLifecycle()
+    var lastProfileProbeProgress by remember { mutableStateOf<ServerProbeProgress?>(null) }
+    LaunchedEffect(profileProbeProgress) {
+        profileProbeProgress?.let { lastProfileProbeProgress = it }
+    }
     val error by viewModel.error.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
@@ -222,15 +251,70 @@ fun ServerListScreen(
 
             Spacer(modifier = Modifier.padding(top = gap))
 
-            Box(modifier = Modifier.fillMaxSize()) {
+            AnimatedVisibility(
+                visible = profileProbeProgress != null,
+                enter = fadeIn(
+                    animationSpec = tween(
+                        durationMillis = 280,
+                        delayMillis = 40,
+                        easing = FastOutSlowInEasing,
+                    ),
+                ) + expandVertically(
+                    animationSpec = tween(
+                        durationMillis = 360,
+                        easing = FastOutSlowInEasing,
+                    ),
+                    expandFrom = Alignment.Top,
+                ) + scaleIn(
+                    animationSpec = tween(
+                        durationMillis = 360,
+                        easing = FastOutSlowInEasing,
+                    ),
+                    initialScale = 0.96f,
+                    transformOrigin = TransformOrigin(0.5f, 0f),
+                ),
+                exit = fadeOut(
+                    animationSpec = tween(
+                        durationMillis = 240,
+                        easing = FastOutSlowInEasing,
+                    ),
+                ) + shrinkVertically(
+                    animationSpec = tween(
+                        durationMillis = 340,
+                        easing = FastOutSlowInEasing,
+                    ),
+                    shrinkTowards = Alignment.Top,
+                ) + scaleOut(
+                    animationSpec = tween(
+                        durationMillis = 300,
+                        easing = FastOutSlowInEasing,
+                    ),
+                    targetScale = 0.97f,
+                    transformOrigin = TransformOrigin(0.5f, 0f),
+                ),
+            ) {
+                (profileProbeProgress ?: lastProfileProbeProgress)?.let { progress ->
+                    ServerProbeProgressBar(
+                        progress = progress,
+                        metrics = metrics,
+                        scale = scale,
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
                 when {
-                    isLoading && servers.isEmpty() -> {
+                    isLoading && displayedServers.isEmpty() -> {
                         CircularProgressIndicator(
                             modifier = Modifier.align(Alignment.Center),
                             color = com.tobevpn.tv.presentation.theme.VpnGreen,
                         )
                     }
-                    error != null && servers.isEmpty() -> {
+                    error != null && displayedServers.isEmpty() -> {
                         Text(
                             text = error ?: stringResource(R.string.servers_load_error),
                             modifier = Modifier.align(Alignment.Center),
@@ -239,7 +323,7 @@ fun ServerListScreen(
                             style = tightStyle,
                         )
                     }
-                    servers.isEmpty() -> {
+                    displayedServers.isEmpty() -> {
                         Text(
                             text = stringResource(R.string.servers_empty),
                             modifier = Modifier.align(Alignment.Center),
@@ -264,7 +348,7 @@ fun ServerListScreen(
                                 (if (isAdminProfile) metrics.adminPingWidth else metrics.pingWidth)
                                     .roundToPx()
                             }
-                            val trailingWidthPx = servers.maxOf { server ->
+                            val trailingWidthPx = displayedServers.maxOf { server ->
                                 when {
                                     !server.isSelectable -> textMeasurer.measure(
                                         text = AnnotatedString(offlineText),
@@ -292,7 +376,7 @@ fun ServerListScreen(
                                         trailingWidth
                                     ).coerceAtLeast(1.dp).roundToPx()
                             }
-                            val names = servers.map { serverDisplayName(it.name, it.country) }
+                            val names = displayedServers.map { serverDisplayName(it.name, it.country) }
                             val serverNameFontSize = remember(
                                 names,
                                 nameWidthPx,
@@ -317,11 +401,25 @@ fun ServerListScreen(
                                 candidate.coerceAtLeast(minCandidate).sp
                             }
 
-                            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            val listState = rememberLazyListState()
+                            val cues = rememberVerticalScrollCueState(
+                                canScrollBackward = listState.canScrollBackward,
+                                canScrollForward = listState.canScrollForward,
+                            )
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalFadingEdges(
+                                        topAlpha = cues.topAlpha,
+                                        bottomAlpha = cues.bottomAlpha,
+                                        fadeHeight = (38 * scale).dp,
+                                    ),
+                            ) {
                                 item(key = "automatic") {
                                     AutomaticServerItem(
                                         selected = serverSelection.automatic,
-                                        enabled = servers.any { it.isSelectable },
+                                        enabled = displayedServers.any { it.isSelectable },
                                         onClick = {
                                             scope.launch {
                                                 if (viewModel.selectAutomaticServer()) {
@@ -336,7 +434,7 @@ fun ServerListScreen(
                                         tightStyle = tightStyle,
                                     )
                                 }
-                                items(servers, key = { serverListItemKey(it) }) { server ->
+                                items(displayedServers, key = { serverListItemKey(it) }) { server ->
                                     val selectable = server.isSelectable
                                     ServerItem(
                                         server = server,
@@ -360,9 +458,80 @@ fun ServerListScreen(
                                     )
                                 }
                             }
+                            VerticalScrollCues(state = cues, scale = scale)
                         }
                     }
                 }
+
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerProbeProgressBar(
+    progress: ServerProbeProgress,
+    metrics: ServerListMetrics,
+    scale: Float,
+) {
+    val fraction = if (progress.total > 0) {
+        progress.completed.toFloat() / progress.total.toFloat()
+    } else {
+        0f
+    }.coerceIn(0f, 1f)
+    val animatedFraction by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+        label = "serverProbeProgress",
+    )
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = metrics.cardVerticalPadding),
+        shape = RoundedCornerShape(metrics.cardCornerRadius),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = (16 * scale).dp, vertical = (12 * scale).dp),
+        ) {
+            Text(
+                text = stringResource(
+                    R.string.server_probe_progress,
+                    progress.completed,
+                    progress.total,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                fontSize = (14 * scale).sp,
+                fontWeight = FontWeight.Medium,
+                color = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onSurface else Color.Black,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height((8 * scale).dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height((7 * scale).dp)
+                    .clip(RoundedCornerShape((99 * scale).dp)),
+            ) {
+                LinearProgressIndicator(
+                    progress = { animatedFraction },
+                    modifier = Modifier.fillMaxSize(),
+                    color = VpnGreen,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .size((4 * scale).dp)
+                        .background(VpnGreen, CircleShape),
+                )
             }
         }
     }
@@ -874,8 +1043,8 @@ private fun serverCardBorder(
     focusBorderWidth: Dp,
     showIdleBorder: Boolean,
 ): BorderStroke? = when {
-    selected -> BorderStroke(1.dp, selectedBorderColor)
     focused -> BorderStroke(focusBorderWidth, MaterialTheme.colorScheme.primary)
+    selected -> BorderStroke(1.dp, selectedBorderColor)
     showIdleBorder -> BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     else -> null
 }

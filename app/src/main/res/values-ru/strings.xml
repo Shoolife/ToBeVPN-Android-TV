@@ -534,4 +534,27 @@
     <string name="whats_new_session_recovery_v1029_desc">Устранены дубли локальной сессии и ложный выход из аккаунта после обновления или временной ошибки токена.</string>
     <string name="whats_new_pairing_v1029_title">Надёжный повторный вход</string>
     <string name="whats_new_pairing_v1029_desc">Перед QR-входом синхронизируется идентификатор телевизора, чтобы исключить ошибку HTTP 403.</string>
+    <string name="whats_new_server_probe_v1030_title">Точная проверка серверов</string>
+    <string name="whats_new_server_probe_v1030_desc">Проверяется готовность всего VPN-профиля, отображается прогресс, а доступные серверы сортируются по пингу. Таймаут проверки можно настроить от 5 до 15 секунд.</string>
+    <string name="whats_new_speed_test_v1030_title">Новый тест скорости</string>
+    <string name="whats_new_speed_test_v1030_desc">Повышена точность измерений, обновлены анимации и добавлена история до 100 результатов с возможностью удаления.</string>
+    <string name="whats_new_traffic_alerts_v1030_title">Предупреждения о трафике</string>
+    <string name="whats_new_traffic_alerts_v1030_desc" formatted="false">TV заранее уведомляет, когда от месячного лимита остаётся 20%, 10% или 5%, и показывает остаток в гигабайтах.</string>
+    <string name="whats_new_stability_v1030_title">Стабильнее VPN и интерфейс</string>
+    <string name="whats_new_stability_v1030_desc">Xray-core обновлён до 26.9.9. Исправлены подключения, учёт трафика, падение при переключении тарифов и D-pad-навигация на экранах и в списках.</string>
+    <string name="server_probe_progress">Проверено %1$d из %2$d</string>
+    <string name="server_ping_timeout_title">Таймаут проверки серверов</string>
+    <string name="server_ping_timeout_description">Сколько ждать полной проверки профиля. Увеличьте значение для медленной или ограниченной сети.</string>
+    <string name="server_ping_timeout_value">%1$d с</string>
+    <string name="speed_checking_connection">Проверка соединения…</string>
+    <string name="speed_history_button">История: %1$d</string>
+    <string name="speed_history_title">История измерений</string>
+    <string name="speed_history_local_hint">До 100 результатов, хранится только на телевизоре</string>
+    <string name="speed_history_empty">Здесь появятся успешные измерения скорости</string>
+    <string name="speed_history_delete">Удалить измерение</string>
+    <string name="speed_history_download_value">%1$.1f Мбит/с</string>
+    <string name="speed_history_ping_value">%1$d мс</string>
+    <string name="traffic_limit_notification_channel">Остаток трафика</string>
+    <string name="traffic_limit_notification_title">Трафик заканчивается</string>
+    <string name="traffic_limit_notification_description">Осталось %1$s ГБ. Продлите тариф или сократите расход трафика.</string>
 </resources>
