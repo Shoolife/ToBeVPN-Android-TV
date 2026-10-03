@@ -1,5 +1,6 @@
 package com.tobevpn.tv.presentation.settings
 
+import com.tobevpn.tv.billing.LocalExternalPurchasesAllowed
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
@@ -242,7 +243,15 @@ private fun TvFaqCard(
             }
             AnimatedVisibility(expanded) {
                 Text(
-                    stringResource(faq.answer),
+                    stringResource(
+                        // The Play build may not point to external payment outside
+                        // the countries Google allows; see PlayBillingCountry.
+                        if (faq.answer == R.string.faq_a_pay && !LocalExternalPurchasesAllowed.current) {
+                            R.string.faq_a_pay_play
+                        } else {
+                            faq.answer
+                        },
+                    ),
                     fontSize = fontSize,
                     lineHeight = (fontSize.value * 1.38f).sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

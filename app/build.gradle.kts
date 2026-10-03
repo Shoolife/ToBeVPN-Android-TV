@@ -48,8 +48,8 @@ android {
         applicationId = "com.tobevpn.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1030
-        versionName = "1.0.30-tv"
+        versionCode = 1031
+        versionName = "1.0.31-tv"
 
         // Direct APK releases retain the GitHub updater. The Google Play
         // variant overrides both flags and delegates updates to Play.
@@ -258,6 +258,9 @@ dependencies {
 
     // QR code generation (for TV pairing)
     implementation(libs.zxing.core)
+
+    // Google Play Billing: only to read the Play account country (external payment rules).
+    implementation(libs.play.billing.ktx)
 
     // Testing
     testImplementation(libs.junit)

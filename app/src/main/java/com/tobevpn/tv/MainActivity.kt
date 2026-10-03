@@ -11,6 +11,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -43,6 +44,9 @@ import com.tobevpn.tv.presentation.theme.ToBeVPNTvTheme
 import com.tobevpn.tv.update.UpdateBannerCheck
 import com.tobevpn.tv.update.UpdateBannerHost
 import com.tobevpn.tv.update.MandatoryUpdateGate
+import com.tobevpn.tv.billing.LocalExternalPurchasesAllowed
+import com.tobevpn.tv.billing.LocalPlayBillingCountry
+import com.tobevpn.tv.billing.PlayBillingCountry
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -81,6 +85,9 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var connectionManagerLazy: Lazy<VpnConnectionManager>
+
+    @Inject
+    lateinit var playBillingCountry: PlayBillingCountry
 
     @SuppressLint("GestureBackNavigation")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -301,7 +308,12 @@ class MainActivity : AppCompatActivity() {
             onboardingNeeded = !seen
         }
 
+        playBillingCountry.refresh()
+
         setContent {
+            val externalPurchasesAllowed by playBillingCountry.externalPurchasesAllowed
+                .collectAsStateWithLifecycle()
+            val playCountry by playBillingCountry.country.collectAsStateWithLifecycle()
             val updateRequired by prefsDataStore.observeUpdateRequired()
                 .collectAsStateWithLifecycle(initialValue = false)
             val notificationPermissionPrompted by prefsDataStore.notificationPermissionPrompted
@@ -346,6 +358,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
+                CompositionLocalProvider(
+                    LocalExternalPurchasesAllowed provides externalPurchasesAllowed,
+                    LocalPlayBillingCountry provides playCountry,
+                ) {
                 ToBeVPNTvTheme(darkTheme = themeMode == AppThemeMode.DARK) {
                     Box(
                         modifier = Modifier
@@ -400,6 +416,7 @@ class MainActivity : AppCompatActivity() {
                             )
                         }
                     }
+                }
                 }
 
                 if (!splashFinished) {

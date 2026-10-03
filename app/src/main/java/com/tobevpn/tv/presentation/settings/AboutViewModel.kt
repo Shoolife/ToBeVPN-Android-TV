@@ -1,5 +1,7 @@
 package com.tobevpn.tv.presentation.settings
 
+import com.tobevpn.tv.billing.PlayBillingCountry
+import com.tobevpn.tv.billing.PlayBillingStatus
 import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
@@ -49,8 +51,12 @@ sealed interface DiagnosticUiEvent {
 class AboutViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val diagnosticLogManager: DiagnosticLogManager,
+    playBillingCountry: PlayBillingCountry,
 ) : ViewModel() {
     val diagnosticState = diagnosticLogManager.state
+
+    /** Google Play country check, shown only in the hidden diagnostics mode. */
+    val playBillingStatus: StateFlow<PlayBillingStatus> = playBillingCountry.status
 
     private val _xrayVersion = MutableStateFlow<String?>(null)
     val xrayVersion: StateFlow<String?> = _xrayVersion.asStateFlow()

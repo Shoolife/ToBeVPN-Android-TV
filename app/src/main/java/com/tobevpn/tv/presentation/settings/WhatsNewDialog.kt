@@ -24,10 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.DataUsage
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -86,24 +83,14 @@ private data class WhatsNewHighlight(
 
 private val currentHighlights = listOf(
     WhatsNewHighlight(
-        icon = Icons.Filled.Dns,
-        titleRes = R.string.whats_new_server_probe_v1030_title,
-        descriptionRes = R.string.whats_new_server_probe_v1030_desc,
-    ),
-    WhatsNewHighlight(
-        icon = Icons.Filled.Speed,
-        titleRes = R.string.whats_new_speed_test_v1030_title,
-        descriptionRes = R.string.whats_new_speed_test_v1030_desc,
-    ),
-    WhatsNewHighlight(
-        icon = Icons.Filled.DataUsage,
-        titleRes = R.string.whats_new_traffic_alerts_v1030_title,
-        descriptionRes = R.string.whats_new_traffic_alerts_v1030_desc,
-    ),
-    WhatsNewHighlight(
         icon = Icons.Filled.Shield,
-        titleRes = R.string.whats_new_stability_v1030_title,
-        descriptionRes = R.string.whats_new_stability_v1030_desc,
+        titleRes = R.string.whats_new_xray_core_v1031_title,
+        descriptionRes = R.string.whats_new_xray_core_v1031_desc,
+    ),
+    WhatsNewHighlight(
+        icon = Icons.Filled.AutoAwesome,
+        titleRes = R.string.whats_new_subscription_v1031_title,
+        descriptionRes = R.string.whats_new_subscription_v1031_desc,
     ),
 )
 

@@ -1,5 +1,7 @@
 package com.tobevpn.tv.presentation.subscription
 
+import com.tobevpn.tv.billing.LocalExternalPurchasesAllowed
+import com.tobevpn.tv.billing.paymentUnavailableMessage
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
@@ -279,6 +281,9 @@ fun SubscriptionScreen(
             ?: selectedTariff?.periods?.firstOrNull { it.key.endsWith(":month") || it.key == "month" }
             ?: selectedTariff?.periods?.firstOrNull()
         val purchaseActionFocusRequester = remember { FocusRequester() }
+        // Google Play rules depend on the Play account country; without
+        // permission there is no purchase button to move focus to.
+        val externalPurchasesAllowed = LocalExternalPurchasesAllowed.current
         val currentPlan = currentPlanUi(authState)
         val currentAuth = authState as? AuthState.Authenticated
         val isPaidAccount = currentAuth?.plan?.let { it != UserPlan.FREE_TRIAL } == true
@@ -478,7 +483,11 @@ fun SubscriptionScreen(
                                                         } else {
                                                             null
                                                         },
-                                                        rightFocusRequester = purchaseActionFocusRequester,
+                                                        rightFocusRequester = if (externalPurchasesAllowed) {
+                                                            purchaseActionFocusRequester
+                                                        } else {
+                                                            FocusRequester.Cancel
+                                                        },
                                                         onFocused = {
                                                             leftPaneReturnFocusRequester = planFocusRequester
                                                         },
@@ -559,13 +568,6 @@ fun SubscriptionScreen(
                                 }
                                 else -> {
                                     Text(
-                                        text = stringResource(R.string.payment_via_telegram),
-                                        fontSize = labelSize,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = tightStyle,
-                                    )
-                                    Spacer(modifier = Modifier.height(smallGap))
-                                    Text(
                                         text = selectedPlan.title,
                                         fontSize = titleSize,
                                         fontWeight = FontWeight.Bold,
@@ -614,36 +616,48 @@ fun SubscriptionScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         style = tightStyle,
                                     )
-                                    Spacer(modifier = Modifier.height(cardGap))
-                                    SubscriptionActionButton(
-                                        text = primaryButtonLabel,
-                                        onClick = {
-                                            if (qrUrl != null) {
-                                                showQr = true
-                                            }
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .focusRequester(purchaseActionFocusRequester),
-                                        leftFocusRequester = leftPaneReturnFocusRequester
-                                            ?: rememberedTariffFocusRequester,
-                                        upFocusRequester = rememberedTariffFocusRequester,
-                                        minHeight = buttonHeight,
-                                        corner = planCardCorner,
-                                        padding = PaddingValues(horizontal = buttonPadH, vertical = buttonPadV),
-                                        borderWidth = borderWidth,
-                                        textSize = buttonTextSize,
-                                        textWeight = FontWeight.Bold,
-                                        tightStyle = tightStyle,
-                                    )
+                                    if (externalPurchasesAllowed) {
+                                        Spacer(modifier = Modifier.height(cardGap))
+                                        SubscriptionActionButton(
+                                            text = primaryButtonLabel,
+                                            onClick = {
+                                                if (qrUrl != null) {
+                                                    showQr = true
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .focusRequester(purchaseActionFocusRequester),
+                                            leftFocusRequester = leftPaneReturnFocusRequester
+                                                ?: rememberedTariffFocusRequester,
+                                            upFocusRequester = rememberedTariffFocusRequester,
+                                            minHeight = buttonHeight,
+                                            corner = planCardCorner,
+                                            padding = PaddingValues(horizontal = buttonPadH, vertical = buttonPadV),
+                                            borderWidth = borderWidth,
+                                            textSize = buttonTextSize,
+                                            textWeight = FontWeight.Bold,
+                                            tightStyle = tightStyle,
+                                        )
 
-                                    Spacer(modifier = Modifier.height(cardGap))
-                                    Text(
-                                        text = stringResource(R.string.subscription_sync_hint),
-                                        fontSize = labelSize,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = tightStyle,
-                                    )
+                                        Spacer(modifier = Modifier.height(cardGap))
+                                        Text(
+                                            text = stringResource(R.string.subscription_sync_hint),
+                                            fontSize = labelSize,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = tightStyle,
+                                        )
+                                    } else {
+                                        // Where external payment is not allowed, explain why
+                                        // there is no button, naming the Google Play country.
+                                        Spacer(modifier = Modifier.height(cardGap))
+                                        Text(
+                                            text = paymentUnavailableMessage(),
+                                            fontSize = bodySize,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = tightStyle,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -652,7 +666,7 @@ fun SubscriptionScreen(
             }
         }
 
-        if (showQr && qrUrl != null) {
+        if (showQr && qrUrl != null && externalPurchasesAllowed) {
             PurchaseQrOverlay(
                 qrUrl = qrUrl,
                 onDismiss = { showQr = false },
@@ -1595,7 +1609,13 @@ private fun currentPlanUi(authState: AuthState): CurrentPlanUi {
                 )
                 UserPlan.EXPIRED -> CurrentPlanUi(
                     title = stringResource(R.string.plan_expired),
-                    subtitle = AnnotatedString(stringResource(R.string.renew_in_bot)),
+                    subtitle = AnnotatedString(
+                        if (LocalExternalPurchasesAllowed.current) {
+                            stringResource(R.string.renew_in_bot)
+                        } else {
+                            paymentUnavailableMessage()
+                        },
+                    ),
                     accentColor = VpnRed,
                 )
                 UserPlan.FREE_TRIAL -> CurrentPlanUi(

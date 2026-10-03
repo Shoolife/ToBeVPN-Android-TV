@@ -1,5 +1,8 @@
 package com.tobevpn.tv.presentation.settings
 
+import java.util.Locale
+import androidx.compose.ui.platform.LocalConfiguration
+import com.tobevpn.tv.billing.PlayBillingStatus
 import android.content.Intent
 import android.net.Uri
 import android.text.format.Formatter
@@ -123,6 +126,7 @@ fun AboutScreen(
     viewModel: AboutViewModel = hiltViewModel(),
 ) {
     val diagnosticState by viewModel.diagnosticState.collectAsStateWithLifecycle()
+    val playBillingStatus by viewModel.playBillingStatus.collectAsStateWithLifecycle()
     val historyState by viewModel.history.collectAsStateWithLifecycle()
     val xrayVersion by viewModel.xrayVersion.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -282,6 +286,20 @@ fun AboutScreen(
                                 fontSize = bodySize,
                             )
                         }
+                    }
+
+                    AnimatedVisibility(
+                        visible = diagnosticState.debugModeEnabled,
+                        enter = expandVertically(animationSpec = tween(320)) + fadeIn(tween(220)),
+                        exit = shrinkVertically(animationSpec = tween(260)) + fadeOut(tween(160)),
+                    ) {
+                        PlayBillingDiagnosticsCard(
+                            status = playBillingStatus,
+                            bodySize = bodySize,
+                            cardPadding = cardPad,
+                            rowGap = (6 * uiScale).dp,
+                            cornerRadius = (18 * uiScale).dp,
+                        )
                     }
                 }
 
@@ -653,6 +671,76 @@ private fun AboutSpecRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * Hidden-diagnostics view of the Google Play country check, so a support
+ * case can compare what Google Play reports with the account on the TV.
+ */
+@Composable
+private fun PlayBillingDiagnosticsCard(
+    status: PlayBillingStatus,
+    bodySize: androidx.compose.ui.unit.TextUnit,
+    cardPadding: androidx.compose.ui.unit.Dp,
+    rowGap: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+) {
+    val locale = LocalConfiguration.current.locales[0]
+    val notAvailable = stringResource(R.string.play_diag_value_none)
+    val countryText = status.country
+        ?.takeIf { it.isNotBlank() }
+        ?.let { code ->
+            val name = Locale("", code).getDisplayCountry(locale)
+            if (name.isBlank() || name.equals(code, ignoreCase = true)) code else "$code · $name"
+        }
+        ?: notAvailable
+    val checkedText = status.checkedAtMillis
+        ?.let {
+            java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.SHORT,
+                java.text.DateFormat.SHORT,
+                locale,
+            ).format(java.util.Date(it))
+        }
+        ?: notAvailable
+    val rows = listOf(
+        stringResource(R.string.play_diag_build) to stringResource(
+            if (status.distribution) R.string.play_diag_build_play else R.string.play_diag_build_direct,
+        ),
+        stringResource(R.string.play_diag_country) to countryText,
+        stringResource(R.string.play_diag_payment) to stringResource(
+            if (status.externalPurchasesAllowed) R.string.play_diag_payment_allowed else R.string.play_diag_payment_blocked,
+        ),
+        stringResource(R.string.play_diag_checked) to checkedText,
+        stringResource(R.string.play_diag_result) to (status.lastResult ?: notAvailable),
+        stringResource(R.string.play_diag_installer) to (status.installer ?: notAvailable),
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(cornerRadius),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(cardPadding),
+            verticalArrangement = Arrangement.spacedBy(rowGap),
+        ) {
+            Text(
+                stringResource(R.string.play_diag_title),
+                fontSize = bodySize,
+                fontWeight = FontWeight.Bold,
+            )
+            rows.forEach { (label, value) ->
+                AboutSpecRow(label = label, value = value, fontSize = bodySize)
+            }
+            Text(
+                stringResource(R.string.play_diag_account_hint),
+                fontSize = bodySize * 0.85f,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 package com.tobevpn.tv.presentation.settings
 
+import com.tobevpn.tv.billing.LocalExternalPurchasesAllowed
+import com.tobevpn.tv.billing.paymentUnavailableMessage
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
@@ -448,7 +450,11 @@ fun SettingsScreen(
                                     if (auth.plan == UserPlan.EXPIRED) {
                                         Spacer(modifier = Modifier.height(smallGap))
                                         Text(
-                                            stringResource(R.string.renew_in_bot),
+                                            if (LocalExternalPurchasesAllowed.current) {
+                                                stringResource(R.string.renew_in_bot)
+                                            } else {
+                                                paymentUnavailableMessage()
+                                            },
                                             fontSize = bodySize,
                                             color = VpnRed,
                                             style = tightStyle,

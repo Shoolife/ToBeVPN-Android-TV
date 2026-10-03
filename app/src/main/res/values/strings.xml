@@ -62,7 +62,6 @@
     <string name="subscription_renew_action">Renew</string>
     <string name="plan_limited_traffic">Limited traffic</string>
     <string name="current_plan">Current plan</string>
-    <string name="payment_via_telegram">Payment via Telegram</string>
     <string name="price_rub">%1$s\u20BD</string>
     <string name="price_usd">$%1$s</string>
     <string name="price_stars">%1$s ⭐</string>
@@ -148,6 +147,22 @@
     <string name="faq_a_stats">The Current session card shows live traffic and connection time. Open it for daily, weekly, and monthly statistics stored on this TV. The Subscription quota comes from the server and is different from local session statistics.</string>
     <string name="faq_q_pay">How do I buy, renew, or change a subscription?</string>
     <string name="faq_a_pay">Open Subscription, choose a plan and duration, then scan the QR code with your phone and finish payment in Telegram. Payment methods, discounts, and the final price are loaded from the server for your account.</string>
+    <string name="payment_unavailable_country">According to Google Play, your country is %1$s. In-app payment is not available there. Go to the Telegram bot to pay.</string>
+    <string name="payment_unavailable">In-app payment is not available in your country. Go to the Telegram bot to pay.</string>
+    <string name="faq_a_pay_play">In the Google Play version, in-app payment is not available in every country. The country is taken from your Google Play account. Where payment is unavailable, plans and prices are shown for reference, and the Subscription screen shows the country reported by Google Play.</string>
+    <string name="play_diag_title">Google Play</string>
+    <string name="play_diag_build">Build</string>
+    <string name="play_diag_build_play">Google Play</string>
+    <string name="play_diag_build_direct">Website (country is not checked)</string>
+    <string name="play_diag_country">Account country</string>
+    <string name="play_diag_payment">In-app payment</string>
+    <string name="play_diag_payment_allowed">Available</string>
+    <string name="play_diag_payment_blocked">Unavailable</string>
+    <string name="play_diag_checked">Last check</string>
+    <string name="play_diag_result">Google Play response</string>
+    <string name="play_diag_installer">Installed by</string>
+    <string name="play_diag_value_none">—</string>
+    <string name="play_diag_account_hint">Google Play reports the country of the account the app was installed from. Checked on every launch.</string>
     <string name="faq_q_activate">My subscription did not update after payment</string>
     <string name="faq_a_activate">Return to ToBeVPN and refresh after a few minutes. Make sure the linked TV uses the same Telegram account. If the status does not change, restart the app and contact support with the approximate payment time.</string>
     <string name="faq_q_discount">Where do I apply a promo code and see the discount?</string>
@@ -534,6 +549,10 @@
     <string name="whats_new_traffic_alerts_v1030_desc" formatted="false">TV now warns when 20%, 10%, or 5% of the monthly allowance remains and shows the remaining amount in gigabytes.</string>
     <string name="whats_new_stability_v1030_title">More stable VPN and UI</string>
     <string name="whats_new_stability_v1030_desc">Xray-core was updated to 26.9.9. Connection handling, traffic accounting, the tariff-switch crash, and D-pad navigation across screens and lists were fixed.</string>
+    <string name="whats_new_xray_core_v1031_title">Xray core 26.9.30</string>
+    <string name="whats_new_xray_core_v1031_desc">The connection core is updated with fixes and stability improvements from the new Xray release.</string>
+    <string name="whats_new_subscription_v1031_title">Updated subscription screen</string>
+    <string name="whats_new_subscription_v1031_desc">The purchase card is more compact: the payment button sits right under the price and description of the selected plan.</string>
     <string name="server_probe_progress">Checked %1$d of %2$d</string>
     <string name="server_ping_timeout_title">Server check timeout</string>
     <string name="server_ping_timeout_description">How long to wait for a complete profile check. Increase it for slow or restricted networks.</string>
