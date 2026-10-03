@@ -8,8 +8,8 @@ data class UsageEntity(
     @PrimaryKey
     val id: Int = 1, // singleton row
     val bytesUsed: Long = 0,
-    val bytesLimit: Long = 1_073_741_824, // 1 GB
+    val bytesLimit: Long = 0, // 0 = unlimited
     val timeUsedSeconds: Long = 0,
-    val timeLimitSeconds: Long = 3600, // 1 hour
+    val timeLimitSeconds: Long = 0, // 0 = unlimited
     val lastConnectedAt: Long? = null,
 )

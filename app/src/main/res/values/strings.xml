@@ -10,7 +10,7 @@
     <string name="state_disconnected">Disconnected</string>
     <string name="state_connecting">Connecting…</string>
     <string name="state_connected">Connected</string>
-    <string name="vpn_error_limit_exhausted">Free traffic limit reached. Sign in via Telegram to continue.</string>
+    <string name="vpn_error_limit_exhausted">Trial traffic has run out. Choose a plan to continue.</string>
     <string name="vpn_error_tun_failed">Could not create VPN interface</string>
     <string name="vpn_notification_action_disconnect">Disconnect</string>
 
@@ -553,6 +553,8 @@
     <string name="whats_new_xray_core_v1031_desc">The connection core is updated with fixes and stability improvements from the new Xray release.</string>
     <string name="whats_new_subscription_v1031_title">Updated subscription screen</string>
     <string name="whats_new_subscription_v1031_desc">The purchase card is more compact: the payment button sits right under the price and description of the selected plan.</string>
+    <string name="whats_new_trial_v1032_title">Trial works again</string>
+    <string name="whats_new_trial_v1032_desc">Fixed an issue where signing in with a trial plan blocked the connection with a limit-reached message. The trial end date is now shown.</string>
     <string name="server_probe_progress">Checked %1$d of %2$d</string>
     <string name="server_ping_timeout_title">Server check timeout</string>
     <string name="server_ping_timeout_description">How long to wait for a complete profile check. Increase it for slow or restricted networks.</string>

@@ -434,7 +434,7 @@ fun SettingsScreen(
                                     }
                                     InfoRow(stringResource(R.string.plan), planLabel, planColor, bodySize, rowPadV, tightStyle)
 
-                                    if ((auth.plan == UserPlan.PAID || auth.plan == UserPlan.ADMIN) && auth.planExpiresAt != null) {
+                                    if (auth.plan != UserPlan.EXPIRED && auth.planExpiresAt != null) {
                                         InfoRow(
                                             label = stringResource(R.string.expires),
                                             value = formatDate(auth.planExpiresAt),

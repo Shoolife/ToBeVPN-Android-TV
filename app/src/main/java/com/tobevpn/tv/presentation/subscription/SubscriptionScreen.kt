@@ -1620,7 +1620,11 @@ private fun currentPlanUi(authState: AuthState): CurrentPlanUi {
                 )
                 UserPlan.FREE_TRIAL -> CurrentPlanUi(
                     title = serverPlanName ?: stringResource(R.string.plan_free),
-                    subtitle = AnnotatedString(stringResource(R.string.plan_limited_traffic)),
+                    subtitle = if (authState.planExpiresAt != null) {
+                        activeSubtitle
+                    } else {
+                        AnnotatedString(stringResource(R.string.plan_limited_traffic))
+                    },
                     accentColor = VpnOrange,
                 )
             }

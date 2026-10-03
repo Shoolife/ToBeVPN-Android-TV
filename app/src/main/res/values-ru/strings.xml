@@ -10,7 +10,7 @@
     <string name="state_disconnected">Отключено</string>
     <string name="state_connecting">Подключение…</string>
     <string name="state_connected">Подключено</string>
-    <string name="vpn_error_limit_exhausted">Лимит бесплатного трафика исчерпан. Войдите через Telegram, чтобы продолжить.</string>
+    <string name="vpn_error_limit_exhausted">Пробный трафик закончился. Оформите тариф, чтобы продолжить.</string>
     <string name="vpn_error_tun_failed">Не удалось создать VPN-интерфейс</string>
     <string name="vpn_notification_action_disconnect">Отключить</string>
 
@@ -561,6 +561,8 @@
     <string name="whats_new_xray_core_v1031_desc">Обновлено ядро подключения: исправления и улучшения стабильности из нового выпуска Xray.</string>
     <string name="whats_new_subscription_v1031_title">Обновлённый экран подписки</string>
     <string name="whats_new_subscription_v1031_desc">Карточка покупки стала компактнее: кнопка оплаты сразу под ценой и описанием выбранного тарифа.</string>
+    <string name="whats_new_trial_v1032_title">Пробный период работает</string>
+    <string name="whats_new_trial_v1032_desc">Исправлена ошибка, из-за которой после входа с пробным тарифом подключение блокировалось сообщением об исчерпанном лимите. Теперь видна дата окончания пробного периода.</string>
     <string name="server_probe_progress">Проверено %1$d из %2$d</string>
     <string name="server_ping_timeout_title">Таймаут проверки серверов</string>
     <string name="server_ping_timeout_description">Сколько ждать полной проверки профиля. Увеличьте значение для медленной или ограниченной сети.</string>

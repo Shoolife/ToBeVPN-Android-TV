@@ -348,6 +348,7 @@ fun MainScreen(
                     val planSubtitle = when (auth.plan) {
                         UserPlan.PAID,
                         UserPlan.ADMIN,
+                        UserPlan.FREE_TRIAL,
                         -> auth.planExpiresAt?.let { expiresAt ->
                             val date = formatDate(expiresAt)
                             val text = stringResource(R.string.plan_until, date)
@@ -360,11 +361,15 @@ fun MainScreen(
                                         .copy(alpha = 0.7f),
                                 ),
                             )
-                        } ?: AnnotatedString("")
-                        UserPlan.EXPIRED -> AnnotatedString(stringResource(R.string.plan_renew))
-                        UserPlan.FREE_TRIAL -> AnnotatedString(
-                            stringResource(R.string.plan_limited_traffic),
+                        } ?: AnnotatedString(
+                            // A trial without a known end date still says it is limited.
+                            if (auth.plan == UserPlan.FREE_TRIAL) {
+                                stringResource(R.string.plan_limited_traffic)
+                            } else {
+                                ""
+                            },
                         )
+                        UserPlan.EXPIRED -> AnnotatedString(stringResource(R.string.plan_renew))
                     }
                     TvMenuCard(
                         icon = Icons.Default.Star,

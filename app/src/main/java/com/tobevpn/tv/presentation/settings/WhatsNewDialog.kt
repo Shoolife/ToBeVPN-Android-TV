@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -82,6 +83,11 @@ private data class WhatsNewHighlight(
 )
 
 private val currentHighlights = listOf(
+    WhatsNewHighlight(
+        icon = Icons.Filled.CheckCircle,
+        titleRes = R.string.whats_new_trial_v1032_title,
+        descriptionRes = R.string.whats_new_trial_v1032_desc,
+    ),
     WhatsNewHighlight(
         icon = Icons.Filled.Shield,
         titleRes = R.string.whats_new_xray_core_v1031_title,
