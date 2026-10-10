@@ -15,6 +15,7 @@ import com.tobevpn.tv.data.local.dao.TrafficLogDao
 import com.tobevpn.tv.data.local.entity.TrafficLogEntity
 import com.tobevpn.tv.data.repository.AppFilterRepository
 import com.tobevpn.tv.data.repository.AuthRepository
+import com.tobevpn.tv.data.repository.ServerProfileProbeRepository
 import com.tobevpn.tv.data.repository.ServerQualityRepository
 import com.tobevpn.tv.data.repository.UsageRepository
 import com.tobevpn.tv.data.repository.VpnRepository
@@ -29,9 +30,18 @@ import com.tobevpn.tv.presentation.servers.stableServerId
 import com.tobevpn.tv.util.SafeDiagnostics
 import com.tobevpn.tv.util.diagnosticServerDescriptor
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.IOException
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -58,15 +68,6 @@ import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import java.io.IOException
-import java.net.InetSocketAddress
-import java.net.Proxy
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import javax.inject.Singleton
-import kotlin.coroutines.resume
 
 @Singleton
 class VpnConnectionManager @Inject constructor(
@@ -78,6 +79,7 @@ class VpnConnectionManager @Inject constructor(
     private val authRepository: AuthRepository,
     private val vpnRepository: VpnRepository,
     private val serverQualityRepository: ServerQualityRepository,
+    private val serverProfileProbeRepository: ServerProfileProbeRepository,
     private val appFilterRepository: AppFilterRepository,
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -641,7 +643,15 @@ class VpnConnectionManager @Inject constructor(
                         )
                     }
                 } else if (automatic) {
-                    serverQualityRepository.selectBestServer(
+                    // A profile the last server check carried a request
+                    // through beats a bare TCP ping (same as the phone).
+                    val verifiedDelays = serverProfileProbeRepository
+                        .getCachedProfileDelays(availableServers)
+                    serverQualityRepository.selectBestVerifiedServer(
+                        servers = availableServers,
+                        verifiedDelays = verifiedDelays,
+                        excludedServers = excludedAutoServers,
+                    ) ?: serverQualityRepository.selectBestServer(
                         servers = availableServers,
                         excludedServers = excludedAutoServers,
                         avoidEndpointServers = excludedAutoServers,

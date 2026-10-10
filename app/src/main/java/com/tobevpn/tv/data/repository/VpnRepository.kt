@@ -1,15 +1,21 @@
 package com.tobevpn.tv.data.repository
 
+import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.local.dao.ServerDao
 import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.local.entity.ServerEntity
-import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.remote.BotApi
 import com.tobevpn.tv.data.remote.SubscriptionPinger
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.presentation.serverCountryCodeForUi
 import com.tobevpn.tv.util.SafeDiagnostics
 import com.tobevpn.tv.vpn.VlessUrlParser
+import java.net.InetAddress
+import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,11 +25,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.net.InetAddress
-import java.util.Locale
-import java.util.concurrent.atomic.AtomicLong
-import javax.inject.Inject
-import javax.inject.Singleton
 
 @Singleton
 class VpnRepository @Inject constructor(
@@ -70,6 +71,10 @@ class VpnRepository @Inject constructor(
                 return Result.failure(Exception("No servers available"))
             }
             throw IllegalStateException("Subscription profile unavailable")
+        } catch (cancelled: CancellationException) {
+            // The profile request is cancellable now (OkHttpAwait): leaving
+            // the screen must stop here, not fall back to the cache.
+            throw cancelled
         } catch (e: Exception) {
             SafeDiagnostics.warn(TAG, "Server refresh failed; checking local cache: ${SafeDiagnostics.failureCategory(e)}")
             val shortUuid = sessionDao.getSession()?.shortUuid

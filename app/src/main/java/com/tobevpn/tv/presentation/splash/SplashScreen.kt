@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,218 +26,188 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
-
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import com.tobevpn.tv.R
+import com.tobevpn.tv.presentation.components.drawBrandGlow
+import com.tobevpn.tv.presentation.components.drawBrandIcon
+import kotlin.math.sqrt
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-private val DarkBg = Color(0xFF0A1628)
+// Startup animation, matching the desktop client (SplashScreen.tsx/.css):
+// the app icon's own shield appears and settles, its chevrons slide in, then
+// the name rises below. The system splash before it shows only this
+// background (splash_empty), so the screen grows out of the same colour.
+
+// Dark: the Home screen background (theme TvDarkBg), so the splash hands
+// over to the app without a colour change.
+private val DarkBg = Color(0xFF101012)
 private val LightBg = Color(0xFFF4F7FB)
-private val DarkText = Color.White
-private val DarkTextSecondary = Color.White.copy(alpha = 0.5f)
-private val LightText = Color(0xFF102A43)
-private val LightTextSecondary = Color(0xFF102A43).copy(alpha = 0.55f)
-private val DarkChevron = Color.White
-private val DarkChevronSecondary = Color.White.copy(alpha = 0.4f)
-private val LightChevron = Color(0xFF6B7280)
-private val LightChevronSecondary = Color(0xFF6B7280).copy(alpha = 0.35f)
-private val Teal = Color(0xFF00E5A0)
-private val Cyan = Color(0xFF00BCD4)
-private val Blue = Color(0xFF2196F3)
+private val DarkTitle = Color.White
+private val DarkTagline = Color.White.copy(alpha = 0.55f)
+private val LightTitle = Color(0xFF102A43)
+private val LightTagline = Color(0xFF102A43).copy(alpha = 0.55f)
+private val DarkGlow = Color(0xFF00E5A0).copy(alpha = 0.35f)
+private val LightGlow = Color(0xFF00BCD4).copy(alpha = 0.18f)
+
+
+// About a quarter faster than the desktop timings, same choreography.
+private const val SHIELD_SCALE_MS = 850
+private const val SHIELD_FADE_MS = 600
+private const val CHEVRON_DELAY_MS = 450L
+private const val CHEVRON_SLIDE_MS = 750
+private const val CHEVRON_FADE_MS = 600
+private const val TEXT_DELAY_MS = 900L
+private const val TEXT_MS = 700
+private const val HOLD_MS = 2400L
+private const val PHONE_ICON_BOX_DP = 240f
+private const val ICON_SCALE = 1.21f
+private const val EXIT_MS = 450
+
 
 @Composable
 fun SplashScreen(
     darkTheme: Boolean,
     onFinished: () -> Unit,
 ) {
-    val backgroundColor = if (darkTheme) DarkBg else LightBg
-    val titleColor = if (darkTheme) DarkText else LightText
-    val subtitleColor = if (darkTheme) DarkTextSecondary else LightTextSecondary
-    val chevronColor = if (darkTheme) DarkChevron else LightChevron
-    val chevronTrailColor = if (darkTheme) DarkChevronSecondary else LightChevronSecondary
-    val shieldScale = remember { Animatable(0f) }
+    val isDarkTheme = darkTheme
+    val backgroundColor = if (isDarkTheme) DarkBg else LightBg
+    val titleColor = if (isDarkTheme) DarkTitle else LightTitle
+    val taglineColor = if (isDarkTheme) DarkTagline else LightTagline
+    val glowColor = if (isDarkTheme) DarkGlow else LightGlow
+
+    val shieldScale = remember { Animatable(0.85f) }
     val shieldAlpha = remember { Animatable(0f) }
-    val chevronOffset = remember { Animatable(-40f) }
+    val chevronShift = remember { Animatable(1f) } // 1 = fully left, 0 = in place
     val chevronAlpha = remember { Animatable(0f) }
     val textAlpha = remember { Animatable(0f) }
     val textOffset = remember { Animatable(20f) }
-    val fadeOut = remember { Animatable(1f) }
+    val screenAlpha = remember { Animatable(1f) }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "glow")
-    val glowAlpha by infiniteTransition.animateFloat(
+    val glowPulse by rememberInfiniteTransition(label = "glow").animateFloat(
         initialValue = 0.3f,
         targetValue = 0.8f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
-        label = "glowAlpha",
+        label = "glowPulse",
     )
 
-    LaunchedEffect(Unit) { shieldAlpha.animateTo(1f, tween(400, easing = FastOutSlowInEasing)) }
-    LaunchedEffect(Unit) { shieldScale.animateTo(1f, tween(600, easing = FastOutSlowInEasing)) }
-    LaunchedEffect(Unit) { delay(300); chevronAlpha.animateTo(1f, tween(400)) }
-    LaunchedEffect(Unit) { delay(300); chevronOffset.animateTo(0f, tween(500, easing = FastOutSlowInEasing)) }
-    LaunchedEffect(Unit) { delay(600); textAlpha.animateTo(1f, tween(500)) }
-    LaunchedEffect(Unit) { delay(600); textOffset.animateTo(0f, tween(500, easing = FastOutSlowInEasing)) }
     LaunchedEffect(Unit) {
-        delay(1600)
-        fadeOut.animateTo(0f, tween(400, easing = FastOutSlowInEasing))
-        onFinished()
+        try {
+            coroutineScope {
+                launch { shieldScale.animateTo(1f, tween(SHIELD_SCALE_MS, easing = FastOutSlowInEasing)) }
+                launch { shieldAlpha.animateTo(1f, tween(SHIELD_FADE_MS, easing = FastOutSlowInEasing)) }
+                launch {
+                    delay(CHEVRON_DELAY_MS)
+                    listOf(
+                        async { chevronShift.animateTo(0f, tween(CHEVRON_SLIDE_MS, easing = FastOutSlowInEasing)) },
+                        async { chevronAlpha.animateTo(1f, tween(CHEVRON_FADE_MS, easing = FastOutSlowInEasing)) },
+                    ).awaitAll()
+                }
+                launch {
+                    delay(TEXT_DELAY_MS)
+                    listOf(
+                        async { textOffset.animateTo(0f, tween(TEXT_MS, easing = FastOutSlowInEasing)) },
+                        async { textAlpha.animateTo(1f, tween(TEXT_MS, easing = FastOutSlowInEasing)) },
+                    ).awaitAll()
+                }
+                launch {
+                    delay(HOLD_MS)
+                    screenAlpha.animateTo(0f, tween(EXIT_MS, easing = FastOutSlowInEasing))
+                }
+            }
+        } finally {
+            onFinished()
+        }
     }
 
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .alpha(fadeOut.value)
+            // Read in the layer, not in composition: no recomposition per frame.
+            .graphicsLayer { alpha = screenAlpha.value }
             .background(backgroundColor),
         contentAlignment = Alignment.Center,
     ) {
-        // Scale: use pixel height to pick baseline — 4K gets larger baseline
-        val density = LocalDensity.current.density
-        val pxHeight = maxHeight.value * density
-        val is4K = pxHeight > 1500f
-        val sizeScale = if (is4K) 0.65f else 1.0f
-        val shieldBaseline = if (is4K) 500f else 320f
-
-        // Shield: purely proportional, no absolute dp cap
-        val shieldSize = min(maxHeight * 0.55f, maxWidth * 0.45f) * sizeScale
-        val gap = maxHeight * 0.04f * sizeScale
-        val scaleFactor = (shieldSize.value / shieldBaseline).coerceIn(0.5f, 1.3f)
-        val titleSize = (42 * scaleFactor).sp
-        val taglineSize = (15 * scaleFactor).sp
-        val letterSpacingTitle = (5 * scaleFactor).sp
-        val letterSpacingTagline = (2.5f * scaleFactor).sp
-
+        // Sized from the TV screen, not fixed dp: a 4K panel gets a smaller
+        // share so the icon does not dominate.
+        val is4K = maxHeight.value * LocalDensity.current.density > 1500f
+        val base = min(maxHeight * 0.44f, maxWidth * 0.36f) * (if (is4K) 0.65f else 1f)
+        // Text follows this base, from the phone's 240 dp box; the icon is a
+        // little larger than it.
+        val k = base.value / PHONE_ICON_BOX_DP
+        val iconBox = base * ICON_SCALE
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier
-                    .size(shieldSize)
-                    .scale(shieldScale.value)
-                    .alpha(shieldAlpha.value),
-                contentAlignment = Alignment.Center,
-            ) {
+            Box(modifier = Modifier.size(iconBox), contentAlignment = Alignment.Center) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawShield(glowAlpha)
-                    drawChevrons(
-                        offset = chevronOffset.value,
-                        alpha = chevronAlpha.value,
-                        color = chevronColor,
-                        trailColor = chevronTrailColor,
-                    )
+                    drawBrandGlow(glowColor, glowPulse)
+                }
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = shieldScale.value
+                            scaleY = shieldScale.value
+                            alpha = shieldAlpha.value
+                        },
+                ) {
+                    drawBrandIcon(chevronShift.value, chevronAlpha.value)
                 }
             }
 
-            Spacer(modifier = Modifier.height(gap))
+            Spacer(modifier = Modifier.height((20 * k).dp))
 
-            Text(
-                text = "ToBeVPN",
-                fontSize = titleSize,
-                fontFamily = FontFamily.SansSerif,
-                fontWeight = FontWeight.Light,
-                color = titleColor,
-                letterSpacing = letterSpacingTitle,
-                modifier = Modifier
-                    .alpha(textAlpha.value)
-                    .graphicsLayer { translationY = textOffset.value.dp.toPx() },
-            )
-
-            Spacer(modifier = Modifier.height(gap * 0.25f))
-
-            Text(
-                text = stringResource(R.string.splash_tagline),
-                fontSize = taglineSize,
-                fontFamily = FontFamily.SansSerif,
-                fontWeight = FontWeight.Light,
-                color = subtitleColor,
-                letterSpacing = letterSpacingTagline,
-                modifier = Modifier
-                    .alpha(textAlpha.value)
-                    .graphicsLayer { translationY = textOffset.value.dp.toPx() },
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.graphicsLayer {
+                    alpha = textAlpha.value
+                    translationY = textOffset.value.dp.toPx()
+                },
+            ) {
+                // The app font, bold and without tracking, like the desktop
+                // splash and the sign-in titles.
+                Text(
+                    text = "ToBeVPN",
+                    fontSize = (44 * k).sp,
+                    lineHeight = (50 * k).sp,
+                    fontWeight = FontWeight.Bold,
+                    color = titleColor,
+                )
+                Spacer(modifier = Modifier.height((6 * k).dp))
+                Text(
+                    text = stringResource(R.string.splash_tagline),
+                    fontSize = (17 * k).sp,
+                    lineHeight = (23 * k).sp,
+                    fontWeight = FontWeight.Normal,
+                    color = taglineColor,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                )
+            }
         }
     }
 }
 
-private fun DrawScope.drawShield(glowAlpha: Float) {
-    val w = size.width; val h = size.height; val cx = w / 2; val cy = h / 2
 
-    val glowBrush = Brush.radialGradient(
-        colors = listOf(Teal.copy(alpha = glowAlpha * 0.3f), Color.Transparent),
-        center = Offset(cx, cy),
-        radius = w * 0.7f,
-    )
-    drawCircle(brush = glowBrush, radius = w * 0.65f, center = Offset(cx, cy))
-
-    val shield = Path().apply {
-        moveTo(cx, h * 0.12f)
-        cubicTo(cx + w * 0.05f, h * 0.12f, w * 0.78f, h * 0.18f, w * 0.78f, h * 0.22f)
-        cubicTo(w * 0.78f, h * 0.5f, w * 0.72f, h * 0.68f, cx, h * 0.88f)
-        cubicTo(w * 0.28f, h * 0.68f, w * 0.22f, h * 0.5f, w * 0.22f, h * 0.22f)
-        cubicTo(w * 0.22f, h * 0.18f, cx - w * 0.05f, h * 0.12f, cx, h * 0.12f)
-        close()
-    }
-
-    val strokeWidth = (4.dp.toPx() * (size.minDimension / 300.dp.toPx())).coerceIn(2f, 6f)
-    val shieldBrush = Brush.linearGradient(
-        colors = listOf(Teal, Cyan, Blue),
-        start = Offset(w * 0.22f, h * 0.12f),
-        end = Offset(w * 0.78f, h * 0.88f),
-    )
-    drawPath(
-        path = shield,
-        brush = shieldBrush,
-        style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round),
-    )
-}
-
-private fun DrawScope.drawChevrons(
-    offset: Float,
-    alpha: Float,
-    color: Color,
-    trailColor: Color,
-) {
-    if (alpha <= 0f) return
-    val w = size.width; val h = size.height; val cx = w / 2; val cy = h / 2
-    val offsetPx = offset.dp.toPx()
-    val scale = size.minDimension / 300.dp.toPx()
-
-    val chevron1 = Path().apply {
-        moveTo(cx - w * 0.06f + offsetPx, cy - h * 0.12f)
-        lineTo(cx + w * 0.1f + offsetPx, cy)
-        lineTo(cx - w * 0.06f + offsetPx, cy + h * 0.12f)
-    }
-    drawPath(
-        path = chevron1,
-        color = color.copy(alpha = color.alpha * alpha),
-        style = Stroke(width = (5.dp.toPx() * scale).coerceIn(2f, 8f), cap = StrokeCap.Round, join = StrokeJoin.Round),
-    )
-
-    val chevron2 = Path().apply {
-        moveTo(cx - w * 0.16f + offsetPx * 0.6f, cy - h * 0.09f)
-        lineTo(cx - w * 0.04f + offsetPx * 0.6f, cy)
-        lineTo(cx - w * 0.16f + offsetPx * 0.6f, cy + h * 0.09f)
-    }
-    drawPath(
-        path = chevron2,
-        color = trailColor.copy(alpha = trailColor.alpha * alpha),
-        style = Stroke(width = (3.5f.dp.toPx() * scale).coerceIn(1.5f, 6f), cap = StrokeCap.Round, join = StrokeJoin.Round),
-    )
-}

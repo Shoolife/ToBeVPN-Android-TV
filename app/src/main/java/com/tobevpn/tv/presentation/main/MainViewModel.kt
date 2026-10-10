@@ -78,6 +78,10 @@ class MainViewModel @Inject constructor(
         .map { it.server }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /** Next traffic limit reset from the current plan, shown under the traffic bar. */
+    val trafficResetAt: StateFlow<Long?> = prefsDataStore.trafficResetAt
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     val automaticServerSelection: StateFlow<Boolean> = prefsDataStore.automaticServerSelection
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 

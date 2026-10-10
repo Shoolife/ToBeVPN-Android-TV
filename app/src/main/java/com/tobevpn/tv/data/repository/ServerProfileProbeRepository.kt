@@ -7,25 +7,27 @@ import android.os.SystemClock
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.util.SafeDiagnostics
+import com.tobevpn.tv.util.awaitBlocking
 import com.tobevpn.tv.util.diagnosticServerDescriptor
 import com.tobevpn.tv.vpn.VpnConfig
 import com.tobevpn.tv.vpn.XRayCore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import libv2ray.Libv2ray
-import java.util.concurrent.ConcurrentHashMap
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Verifies the complete VLESS/Xray profile after an explicit refresh. A
@@ -41,17 +43,23 @@ class ServerProfileProbeRepository @Inject constructor(
     private val batchMutex = Mutex()
     private val cache = ConcurrentHashMap<CacheKey, TimedResult>()
 
+    /**
+     * Returns profile-confirmed delays keyed by [Server.probeKey]. A positive
+     * value means an HTTP request travelled through the complete Xray
+     * outbound; `-1` means the profile could not be confirmed. Results are
+     * emitted as soon as each profile completes.
+     */
     suspend fun measureProfileDelays(
         servers: List<Server>,
         force: Boolean,
         onResult: suspend (
-            serverId: String,
+            profileKey: String,
             delayMs: Long,
             completed: Int,
             total: Int,
         ) -> Unit = { _, _, _, _ -> },
     ): Map<String, Long> = batchMutex.withLock {
-        val candidates = servers.filter(Server::isAvailable).distinctBy(Server::id)
+        val candidates = servers.filter(Server::isAvailable).distinctBy(Server::probeKey)
         if (candidates.isEmpty()) return@withLock emptyMap()
 
         val networkKey = currentPhysicalNetworkKey()
@@ -61,96 +69,71 @@ class ServerProfileProbeRepository @Inject constructor(
         val results = ConcurrentHashMap<String, Long>()
         val uncached = mutableListOf<Server>()
         candidates.forEach { server ->
-            val cached = cache[CacheKey(networkKey, server.id)]
+            val cached = cache[CacheKey(networkKey, server.probeKey)]
                 ?.takeIf { !force && it.isFresh(now, timeoutMs) }
             if (cached == null) {
                 uncached += server
             } else {
-                results[server.id] = cached.delayMs
-                onResult(server.id, cached.delayMs, results.size, candidates.size)
+                results[server.probeKey] = cached.delayMs
+                onResult(server.probeKey, cached.delayMs, results.size, candidates.size)
             }
         }
 
         if (uncached.isNotEmpty()) {
-            val tcpPings = serverQualityRepository.measurePings(uncached, force = true)
-            val profilesToProbe = mutableListOf<Server>()
-            uncached.forEach { server ->
-                if ((tcpPings[server.id] ?: -1L) < 0L) {
-                    recordResult(
-                        networkKey,
-                        server,
-                        -1L,
-                        timeoutMs,
-                        results,
-                        candidates.size,
-                        onResult,
-                    )
-                } else {
-                    profilesToProbe += server
-                }
+            val coreReady = try {
+                withContext(Dispatchers.IO) { XRayCore.init(context) }
+                true
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                SafeDiagnostics.warn(
+                    TAG,
+                    "Server profile probe core init failed: " +
+                        SafeDiagnostics.failureCategory(error),
+                )
+                false
             }
-            profilesToProbe.sortBy { tcpPings[it.id]?.takeIf { ping -> ping > 0L } ?: Long.MAX_VALUE }
-
-            if (profilesToProbe.isNotEmpty()) {
-                val coreReady = try {
-                    withContext(Dispatchers.IO) { XRayCore.init(context) }
-                    true
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (error: Exception) {
-                    SafeDiagnostics.warn(
-                        TAG,
-                        "Server profile probe core init failed: " +
-                            SafeDiagnostics.failureCategory(error),
-                    )
-                    false
-                }
-                if (!coreReady) {
-                    profilesToProbe.forEach { server ->
+            // Each server goes from its TCP ping straight to the full check,
+            // independently of the others: waiting for every TCP ping first
+            // held "0 of N" on screen until the slowest one gave up.
+            val slots = Semaphore(MAX_CONCURRENT_PROFILE_PROBES)
+            coroutineScope {
+                uncached.map { server ->
+                    async(Dispatchers.IO) {
+                        val tcpPing = serverQualityRepository.measurePings(
+                            servers = listOf(server),
+                            force = true,
+                        )[server.id] ?: -1L
+                        val delayMs = if (tcpPing < 0L || !coreReady) {
+                            -1L
+                        } else {
+                            slots.withPermit { measureFullProfile(server, timeoutMs) }
+                        }
                         recordResult(
-                            networkKey,
-                            server,
-                            -1L,
-                            timeoutMs,
-                            results,
-                            candidates.size,
-                            onResult,
+                            networkKey = networkKey,
+                            server = server,
+                            delayMs = delayMs,
+                            timeoutMs = timeoutMs,
+                            results = results,
+                            total = candidates.size,
+                            onResult = onResult,
                         )
                     }
-                } else {
-                    val slots = Semaphore(MAX_CONCURRENT_PROFILE_PROBES)
-                    coroutineScope {
-                        profilesToProbe.map { server ->
-                            async(Dispatchers.IO) {
-                                slots.withPermit {
-                                    recordResult(
-                                        networkKey = networkKey,
-                                        server = server,
-                                        delayMs = measureFullProfile(server, timeoutMs),
-                                        timeoutMs = timeoutMs,
-                                        results = results,
-                                        total = candidates.size,
-                                        onResult = onResult,
-                                    )
-                                }
-                            }
-                        }.awaitAll()
-                    }
-                }
+                }.awaitAll()
             }
         }
 
         if (currentPhysicalNetworkKey() != networkKey) {
-            candidates.filter { results.containsKey(it.id) }.forEach { server ->
-                cache.remove(CacheKey(networkKey, server.id))
-                results[server.id] = -1L
-                onResult(server.id, -1L, results.size, candidates.size)
+            candidates.filter { results.containsKey(it.probeKey) }.forEach { server ->
+                cache.remove(CacheKey(networkKey, server.probeKey))
+                results[server.probeKey] = -1L
+                onResult(server.probeKey, -1L, results.size, candidates.size)
             }
             SafeDiagnostics.warn(TAG, "Server profile results discarded after network change")
         }
 
         val ordered = candidates.mapNotNull { server ->
-            results[server.id]?.let { server.id to it }
+            results[server.probeKey]?.let { server.probeKey to it }
         }.toMap()
         SafeDiagnostics.trace(
             TAG,
@@ -160,6 +143,22 @@ class ServerProfileProbeRepository @Inject constructor(
                 "timeout_ms=$timeoutMs network=$networkKey",
         )
         ordered
+    }
+
+    /**
+     * Fresh full-profile results for [servers] on the current network, keyed
+     * by [Server.probeKey]; nothing is measured. Lets the connect path prefer a
+     * profile the last check actually carried a request through.
+     */
+    suspend fun getCachedProfileDelays(servers: List<Server>): Map<String, Long> {
+        val networkKey = currentPhysicalNetworkKey()
+        val now = SystemClock.elapsedRealtime()
+        val timeoutMs = prefsDataStore.getServerPingTimeoutSeconds() * MILLIS_PER_SECOND
+        return servers.mapNotNull { server ->
+            cache[CacheKey(networkKey, server.probeKey)]
+                ?.takeIf { it.isFresh(now, timeoutMs) }
+                ?.let { server.probeKey to it.delayMs }
+        }.toMap()
     }
 
     private suspend fun measureFullProfile(server: Server, timeoutMs: Long): Long {
@@ -174,32 +173,27 @@ class ServerProfileProbeRepository @Inject constructor(
             return -1L
         }
 
-        val measured = withTimeoutOrNull(timeoutMs * PROBE_TARGETS.size) {
-            var result = -1L
-            for (target in PROBE_TARGETS) {
-                val targetResult = withTimeoutOrNull(timeoutMs) {
-                    try {
-                        withContext(Dispatchers.IO) {
-                            Libv2ray.measureOutboundDelay(config, target)
-                        }
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (error: Exception) {
-                        SafeDiagnostics.trace(
-                            TAG,
-                            "Server profile target failed: ${diagnosticServerDescriptor(server)} " +
-                                SafeDiagnostics.failureCategory(error),
-                        )
-                        -1L
-                    }
-                } ?: -1L
-                if (targetResult > 0L) {
-                    result = targetResult
-                    break
+        // A server must not be marked unavailable merely because one public
+        // connectivity endpoint is filtered, so both targets are tried. They
+        // run at the same time and the first success wins: a filtered target
+        // often just stays silent until the timeout, and trying them one
+        // after the other made every dead server cost two full timeouts.
+        val measured = coroutineScope {
+            val answers = Channel<Long>(PROBE_TARGETS.size)
+            val attempts = PROBE_TARGETS.map { target ->
+                launch { answers.send(probeTarget(server, config, target, timeoutMs)) }
+            }
+            var best = -1L
+            repeat(PROBE_TARGETS.size) {
+                val answer = answers.receive()
+                if (answer > 0L && best < 0L) {
+                    best = answer
+                    attempts.forEach { it.cancel() }
+                    return@coroutineScope best
                 }
             }
-            result
-        } ?: -1L
+            best
+        }
 
         SafeDiagnostics.trace(
             TAG,
@@ -207,6 +201,29 @@ class ServerProfileProbeRepository @Inject constructor(
                 "verified=${measured > 0L} delay_ms=$measured timeout_ms=$timeoutMs",
         )
         return measured
+    }
+
+    /** One target through the server's profile; -1 when it fails or times out. */
+    private suspend fun probeTarget(
+        server: Server,
+        config: String,
+        target: String,
+        timeoutMs: Long,
+    ): Long {
+        // The native call cannot be cancelled; awaitBlocking stops waiting at
+        // the configured timeout instead of the library's own (longer) one.
+        val outcome = awaitBlocking(timeoutMs) {
+            Libv2ray.measureOutboundDelay(config, target)
+        } ?: return -1L
+        return outcome.getOrElse { error ->
+            val targetHost = target.substringAfter("://").substringBefore('/')
+            SafeDiagnostics.trace(
+                TAG,
+                "Server profile target failed: ${diagnosticServerDescriptor(server)} " +
+                    "target=$targetHost " + SafeDiagnostics.failureCategory(error),
+            )
+            -1L
+        }.takeIf { it > 0L } ?: -1L
     }
 
     private suspend fun recordResult(
@@ -219,13 +236,13 @@ class ServerProfileProbeRepository @Inject constructor(
         onResult: suspend (String, Long, Int, Int) -> Unit,
     ) {
         val normalized = delayMs.takeIf { it > 0L } ?: -1L
-        cache[CacheKey(networkKey, server.id)] = TimedResult(
+        cache[CacheKey(networkKey, server.probeKey)] = TimedResult(
             delayMs = normalized,
             measuredAtMs = SystemClock.elapsedRealtime(),
             timeoutMs = timeoutMs,
         )
-        results[server.id] = normalized
-        onResult(server.id, normalized, results.size, total)
+        results[server.probeKey] = normalized
+        onResult(server.probeKey, normalized, results.size, total)
     }
 
     @Suppress("DEPRECATION")
@@ -263,7 +280,7 @@ class ServerProfileProbeRepository @Inject constructor(
         }
     }
 
-    private data class CacheKey(val networkKey: Long, val serverId: String)
+    private data class CacheKey(val networkKey: Long, val profileKey: String)
 
     private data class TimedResult(
         val delayMs: Long,

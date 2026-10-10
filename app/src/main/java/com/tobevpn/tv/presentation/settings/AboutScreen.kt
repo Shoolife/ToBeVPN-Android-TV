@@ -755,8 +755,8 @@ internal fun DiagnosticInfoDialog(
     val doneFocus = remember { FocusRequester() }
     var doneFocused by remember { mutableStateOf(false) }
     val cues = rememberVerticalScrollCueState(
-        canScrollBackward = scrollState.canScrollBackward,
-        canScrollForward = scrollState.canScrollForward,
+        state = scrollState,
+        fadeLength = 38.dp,
     )
     val dialogBackground = if (darkTheme) Color(0xFF202020) else Color.White
     val outline = if (darkTheme) Color(0xFF494949) else Color(0xFFD2D4D8)
@@ -895,8 +895,8 @@ internal fun DiagnosticHistoryDialog(
     val closeFocus = remember { FocusRequester() }
     val listState = rememberLazyListState()
     val listCues = rememberVerticalScrollCueState(
-        canScrollBackward = listState.canScrollBackward,
-        canScrollForward = listState.canScrollForward,
+        state = listState,
+        fadeLength = 38.dp,
     )
     LaunchedEffect(Unit) {
         withFrameNanos { }

@@ -69,6 +69,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.remote.dto.PromocodeHistoryItemDto
+import com.tobevpn.tv.presentation.components.BrandLoader
 import com.tobevpn.tv.presentation.components.SpinningRefreshIcon
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.components.VerticalScrollCues
@@ -87,6 +88,7 @@ fun PromocodesScreen(
     viewModel: PromocodesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val initialLoading = !state.isAuthResolved || state.isLoading && state.history == null
     var code by rememberSaveable { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
     val backFocus = remember { FocusRequester() }
@@ -125,7 +127,11 @@ fun PromocodesScreen(
                     modifier = Modifier
                         .size((44 * scale).dp)
                         .focusRequester(backFocus)
-                        .focusProperties { right = refreshFocus; down = codeFocus },
+                        .focusProperties {
+                            // No Refresh while the full-screen loader runs.
+                            right = if (initialLoading) FocusRequester.Cancel else refreshFocus
+                            down = codeFocus
+                        },
                     shape = RoundedCornerShape((8 * scale).dp),
                     borderWidth = (2 * scale).dp,
                 ) {
@@ -143,7 +149,9 @@ fun PromocodesScreen(
                     color = headerColor,
                     modifier = Modifier.weight(1f),
                 )
-                TvHeaderIconButton(
+                // Not while the full-screen loader runs: the page is already
+                // loading, Refresh has nothing to add there.
+                if (!initialLoading) TvHeaderIconButton(
                     onClick = viewModel::refresh,
                     modifier = Modifier
                         .size((44 * scale).dp)
@@ -163,10 +171,10 @@ fun PromocodesScreen(
             Spacer(Modifier.height(gap))
 
             when {
-                !state.isAuthResolved || state.isLoading && state.history == null -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                initialLoading -> {
+                    // The app's own loader, as the desktop shows while its
+                    // window rescales.
+                    BrandLoader(modifier = Modifier.fillMaxSize())
                 }
                 !state.isAuthenticated -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -365,8 +373,8 @@ fun PromocodesScreen(
                                 } else {
                                     val listState = rememberLazyListState()
                                     val cues = rememberVerticalScrollCueState(
-                                        canScrollBackward = listState.canScrollBackward,
-                                        canScrollForward = listState.canScrollForward,
+                                        state = listState,
+                                        fadeLength = (38 * scale).dp,
                                     )
                                     Box(
                                         modifier = Modifier

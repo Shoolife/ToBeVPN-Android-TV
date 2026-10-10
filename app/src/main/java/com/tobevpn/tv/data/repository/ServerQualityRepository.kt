@@ -3,8 +3,17 @@ package com.tobevpn.tv.data.repository
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.util.SafeDiagnostics
+import com.tobevpn.tv.util.awaitBlocking
 import com.tobevpn.tv.util.diagnosticServerDescriptor
-import kotlinx.coroutines.Dispatchers
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
+import java.net.SocketTimeoutException
+import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlin.math.min
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -12,15 +21,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.net.InetSocketAddress
-import java.net.Socket
-import java.util.concurrent.ConcurrentHashMap
-import javax.inject.Inject
-import javax.inject.Singleton
-import kotlin.math.min
 
 @Singleton
 class ServerQualityRepository @Inject constructor(
@@ -56,15 +58,19 @@ class ServerQualityRepository @Inject constructor(
         }
 
         var failureCategory: String? = null
-        val ping = withContext(Dispatchers.IO) {
-            try {
-                val startedAt = System.currentTimeMillis()
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(server.address, server.port), timeoutMs)
-                }
-                (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
-            } catch (error: Exception) {
-                failureCategory = SafeDiagnostics.failureCategory(error)
+        // The DNS lookup inside the connect has no timeout of its own, and
+        // neither can be interrupted: bound the whole call instead.
+        val outcome = awaitBlocking(timeoutMs.toLong() + DNS_LOOKUP_GRACE_MS) {
+            connectFirstReachable(server.address, server.port, timeoutMs)
+        }
+        val ping = when {
+            outcome == null -> {
+                failureCategory = "timeout"
+                -1L
+            }
+            outcome.isSuccess -> outcome.getOrThrow()
+            else -> {
+                failureCategory = SafeDiagnostics.failureCategory(outcome.exceptionOrNull()!!)
                 -1L
             }
         }
@@ -75,6 +81,37 @@ class ServerQualityRepository @Inject constructor(
         )
         logPingIfNeeded(server, key, ping, failureCategory, now)
         return ping
+    }
+
+    /**
+     * Tries every address the host resolves to, in order, the way Xray's dialer
+     * does: a host with one dead A record still connects through the others, so
+     * the ping must not fail on the first address. The budget is split across
+     * the addresses left (at least [MIN_ADDRESS_ATTEMPT_MS] each, like Go's
+     * dialSerial). Returns the connect time of the address that answered.
+     */
+    private fun connectFirstReachable(host: String, port: Int, timeoutMs: Int): Long {
+        val addresses = InetAddress.getAllByName(host)
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var lastError: Exception? = null
+        addresses.forEachIndexed { index, address ->
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0L) return@forEachIndexed
+            val attemptMs = maxOf(
+                remaining / (addresses.size - index),
+                min(remaining, MIN_ADDRESS_ATTEMPT_MS),
+            ).toInt().coerceAtLeast(1)
+            val startedAt = System.currentTimeMillis()
+            try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(address, port), attemptMs)
+                }
+                return (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
+            } catch (error: IOException) {
+                lastError = error
+            }
+        }
+        throw lastError ?: SocketTimeoutException("connect timed out")
     }
 
     suspend fun measurePings(
@@ -214,7 +251,7 @@ class ServerQualityRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val selected = eligible
             .mapNotNull { server ->
-                val delayMs = verifiedDelays[server.id]?.takeIf { it > 0L }
+                val delayMs = verifiedDelays[server.probeKey]?.takeIf { it > 0L }
                     ?: return@mapNotNull null
                 RankedServer(
                     server = server.copy(ping = delayMs),
@@ -235,7 +272,7 @@ class ServerQualityRepository @Inject constructor(
             TAG,
             "Verified profile selection completed: candidates=${servers.size} " +
                 "eligible=${eligible.size} " +
-                "verified=${eligible.count { (verifiedDelays[it.id] ?: -1L) > 0L }} " +
+                "verified=${eligible.count { (verifiedDelays[it.probeKey] ?: -1L) > 0L }} " +
                 "selected=${selected?.let(::diagnosticServerDescriptor) ?: "NONE"}",
         )
         return selected
@@ -443,6 +480,10 @@ class ServerQualityRepository @Inject constructor(
     )
 
     private companion object {
+        /** Extra time for the DNS lookup before a TCP ping gives up. */
+        const val DNS_LOOKUP_GRACE_MS = 1_500L
+        /** Shortest connect attempt per resolved address (Go's dialSerial uses 2 s). */
+        const val MIN_ADDRESS_ATTEMPT_MS = 2_000L
         const val MILLIS_PER_SECOND = 1_000
         const val MAX_CONCURRENT_PINGS = 16
         const val PING_CACHE_TTL_MS = 15_000L

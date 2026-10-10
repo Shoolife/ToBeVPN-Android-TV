@@ -162,8 +162,8 @@ fun SpeedTestHistoryScreen(
             } else {
                 val listState = rememberLazyListState()
                 val cues = rememberVerticalScrollCueState(
-                    canScrollBackward = listState.canScrollBackward,
-                    canScrollForward = listState.canScrollForward,
+                    state = listState,
+                    fadeLength = (38 * scale).dp,
                 )
                 Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(

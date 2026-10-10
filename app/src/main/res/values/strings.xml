@@ -555,6 +555,12 @@
     <string name="whats_new_subscription_v1031_desc">The purchase card is more compact: the payment button sits right under the price and description of the selected plan.</string>
     <string name="whats_new_trial_v1032_title">Trial works again</string>
     <string name="whats_new_trial_v1032_desc">Fixed an issue where signing in with a trial plan blocked the connection with a limit-reached message. The trial end date is now shown.</string>
+    <string name="whats_new_traffic_reset_v1033_title">Traffic reset date</string>
+    <string name="whats_new_traffic_reset_v1033_desc">Home shows when your traffic limit resets under the traffic bar, and the subscription screen shows the exact date and time.</string>
+    <string name="whats_new_server_check_v1033_title">Faster server check</string>
+    <string name="whats_new_server_check_v1033_desc">Server checks are faster and no longer hang, and servers with several addresses are no longer marked unavailable by mistake.</string>
+    <string name="whats_new_splash_v1033_title">New splash and loading</string>
+    <string name="whats_new_splash_v1033_desc">A launch animation with the app icon, a new loading indicator on Promo codes and Referrals, and smooth fading at list edges.</string>
     <string name="server_probe_progress">Checked %1$d of %2$d</string>
     <string name="server_ping_timeout_title">Server check timeout</string>
     <string name="server_ping_timeout_description">How long to wait for a complete profile check. Increase it for slow or restricted networks.</string>
@@ -570,4 +576,13 @@
     <string name="traffic_limit_notification_channel">Traffic balance</string>
     <string name="traffic_limit_notification_title">Traffic is running out</string>
     <string name="traffic_limit_notification_description">%1$s GB left. Renew your plan or reduce traffic usage.</string>
+    <string name="traffic_reset_short">Traffic resets %1$s</string>
+    <string name="traffic_reset_when_tomorrow">tomorrow</string>
+    <string name="traffic_reset_when_today">at %1$s</string>
+    <string name="traffic_reset_full">Traffic resets %1$s at %2$s</string>
+    <string name="traffic_reset_chip">Resets %1$s at %2$s</string>
+    <string name="traffic_reset_datetime">%1$s at %2$s</string>
+    <string name="traffic_exhausted">Traffic used up</string>
+    <string name="traffic_exhausted_reset">Used up, resets %1$s</string>
+    <string name="traffic_reset_hint">Date and time when your used traffic resets</string>
 </resources>

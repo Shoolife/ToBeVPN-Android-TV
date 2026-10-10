@@ -27,6 +27,16 @@ class ServerTest {
         assertFalse(original.hasSameVpnConfig(original.copy(extra = "{\"key\":true}")))
     }
 
+    @Test
+    fun probeKeyTellsApartProfilesThatShareAnEndpointId() {
+        val original = server()
+        val sameEndpointOtherProfile = original.copy(uuid = "other-uuid", path = "/other")
+
+        assertTrue(original.id == sameEndpointOtherProfile.id)
+        assertFalse(original.probeKey == sameEndpointOtherProfile.probeKey)
+        assertTrue(original.probeKey == original.copy(name = "Renamed", ping = 42).probeKey)
+    }
+
     private fun server() = Server(
         id = "server-id",
         name = "Node",

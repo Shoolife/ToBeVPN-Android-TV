@@ -156,8 +156,8 @@ fun DevicesScreen(
         }
         val scrollState = rememberScrollState()
         val cues = rememberVerticalScrollCueState(
-            canScrollBackward = scrollState.canScrollBackward,
-            canScrollForward = scrollState.canScrollForward,
+            state = scrollState,
+            fadeLength = (38 * scale).dp,
         )
 
         val tightStyle = TextStyle(

@@ -10,8 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -24,9 +24,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -69,10 +69,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tobevpn.tv.BuildConfig
+import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.components.VerticalScrollCues
 import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
 import com.tobevpn.tv.presentation.components.verticalFadingEdges
-import com.tobevpn.tv.R
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import kotlinx.coroutines.launch
 
@@ -84,19 +84,19 @@ private data class WhatsNewHighlight(
 
 private val currentHighlights = listOf(
     WhatsNewHighlight(
-        icon = Icons.Filled.CheckCircle,
-        titleRes = R.string.whats_new_trial_v1032_title,
-        descriptionRes = R.string.whats_new_trial_v1032_desc,
+        icon = Icons.Filled.EventRepeat,
+        titleRes = R.string.whats_new_traffic_reset_v1033_title,
+        descriptionRes = R.string.whats_new_traffic_reset_v1033_desc,
     ),
     WhatsNewHighlight(
-        icon = Icons.Filled.Shield,
-        titleRes = R.string.whats_new_xray_core_v1031_title,
-        descriptionRes = R.string.whats_new_xray_core_v1031_desc,
+        icon = Icons.Filled.NetworkCheck,
+        titleRes = R.string.whats_new_server_check_v1033_title,
+        descriptionRes = R.string.whats_new_server_check_v1033_desc,
     ),
     WhatsNewHighlight(
         icon = Icons.Filled.AutoAwesome,
-        titleRes = R.string.whats_new_subscription_v1031_title,
-        descriptionRes = R.string.whats_new_subscription_v1031_desc,
+        titleRes = R.string.whats_new_splash_v1033_title,
+        descriptionRes = R.string.whats_new_splash_v1033_desc,
     ),
 )
 
@@ -139,8 +139,8 @@ fun WhatsNewDialog(
         label = "whatsNewIn",
     )
     val cues = rememberVerticalScrollCueState(
-        canScrollBackward = highlightsScrollState.canScrollBackward,
-        canScrollForward = highlightsScrollState.canScrollForward,
+        state = highlightsScrollState,
+        fadeLength = 34.dp,
     )
 
     Dialog(

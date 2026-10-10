@@ -25,6 +25,9 @@ data class SubscriptionPingResult(
     val intervalMs: Long?,
     val isUsageBlocked: Boolean,
     val isUpdateRequired: Boolean,
+    /** From the subscription-userinfo header, which every response carries. */
+    val trafficUsedBytes: Long? = null,
+    val trafficLimitBytes: Long? = null,
 )
 
 data class SubscriptionProfileResult(
@@ -80,6 +83,9 @@ class SubscriptionPinger @Inject constructor(
     private val client = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
+        // Bounds the whole request (a slow body could otherwise keep the
+        // server list waiting well past the per-read timeout).
+        .callTimeout(20, TimeUnit.SECONDS)
         .build()
     private val primaryProbeClient = client.newBuilder()
         .connectTimeout(FAST_PRIMARY_TIMEOUT_MS, TimeUnit.MILLISECONDS)
@@ -119,7 +125,7 @@ class SubscriptionPinger @Inject constructor(
         if (baseRequest == null) {
             if (fallbackRequest == null) return@withContext null
             return@withContext try {
-                client.newCall(fallbackRequest).execute().use(::readFallbackResult)
+                client.newCall(fallbackRequest).await().use(::readFallbackResult)
             } catch (fallbackError: IOException) {
                 logFailure("fallback", fallbackError)
                 null
@@ -128,7 +134,7 @@ class SubscriptionPinger @Inject constructor(
 
         if (fallbackRequest != null && SystemClock.elapsedRealtime() < primaryUnavailableUntilMs) {
             try {
-                client.newCall(fallbackRequest).execute().use {
+                client.newCall(fallbackRequest).await().use {
                     readFallbackResult(it)?.let { result ->
                         return@withContext result
                     }
@@ -139,12 +145,12 @@ class SubscriptionPinger @Inject constructor(
         }
 
         try {
-            primaryProbeClient.newCall(baseRequest).execute().use { response ->
+            primaryProbeClient.newCall(baseRequest).await().use { response ->
                 if (response.code == FALLBACK_HTTP_STATUS && fallbackRequest != null) {
                     val primaryResult = readResult(response)
                     SafeDiagnostics.warn(TAG, "Primary subscription route rejected request; retrying via fallback")
                     return@withContext try {
-                        client.newCall(fallbackRequest).execute().use {
+                        client.newCall(fallbackRequest).await().use {
                             readFallbackResult(it) ?: primaryResult
                         }
                     } catch (fallbackError: IOException) {
@@ -170,7 +176,7 @@ class SubscriptionPinger @Inject constructor(
                     SafeDiagnostics.failureCategory(primaryError),
             )
             try {
-                client.newCall(fallbackRequest).execute().use {
+                client.newCall(fallbackRequest).await().use {
                     readFallbackResult(it)?.let { result ->
                         return@withContext result
                     }
@@ -178,7 +184,7 @@ class SubscriptionPinger @Inject constructor(
             } catch (fallbackError: IOException) {
                 logFailure("fallback", fallbackError)
                 try {
-                    client.newCall(baseRequest).execute().use { return@withContext readResult(it) }
+                    client.newCall(baseRequest).await().use { return@withContext readResult(it) }
                 } catch (retryError: IOException) {
                     logFailure("primary", retryError)
                     return@withContext null
@@ -212,7 +218,7 @@ class SubscriptionPinger @Inject constructor(
         if (baseRequest == null) {
             if (fallbackRequest == null) return@withContext null
             return@withContext try {
-                client.newCall(fallbackRequest).execute().use(::readFallbackProfileResult)
+                client.newCall(fallbackRequest).await().use(::readFallbackProfileResult)
             } catch (fallbackError: IOException) {
                 logFailure("fallback", fallbackError)
                 null
@@ -221,7 +227,7 @@ class SubscriptionPinger @Inject constructor(
 
         if (fallbackRequest != null && SystemClock.elapsedRealtime() < primaryUnavailableUntilMs) {
             try {
-                client.newCall(fallbackRequest).execute().use {
+                client.newCall(fallbackRequest).await().use {
                     readFallbackProfileResult(it)?.let { result ->
                         return@withContext result
                     }
@@ -232,12 +238,12 @@ class SubscriptionPinger @Inject constructor(
         }
 
         try {
-            primaryProbeClient.newCall(baseRequest).execute().use { response ->
+            primaryProbeClient.newCall(baseRequest).await().use { response ->
                 if (response.code == FALLBACK_HTTP_STATUS && fallbackRequest != null) {
                     val primaryResult = readProfileResult(response)
                     SafeDiagnostics.warn(TAG, "Primary subscription route rejected profile request; retrying via fallback")
                     return@withContext try {
-                        client.newCall(fallbackRequest).execute().use {
+                        client.newCall(fallbackRequest).await().use {
                             readFallbackProfileResult(it) ?: primaryResult
                         }
                     } catch (fallbackError: IOException) {
@@ -263,7 +269,7 @@ class SubscriptionPinger @Inject constructor(
                     SafeDiagnostics.failureCategory(primaryError),
             )
             try {
-                client.newCall(fallbackRequest).execute().use {
+                client.newCall(fallbackRequest).await().use {
                     readFallbackProfileResult(it)?.let { result ->
                         return@withContext result
                     }
@@ -271,7 +277,7 @@ class SubscriptionPinger @Inject constructor(
             } catch (fallbackError: IOException) {
                 logFailure("fallback", fallbackError)
                 try {
-                    client.newCall(baseRequest).execute().use { return@withContext readProfileResult(it) }
+                    client.newCall(baseRequest).await().use { return@withContext readProfileResult(it) }
                 } catch (retryError: IOException) {
                     logFailure("primary", retryError)
                     return@withContext null
@@ -286,11 +292,16 @@ class SubscriptionPinger @Inject constructor(
         return readResult(response)
     }
 
-    private fun readResult(response: Response) = SubscriptionPingResult(
-        intervalMs = readIntervalMs(response.header("profile-update-interval")),
-        isUsageBlocked = response.header(BLOCK_HEADER)?.trim() == BLOCK_VALUE,
-        isUpdateRequired = isVersionBelowMinimum(response.header(MIN_VERSION_HEADER)),
-    )
+    private fun readResult(response: Response): SubscriptionPingResult {
+        val userInfo = readUserInfo(response.header(SUBSCRIPTION_USERINFO_HEADER))
+        return SubscriptionPingResult(
+            intervalMs = readIntervalMs(response.header("profile-update-interval")),
+            isUsageBlocked = response.header(BLOCK_HEADER)?.trim() == BLOCK_VALUE,
+            isUpdateRequired = isVersionBelowMinimum(response.header(MIN_VERSION_HEADER)),
+            trafficUsedBytes = userInfo?.usedBytes,
+            trafficLimitBytes = userInfo?.totalBytes,
+        )
+    }
 
     private fun readFallbackProfileResult(response: Response): SubscriptionProfileResult? {
         if (isGatewayAuthError(response)) return null

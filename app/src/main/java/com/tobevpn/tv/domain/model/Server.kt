@@ -28,6 +28,18 @@ data class Server(
     val ping: Long = -1,
 ) {
     /**
+     * Identity of the complete profile, for server check results. [id] is
+     * address:port:sni and repeats: different servers can share one endpoint,
+     * and a result keyed by it could be shown for the wrong server.
+     */
+    val probeKey: String
+        get() = listOf(
+            address, port, uuid, flow, security, sni, fingerprint,
+            publicKey, shortId, network, path, host, alpn, headerType,
+            serviceName, extra, mode, spx,
+        ).joinToString("|")
+
+    /**
      * True for the panel's "subscription expired" placeholder server. Its
      * uuid is all-zeros and the address points nowhere — handing it to xray
      * would SIGSEGV the native loop, so it must never become the selected /

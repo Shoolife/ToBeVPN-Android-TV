@@ -563,6 +563,12 @@
     <string name="whats_new_subscription_v1031_desc">Карточка покупки стала компактнее: кнопка оплаты сразу под ценой и описанием выбранного тарифа.</string>
     <string name="whats_new_trial_v1032_title">Пробный период работает</string>
     <string name="whats_new_trial_v1032_desc">Исправлена ошибка, из-за которой после входа с пробным тарифом подключение блокировалось сообщением об исчерпанном лимите. Теперь видна дата окончания пробного периода.</string>
+    <string name="whats_new_traffic_reset_v1033_title">Дата сброса трафика</string>
+    <string name="whats_new_traffic_reset_v1033_desc">На главном экране под полосой трафика видно, когда сбросится лимит, а на экране подписки — точные дата и время сброса.</string>
+    <string name="whats_new_server_check_v1033_title">Быстрая проверка серверов</string>
+    <string name="whats_new_server_check_v1033_desc">Проверка серверов стала быстрее и больше не зависает, а серверы с несколькими адресами больше не помечаются недоступными по ошибке.</string>
+    <string name="whats_new_splash_v1033_title">Новая заставка и загрузка</string>
+    <string name="whats_new_splash_v1033_desc">Анимация запуска с иконкой приложения, новый индикатор загрузки на экранах «Промокоды» и «Рефералы» и плавное затухание краёв списков.</string>
     <string name="server_probe_progress">Проверено %1$d из %2$d</string>
     <string name="server_ping_timeout_title">Таймаут проверки серверов</string>
     <string name="server_ping_timeout_description">Сколько ждать полной проверки профиля. Увеличьте значение для медленной или ограниченной сети.</string>
@@ -578,4 +584,13 @@
     <string name="traffic_limit_notification_channel">Остаток трафика</string>
     <string name="traffic_limit_notification_title">Трафик заканчивается</string>
     <string name="traffic_limit_notification_description">Осталось %1$s ГБ. Продлите тариф или сократите расход трафика.</string>
+    <string name="traffic_reset_short">Сброс трафика %1$s</string>
+    <string name="traffic_reset_when_tomorrow">завтра</string>
+    <string name="traffic_reset_when_today">в %1$s</string>
+    <string name="traffic_reset_full">Сброс трафика %1$s в %2$s</string>
+    <string name="traffic_reset_chip">Сброс %1$s в %2$s</string>
+    <string name="traffic_reset_datetime">%1$s в %2$s</string>
+    <string name="traffic_exhausted">Трафик закончился</string>
+    <string name="traffic_exhausted_reset">Закончился, сброс %1$s</string>
+    <string name="traffic_reset_hint">Дата и время сброса израсходованного трафика</string>
 </resources>

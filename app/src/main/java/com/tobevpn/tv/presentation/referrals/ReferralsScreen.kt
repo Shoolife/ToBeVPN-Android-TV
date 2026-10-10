@@ -116,6 +116,7 @@ import com.tobevpn.tv.R
 import com.tobevpn.tv.data.remote.dto.ReferralListItemDto
 import com.tobevpn.tv.data.remote.dto.ReferralUserDto
 import com.tobevpn.tv.data.remote.dto.ReferralsDto
+import com.tobevpn.tv.presentation.components.BrandLoader
 import com.tobevpn.tv.presentation.components.SpinningRefreshIcon
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.components.TvQrDialog
@@ -162,6 +163,7 @@ fun ReferralsScreen(
     var showCopyNotice by remember { mutableStateOf(false) }
 
     val data = uiState.data
+    val initialLoading = !uiState.isAuthResolved || (uiState.isInitialLoading && data == null)
     val referralUrl = data?.referralUrl.orEmpty()
     val clipboardLabel = stringResource(R.string.referrals_clipboard_label)
     val hasInitialErrorAction = uiState.isAuthResolved &&
@@ -238,7 +240,7 @@ fun ReferralsScreen(
                             up = FocusRequester.Cancel,
                             down = backDownFocusRequester,
                             left = FocusRequester.Cancel,
-                            right = if (uiState.isAuthenticated) {
+                            right = if (uiState.isAuthenticated && !initialLoading) {
                                 refreshFocusRequester
                             } else {
                                 FocusRequester.Cancel
@@ -263,7 +265,9 @@ fun ReferralsScreen(
                     style = tightStyle,
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                if (uiState.isAuthenticated) {
+                // Not while the full-screen loader runs: the page is already
+                // loading, Refresh has nothing to add there.
+                if (uiState.isAuthenticated && !initialLoading) {
                     TvHeaderIconButton(
                         onClick = viewModel::refresh,
                         enabled = !uiState.isAssigningReferrer,
@@ -292,7 +296,7 @@ fun ReferralsScreen(
             Spacer(modifier = Modifier.height((20 * scale).dp))
 
             when {
-                !uiState.isAuthResolved || (uiState.isInitialLoading && data == null) -> {
+                initialLoading -> {
                     ReferralCenteredLoading(modifier = Modifier.weight(1f))
                 }
 
@@ -1570,8 +1574,8 @@ private fun InvitedFriendsDialog(
     val hasMore = items.size < total
     val hasBottomAction = error != null || hasMore
     val cues = rememberVerticalScrollCueState(
-        canScrollBackward = listState.canScrollBackward,
-        canScrollForward = listState.canScrollForward,
+        state = listState,
+        fadeLength = (38 * scale).dp,
     )
 
     LaunchedEffect(Unit) {
@@ -2006,9 +2010,8 @@ private fun ReferralInlineError(
 
 @Composable
 private fun ReferralCenteredLoading(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = VpnGreen)
-    }
+    // The app's own loader, as the desktop shows while its window rescales.
+    BrandLoader(modifier = modifier.fillMaxWidth())
 }
 
 @Composable

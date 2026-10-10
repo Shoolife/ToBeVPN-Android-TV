@@ -13,13 +13,13 @@ import com.tobevpn.tv.domain.model.AppThemeMode
 import com.tobevpn.tv.domain.model.DEFAULT_SERVER_PING_TIMEOUT_SECONDS
 import com.tobevpn.tv.domain.model.normalizeServerPingTimeoutSeconds
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.security.MessageDigest
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import java.security.MessageDigest
-import javax.inject.Inject
-import javax.inject.Singleton
 
 private val Context.dataStore by preferencesDataStore("tobevpn_tv_prefs")
 
@@ -61,6 +61,7 @@ class PrefsDataStore @Inject constructor(
         val TRAFFIC_ALERT_LIMIT_BYTES = longPreferencesKey("traffic_alert_limit_bytes")
         val TRAFFIC_ALERT_LAST_USED_BYTES = longPreferencesKey("traffic_alert_last_used_bytes")
         val TRAFFIC_ALERT_NOTIFIED_MASK = longPreferencesKey("traffic_alert_notified_mask")
+        val TRAFFIC_RESET_AT = longPreferencesKey("traffic_reset_at")
         val NOTIFICATION_PERMISSION_PROMPTED =
             booleanPreferencesKey("notification_permission_prompted")
         val USD_RATE = doublePreferencesKey("usd_rate")
@@ -250,6 +251,20 @@ class PrefsDataStore @Inject constructor(
 
     suspend fun setSpeedTestHistoryJson(value: String) {
         context.dataStore.edit { it[Keys.SPEED_TEST_HISTORY] = value }
+    }
+
+    /** Next traffic limit reset (current-plan next_traffic_reset_at), if known. */
+    val trafficResetAt: Flow<Long?> = context.dataStore.data
+        .map { it[Keys.TRAFFIC_RESET_AT] }
+        .distinctUntilChanged()
+
+    suspend fun getTrafficResetAt(): Long? = context.dataStore.data.first()[Keys.TRAFFIC_RESET_AT]
+
+    suspend fun setTrafficResetAt(value: Long?) {
+        context.dataStore.edit {
+            if (value == null || value <= 0L) it.remove(Keys.TRAFFIC_RESET_AT)
+            else it[Keys.TRAFFIC_RESET_AT] = value
+        }
     }
 
     suspend fun getTrafficLimitAlertState(): TrafficLimitAlertState {

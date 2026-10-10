@@ -99,8 +99,8 @@ fun SupportScreen(
     val scrollState = rememberScrollState()
     val scrollScope = rememberCoroutineScope()
     val cues = rememberVerticalScrollCueState(
-        canScrollBackward = scrollState.canScrollBackward,
-        canScrollForward = scrollState.canScrollForward,
+        state = scrollState,
+        fadeLength = 38.dp,
     )
 
     LaunchedEffect(Unit) {

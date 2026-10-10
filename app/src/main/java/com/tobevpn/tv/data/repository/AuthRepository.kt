@@ -2,7 +2,7 @@ package com.tobevpn.tv.data.repository
 
 import android.content.Context
 import android.os.Build
-import com.tobevpn.tv.util.SafeDiagnostics
+import android.os.SystemClock
 import com.tobevpn.tv.data.device.DeviceFingerprintProvider
 import com.tobevpn.tv.data.device.DeviceIdProvider
 import com.tobevpn.tv.data.local.PrefsDataStore
@@ -11,6 +11,7 @@ import com.tobevpn.tv.data.local.dao.SessionDao
 import com.tobevpn.tv.data.local.entity.SessionEntity
 import com.tobevpn.tv.data.remote.BootstrapManager
 import com.tobevpn.tv.data.remote.BotApi
+import com.tobevpn.tv.data.remote.SubscriptionPingResult
 import com.tobevpn.tv.data.remote.SubscriptionPinger
 import com.tobevpn.tv.data.remote.dto.AuthRequestDto
 import com.tobevpn.tv.data.remote.dto.CurrentPlanDto
@@ -21,16 +22,8 @@ import com.tobevpn.tv.data.remote.dto.TvPairCreateRequestDto
 import com.tobevpn.tv.data.remote.dto.TvPairCreateResponseDto
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
+import com.tobevpn.tv.util.SafeDiagnostics
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.withContext
-import retrofit2.HttpException
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -38,6 +31,19 @@ import java.time.ZoneOffset
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 
 sealed interface DevicePairingPollResult {
     data object Pending : DevicePairingPollResult
@@ -50,6 +56,8 @@ data class CurrentSubscriptionPlanInfo(
     val trafficLimitBytes: Long?,
     val deviceLimit: Int?,
     val expiresAtMillis: Long?,
+    /** Null when the plan has no reset (traffic_limit_strategy NO_RESET). */
+    val trafficResetAtMillis: Long?,
     val isActive: Boolean?,
     val isExpired: Boolean?,
     val isTrial: Boolean?,
@@ -61,6 +69,7 @@ data class CurrentSubscriptionPlanInfo(
 )
 
 private const val DEMO_TELEGRAM_ID = -1L
+private const val RESET_REFETCH_INTERVAL_MS = 10L * 60L * 1000L
 
 internal fun isConfirmedRemoteDeviceUnlink(
     httpCode: Int?,
@@ -134,9 +143,41 @@ class AuthRepository @Inject constructor(
             ) ?: return wasBlocked
             prefsDataStore.setSubscriptionUsageBlocked(shortUuid, result.isUsageBlocked)
             prefsDataStore.setUpdateRequired(result.isUpdateRequired)
+            applyPingUsage(session, result)
             result.isUsageBlocked
         } catch (_: Exception) {
             wasBlocked
+        }
+    }
+
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // When applyPingUsage last refetched the plan for a passed reset date.
+    @Volatile
+    private var lastResetRefetchAt = 0L
+
+    /**
+     * The access check runs every minute while the VPN is connected and its
+     * response carries the subscription usage: a paid plan's usage and the
+     * 20/10/5% traffic alerts follow it without an extra request. A trial's
+     * usage is counted live from the tunnel and is left alone.
+     */
+    private suspend fun applyPingUsage(session: SessionEntity, result: SubscriptionPingResult) {
+        if (session.authState != "AUTHENTICATED" || session.userPlan == "FREE_TRIAL") return
+        result.trafficLimitBytes?.let { usageRepository.updateLimits(it, 0) }
+        result.trafficUsedBytes?.let { usedBytes ->
+            usageRepository.updateUsage(usedBytes, usageRepository.getUsage().timeUsedSeconds)
+        }
+        // A passed reset date means a new period began: fetch the next one.
+        // The panel can lag behind its own reset, so not on every ping, and
+        // in the background: the connect path waits for this ping.
+        val resetAt = prefsDataStore.getTrafficResetAt()
+        val now = SystemClock.elapsedRealtime()
+        if (resetAt != null && resetAt <= System.currentTimeMillis() &&
+            (lastResetRefetchAt == 0L || now - lastResetRefetchAt >= RESET_REFETCH_INTERVAL_MS)
+        ) {
+            lastResetRefetchAt = now
+            backgroundScope.launch { getCurrentSubscriptionPlan() }
         }
     }
     data class PlanLimitsInfo(
@@ -267,14 +308,25 @@ class AuthRepository @Inject constructor(
             withFreshDeviceSessionRetry {
                 val response = botApi.getCurrentPlan()
                 if (response.success) {
-                    response.data?.toCurrentSubscriptionPlanInfo()
+                    response.data?.toCurrentSubscriptionPlanInfo()?.also { rememberTrafficReset(it) }
                 } else {
                     null
                 }
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * Keeps the next traffic reset from a current-plan response (shown under
+     * the traffic bar, in the subscription screen and in traffic alerts).
+     */
+    private suspend fun rememberTrafficReset(planInfo: CurrentSubscriptionPlanInfo) {
+        if (!planInfo.hasPlanData) return
+        prefsDataStore.setTrafficResetAt(planInfo.trafficResetAtMillis)
     }
 
     private suspend fun <T> withFreshDeviceSessionRetry(block: suspend () -> T): T {
@@ -321,6 +373,8 @@ class AuthRepository @Inject constructor(
             ),
             deviceLimit = subscription?.deviceLimit ?: snapshot?.deviceLimit,
             expiresAtMillis = expiresAtMillis,
+            trafficResetAtMillis = epochTimestampToMillis(subscription?.nextTrafficResetAtTs)
+                ?: parsePanelExpireAtMillisOrNull(subscription?.nextTrafficResetAt),
             isActive = isActive,
             isExpired = isExpired,
             isTrial = subscription?.isTrial ?: snapshot?.isTrial,
@@ -489,6 +543,7 @@ class AuthRepository @Inject constructor(
             )
         }
         planInfo?.trafficLimitBytes?.let { usageRepository.updateLimits(it, 0) }
+        planInfo?.let { rememberTrafficReset(it) }
 
         val newShortUuid = sessionDao.getSession()?.shortUuid
         if (!oldShortUuid.isNullOrBlank() && oldShortUuid != newShortUuid) {
@@ -524,6 +579,7 @@ class AuthRepository @Inject constructor(
 
     private suspend fun applyCurrentPlanHeartbeat(data: CurrentPlanDto?) {
         val planInfo = data?.toCurrentSubscriptionPlanInfo() ?: return
+        rememberTrafficReset(planInfo)
         val sessionBefore = sessionDao.getSession() ?: return
         val oldShortUuid = sessionBefore.shortUuid
         val cachedUrl = oldShortUuid?.let { prefsDataStore.getCachedSubscriptionUrl(it) }
@@ -622,6 +678,7 @@ class AuthRepository @Inject constructor(
                 isAdminProfile = false,
             )
         } ?: return
+        prefsDataStore.setTrafficResetAt(null)
         usageRepository.updateUsage(0, 0)
         usageRepository.updateLimits(0, 0)
         if (!oldShortUuid.isNullOrBlank()) {
@@ -883,6 +940,8 @@ class AuthRepository @Inject constructor(
                         }
                         if (updated != null) session = updated
                     }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
                 } catch (_: Exception) {
                 }
                 currentPlanInfo = getCurrentSubscriptionPlan()
@@ -942,7 +1001,11 @@ class AuthRepository @Inject constructor(
                     planDisplayName = currentPlanInfo?.displayName
                         ?: panelUser?.let { panelPlanDisplayName(it, plan) }
                         ?: session.planDisplayName?.takeIf { session.userPlan == plan && plan != "EXPIRED" },
-                    planExpiresAt = currentPlanInfo?.expiresAtMillis ?: panelExpiresAt,
+                    // A failed plan request (offline, cancelled by the server
+                    // list's sync timeout) keeps the known expiry.
+                    planExpiresAt = currentPlanInfo?.expiresAtMillis
+                        ?: panelExpiresAt
+                        ?: current.planExpiresAt.takeIf { currentPlanInfo == null && panelUser == null },
                     isAdminProfile = currentPlanInfo?.isAdmin ?: current.isAdminProfile,
                 )
             }
@@ -954,7 +1017,10 @@ class AuthRepository @Inject constructor(
                 usageRepository.updateLimits(trafficLimitBytes, 0)
             }
 
-            if (overwriteUsage && session.authState == "AUTHENTICATED") {
+            // Paid usage is server-owned and has no live local counter, so
+            // skipping it while the VPN was connected froze the usage and the
+            // 20/10/5% alerts until the user disconnected.
+            if ((overwriteUsage || plan != "FREE_TRIAL") && session.authState == "AUTHENTICATED") {
                 val trafficUsedBytes = profileResult?.trafficUsedBytes
                     ?: panelUser?.userTraffic?.usedTrafficBytes
                 if (trafficUsedBytes != null) {
@@ -966,6 +1032,8 @@ class AuthRepository @Inject constructor(
             if (session.authState == "AUTHENTICATED" && session.telegramId != null) {
                 registerCurrentDevice()
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
         }
     }
@@ -1008,6 +1076,7 @@ class AuthRepository @Inject constructor(
         }
         bootstrapManager.clear()
         vpnRepository.clearServers()
+        prefsDataStore.setTrafficResetAt(null)
         usageRepository.updateUsage(0, 0)
         usageRepository.updateLimits(0, 0)
     }

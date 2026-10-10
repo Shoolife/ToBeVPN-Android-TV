@@ -1,7 +1,5 @@
 package com.tobevpn.tv.presentation.settings
 
-import com.tobevpn.tv.billing.LocalExternalPurchasesAllowed
-import com.tobevpn.tv.billing.paymentUnavailableMessage
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
@@ -16,10 +14,10 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,8 +33,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -48,9 +46,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -70,11 +68,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
+import com.tobevpn.tv.billing.LocalExternalPurchasesAllowed
+import com.tobevpn.tv.billing.paymentUnavailableMessage
 import com.tobevpn.tv.domain.model.AppFilterMode
 import com.tobevpn.tv.domain.model.AppFilterState
 import com.tobevpn.tv.domain.model.AppThemeMode
@@ -82,19 +82,20 @@ import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.MAX_SERVER_PING_TIMEOUT_SECONDS
 import com.tobevpn.tv.domain.model.MIN_SERVER_PING_TIMEOUT_SECONDS
 import com.tobevpn.tv.domain.model.UserPlan
-import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.components.subscriptionExpiryDateColor
+import com.tobevpn.tv.presentation.components.withSmallerEmoji
+import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.theme.VpnBlue
-import com.tobevpn.tv.util.LocaleManager
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
 import com.tobevpn.tv.util.DiagnosticLogFileInfo
 import com.tobevpn.tv.util.DiagnosticLogState
+import com.tobevpn.tv.util.LocaleManager
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsScreen(
@@ -1589,7 +1590,8 @@ private fun InfoRow(
             style = tightStyle,
         )
         Text(
-            text = value,
+            // Plan names carry emoji: drawn a touch smaller, as elsewhere.
+            text = withSmallerEmoji(value),
             fontSize = bodySize,
             fontWeight = FontWeight.Medium,
             color = valueColor,

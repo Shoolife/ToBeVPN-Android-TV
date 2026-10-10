@@ -48,8 +48,8 @@ android {
         applicationId = "com.tobevpn.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1032
-        versionName = "1.0.32-tv"
+        versionCode = 1033
+        versionName = "1.0.33-tv"
 
         // Direct APK releases retain the GitHub updater. The Google Play
         // variant overrides both flags and delegates updates to Play.

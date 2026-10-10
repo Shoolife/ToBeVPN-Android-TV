@@ -34,11 +34,11 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -50,8 +50,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,12 +62,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -82,16 +87,17 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tobevpn.tv.R
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.ConnectionState
 import com.tobevpn.tv.domain.model.Server
 import com.tobevpn.tv.domain.model.UsageInfo
 import com.tobevpn.tv.domain.model.UserPlan
-import com.tobevpn.tv.R
-import com.tobevpn.tv.presentation.countryFlagForUi
+import com.tobevpn.tv.presentation.components.TvQrDialog
 import com.tobevpn.tv.presentation.components.subscriptionExpiryDateColor
 import com.tobevpn.tv.presentation.components.textWithAccentedDate
-import com.tobevpn.tv.presentation.components.TvQrDialog
+import com.tobevpn.tv.presentation.components.withSmallerEmoji
+import com.tobevpn.tv.presentation.countryFlagForUi
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.serverCountryNameForUi
 import com.tobevpn.tv.presentation.serverDisplayName
@@ -99,6 +105,8 @@ import com.tobevpn.tv.presentation.theme.VpnBlue
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
+import com.tobevpn.tv.util.trafficResetText
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 @Composable
@@ -113,6 +121,7 @@ fun MainScreen(
 ) {
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val usageInfo by viewModel.usageInfo.collectAsStateWithLifecycle()
+    val trafficResetAt by viewModel.trafficResetAt.collectAsStateWithLifecycle()
     val sessionBytes by viewModel.sessionBytes.collectAsStateWithLifecycle()
     val sessionTimeSeconds by viewModel.sessionTimeSeconds.collectAsStateWithLifecycle()
     val authState by viewModel.authState.collectAsStateWithLifecycle()
@@ -388,6 +397,7 @@ fun MainScreen(
                         trailingContent = {
                             SubscriptionUsageSummary(
                                 usageInfo = usageInfo,
+                                trafficResetAt = trafficResetAt,
                                 scale = scale,
                                 bodySize = bodySize,
                                 tightStyle = tightStyle,
@@ -1038,7 +1048,8 @@ private fun TvMenuCard(
             Spacer(modifier = Modifier.width(cardSpacing))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
+                    // Plan names carry emoji ("Корпорат 🧦"): drawn a touch smaller.
+                    text = withSmallerEmoji(title),
                     fontSize = titleSize,
                     fontWeight = FontWeight.SemiBold,
                     color = titleColor,
@@ -1067,6 +1078,7 @@ private fun TvMenuCard(
 @Composable
 private fun SubscriptionUsageSummary(
     usageInfo: UsageInfo,
+    trafficResetAt: Long?,
     scale: Float,
     bodySize: androidx.compose.ui.unit.TextUnit,
     tightStyle: TextStyle,
@@ -1074,11 +1086,16 @@ private fun SubscriptionUsageSummary(
     if (usageInfo.bytesLimit <= 0L) return
 
     val progress = usageInfo.trafficProgress
+    // The bar is as long as the usage figures above it (measured after the
+    // font is fitted), not as wide as the column.
+    var usageTextWidthPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
     Column(
         modifier = Modifier
             .widthIn(
                 min = (116 * scale).dp,
-                max = (148 * scale).dp,
+                // Room for the reset line under the bar.
+                max = (190 * scale).dp,
             )
             .padding(
                 start = (12 * scale).dp,
@@ -1101,19 +1118,84 @@ private fun SubscriptionUsageSummary(
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
             style = tightStyle,
+            onTextLayout = { layout ->
+                if (layout.lineCount > 0) {
+                    usageTextWidthPx = (layout.getLineRight(0) - layout.getLineLeft(0)).roundToInt()
+                }
+            },
         )
         Spacer(modifier = Modifier.height((4 * scale).dp))
         LinearProgressIndicator(
             progress = { progress },
             modifier = Modifier
-                .fillMaxWidth()
+                .then(
+                    if (usageTextWidthPx > 0) {
+                        Modifier.width(with(density) { usageTextWidthPx.toDp() })
+                    } else {
+                        Modifier.fillMaxWidth()
+                    },
+                )
                 .height((9 * scale).dp)
                 .clip(RoundedCornerShape(99.dp)),
             color = progressColor(progress),
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            // The card's own colour hid the track; a translucent one shows
+            // where the limit ends, as on the phone and desktop.
+            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            // A solid bar: no Material 3 gap between fill and track and no
+            // stop dot at the end.
+            strokeCap = StrokeCap.Round,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
         )
+        // Under the bar: when the limit renews; in red once it is used up.
+        val reset = trafficResetText(
+            LocalContext.current,
+            trafficResetAt,
+            usageInfo.bytesLimit,
+            now = rememberResetClock(trafficResetAt),
+        )
+        val exhausted = usageInfo.bytesUsed >= usageInfo.bytesLimit
+        val note = when {
+            exhausted && reset != null -> stringResource(R.string.traffic_exhausted_reset, reset.whenText)
+            exhausted -> stringResource(R.string.traffic_exhausted)
+            reset != null -> stringResource(R.string.traffic_reset_short, reset.whenText)
+            else -> null
+        }
+        if (note != null) {
+            Spacer(modifier = Modifier.height((4 * scale).dp))
+            Text(
+                text = note,
+                fontSize = (12 * scale).sp,
+                fontWeight = if (exhausted) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (exhausted) VpnRed else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center,
+                maxLines = if (exhausted) 2 else 1,
+                softWrap = exhausted,
+                overflow = TextOverflow.Ellipsis,
+                style = tightStyle,
+            )
+        }
     }
 }
+
+/**
+ * Wall clock for the reset wording, ticking each minute while a reset date is
+ * known: an open Home otherwise kept "tomorrow" past midnight and the old
+ * time after the reset itself.
+ */
+@Composable
+private fun rememberResetClock(resetAt: Long?): Long {
+    val now by produceState(System.currentTimeMillis(), resetAt) {
+        if (resetAt == null) return@produceState
+        while (true) {
+            delay(MINUTE_MS - System.currentTimeMillis() % MINUTE_MS)
+            value = System.currentTimeMillis()
+        }
+    }
+    return now
+}
+
+private const val MINUTE_MS = 60_000L
 
 @Composable
 private fun StatItem(

@@ -3,9 +3,11 @@ package com.tobevpn.tv.presentation.components
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -13,7 +15,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -25,6 +29,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -51,6 +56,66 @@ fun rememberVerticalScrollCueState(
         label = "vertical-scroll-bottom-cue",
     )
     return VerticalScrollCueState(topAlpha, bottomAlpha)
+}
+
+/*
+ * Cue strength (mask and arrow) that follows the scroll: it grows over the
+ * first [fadeLength] of scroll instead of popping in at the first pixel, and
+ * the bottom cue fades out the same way (phone and desktop do the same).
+ */
+
+@Composable
+fun rememberVerticalScrollCueState(
+    state: LazyListState,
+    fadeLength: Dp,
+): VerticalScrollCueState {
+    val fadePx = with(LocalDensity.current) { fadeLength.toPx() }
+    val top by remember(state, fadePx) {
+        derivedStateOf {
+            when {
+                !state.canScrollBackward -> 0f
+                state.firstVisibleItemIndex > 0 -> 1f
+                else -> edgeFraction(state.firstVisibleItemScrollOffset.toFloat(), fadePx)
+            }
+        }
+    }
+    val bottom by remember(state, fadePx) {
+        derivedStateOf {
+            val info = state.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()
+            when {
+                !state.canScrollForward || last == null -> 0f
+                last.index < info.totalItemsCount - 1 -> 1f
+                else -> edgeFraction(
+                    (last.offset + last.size + info.afterContentPadding - info.viewportEndOffset)
+                        .toFloat(),
+                    fadePx,
+                )
+            }
+        }
+    }
+    return VerticalScrollCueState(top, bottom)
+}
+
+@Composable
+fun rememberVerticalScrollCueState(
+    state: ScrollState,
+    fadeLength: Dp,
+): VerticalScrollCueState {
+    val fadePx = with(LocalDensity.current) { fadeLength.toPx() }
+    val top by remember(state, fadePx) {
+        derivedStateOf { edgeFraction(state.value.toFloat(), fadePx) }
+    }
+    val bottom by remember(state, fadePx) {
+        derivedStateOf { edgeFraction((state.maxValue - state.value).toFloat(), fadePx) }
+    }
+    return VerticalScrollCueState(top, bottom)
+}
+
+private fun edgeFraction(distancePx: Float, fadePx: Float): Float = when {
+    distancePx <= 0f -> 0f
+    fadePx <= 0f -> 1f
+    else -> (distancePx / fadePx).coerceIn(0f, 1f)
 }
 
 @Composable

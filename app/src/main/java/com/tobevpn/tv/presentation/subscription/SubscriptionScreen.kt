@@ -1,14 +1,11 @@
 package com.tobevpn.tv.presentation.subscription
 
-import com.tobevpn.tv.billing.LocalExternalPurchasesAllowed
-import com.tobevpn.tv.billing.paymentUnavailableMessage
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -35,15 +32,16 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -70,15 +68,15 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -86,18 +84,19 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -105,20 +104,25 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.R
-import com.tobevpn.tv.presentation.components.VerticalScrollCues
-import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
-import com.tobevpn.tv.presentation.components.verticalFadingEdges
+import com.tobevpn.tv.billing.LocalExternalPurchasesAllowed
+import com.tobevpn.tv.billing.paymentUnavailableMessage
 import com.tobevpn.tv.data.remote.dto.PurchasePlanDto
 import com.tobevpn.tv.domain.model.AuthState
 import com.tobevpn.tv.domain.model.UserPlan
-import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.components.TvQrDialog
+import com.tobevpn.tv.presentation.components.VerticalScrollCues
+import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
 import com.tobevpn.tv.presentation.components.subscriptionExpiryDateColor
 import com.tobevpn.tv.presentation.components.textWithAccentedDate
+import com.tobevpn.tv.presentation.components.verticalFadingEdges
+import com.tobevpn.tv.presentation.components.withSmallerEmoji
+import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
+import com.tobevpn.tv.util.TrafficResetText
+import com.tobevpn.tv.util.trafficResetText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -157,6 +161,7 @@ fun SubscriptionScreen(
     val rubToUsdRate by viewModel.rubToUsdRate.collectAsStateWithLifecycle()
     val purchasePlans by viewModel.purchasePlans.collectAsStateWithLifecycle()
     val currentLimits by viewModel.currentLimits.collectAsStateWithLifecycle()
+    val trafficResetAt by viewModel.trafficResetAt.collectAsStateWithLifecycle()
     val configuration = LocalConfiguration.current
     val isRussian = configuration.locales[0]?.language == "ru"
 
@@ -448,8 +453,8 @@ fun SubscriptionScreen(
                                         val periods = tariffs.firstOrNull { it.key == tariffKey }?.periods.orEmpty()
                                         val listState = rememberLazyListState()
                                         val cues = rememberVerticalScrollCueState(
-                                            canScrollBackward = listState.canScrollBackward,
-                                            canScrollForward = listState.canScrollForward,
+                                            state = listState,
+                                            fadeLength = (38 * scale).dp,
                                         )
                                         Box(modifier = Modifier.fillMaxSize()) {
                                             LazyColumn(
@@ -519,10 +524,23 @@ fun SubscriptionScreen(
                         .fillMaxHeight(),
                     verticalArrangement = Arrangement.spacedBy(cardGap),
                 ) {
+                    val trafficReset = if (
+                        authState is AuthState.Authenticated &&
+                        (authState as AuthState.Authenticated).plan != UserPlan.EXPIRED
+                    ) {
+                        trafficResetText(
+                            LocalContext.current,
+                            trafficResetAt,
+                            displayLimits?.trafficLimitBytes ?: 0L,
+                        )
+                    } else {
+                        null
+                    }
                     CurrentPlanCard(
                         modifier = Modifier.fillMaxWidth(),
                         currentPlan = currentPlan,
                         limits = displayLimits,
+                        trafficReset = trafficReset,
                         showLimits = shouldLoadLimits,
                                 showLimitsLoading = shouldLoadLimits && displayLimits == null,
                         cardCorner = cardCorner,
@@ -737,22 +755,11 @@ private fun TariffTabs(
         val tabStripWidthPx = tabWidthsPx.sum()
         val tabStripWidth = with(density) { tabStripWidthPx.toDp() }
         val scrollable = tabStripWidthPx > maxWidthPx
-        val startFadeAlpha by animateFloatAsState(
-            targetValue = if (scrollable && scrollState.value > 0) 1f else 0f,
-            animationSpec = tween(
-                durationMillis = 180,
-                easing = FastOutSlowInEasing,
-            ),
-            label = "TvTariffTabsStartFade",
-        )
-        val endFadeAlpha by animateFloatAsState(
-            targetValue = if (scrollable && scrollState.value < scrollState.maxValue) 1f else 0f,
-            animationSpec = tween(
-                durationMillis = 180,
-                easing = FastOutSlowInEasing,
-            ),
-            label = "TvTariffTabsEndFade",
-        )
+        // The edge cues follow the scroll over the fade's width instead of
+        // switching on at the first pixel (same rule as the vertical lists).
+        val tabEdgeCues = rememberVerticalScrollCueState(state = scrollState, fadeLength = 38.dp)
+        val startFadeAlpha = if (scrollable) tabEdgeCues.topAlpha else 0f
+        val endFadeAlpha = if (scrollable) tabEdgeCues.bottomAlpha else 0f
         val selectedSafeIndex = tariffs
             .indexOfFirst { it.key == selectedTariffKey }
             .takeIf { it >= 0 }
@@ -910,7 +917,7 @@ private fun TariffTabs(
                                         ),
                                     ) {
                                         Text(
-                                            text = tariff.title,
+                                            text = withSmallerEmoji(tariff.title),
                                             textAlign = TextAlign.Center,
                                             maxLines = 1,
                                             softWrap = false,
@@ -1034,7 +1041,7 @@ private fun measureTariffTitleWidthPx(
     fontSize: androidx.compose.ui.unit.TextUnit,
 ): Int {
     return textMeasurer.measure(
-        text = title,
+        text = withSmallerEmoji(title),
         style = style.copy(
             fontSize = fontSize,
             fontWeight = FontWeight.Bold,
@@ -1104,7 +1111,7 @@ private fun SubscriptionActionButton(
             colors = ButtonDefaults.buttonColors(),
         ) {
             Text(
-                text = text,
+                text = withSmallerEmoji(text),
                 fontSize = textSize,
                 fontWeight = textWeight,
                 style = tightStyle,
@@ -1163,6 +1170,7 @@ private fun CurrentPlanCard(
     modifier: Modifier = Modifier,
     currentPlan: CurrentPlanUi,
     limits: CurrentPlanLimits?,
+    trafficReset: TrafficResetText?,
     showLimits: Boolean,
     showLimitsLoading: Boolean,
     cardCorner: Dp,
@@ -1180,6 +1188,10 @@ private fun CurrentPlanCard(
         ?.let { (it / (1024L * 1024L * 1024L)).toInt() }
     val deviceLimit = limits?.deviceLimit?.takeIf { it > 0 }
     val hasLimits = showLimits && (trafficGb != null || deviceLimit != null)
+    // "Current plan" and the expiry line: two steps above the 12 sp captions.
+    val captionSize = labelSize * (14f / 12f)
+    // The plan name: two steps above the 20 sp card titles.
+    val planNameSize = titleSize * (22f / 20f)
 
     Card(
         modifier = modifier,
@@ -1195,14 +1207,14 @@ private fun CurrentPlanCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.current_plan),
-                    fontSize = labelSize,
+                    fontSize = captionSize,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = tightStyle,
                 )
                 Spacer(modifier = Modifier.height(smallGap))
                 Text(
-                    text = currentPlan.title,
-                    fontSize = titleSize,
+                    text = withSmallerEmoji(currentPlan.title),
+                    fontSize = planNameSize,
                     fontWeight = FontWeight.Bold,
                     color = currentPlan.accentColor,
                     style = tightStyle,
@@ -1211,9 +1223,20 @@ private fun CurrentPlanCard(
                     Spacer(modifier = Modifier.height(smallGap))
                     Text(
                         text = currentPlan.subtitle,
-                        fontSize = bodySize,
+                        // Between the caption and body sizes: with the reset
+                        // pill on the right the body size crowded "Активна до …".
+                        fontSize = captionSize,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = tightStyle,
+                    )
+                }
+                // Without the limits block the reset gets its own chip.
+                if (!hasLimits && trafficReset != null) {
+                    Spacer(modifier = Modifier.height(smallGap))
+                    TrafficResetPill(
+                        text = trafficReset.chip,
+                        textSize = labelSize,
+                        tightStyle = tightStyle,
                     )
                 }
             }
@@ -1225,9 +1248,12 @@ private fun CurrentPlanCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (trafficGb != null) {
+                        // The reset date replaces "per month" under the limit
+                        // it renews.
                         LimitStat(
                             value = "$trafficGb ${stringResource(R.string.unit_gb)}",
                             label = stringResource(R.string.per_month_short),
+                            resetPill = trafficReset?.dateTime,
                             valueSize = statValueSize,
                             labelSize = labelSize,
                             tightStyle = tightStyle,
@@ -1315,6 +1341,7 @@ private fun LimitStat(
     valueSize: androidx.compose.ui.unit.TextUnit,
     labelSize: androidx.compose.ui.unit.TextUnit,
     tightStyle: TextStyle,
+    resetPill: String? = null,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
@@ -1325,11 +1352,49 @@ private fun LimitStat(
             textAlign = TextAlign.Center,
             style = tightStyle,
         )
+        if (resetPill != null) {
+            Spacer(modifier = Modifier.height(2.dp))
+            TrafficResetPill(text = resetPill, textSize = labelSize, tightStyle = tightStyle)
+        } else {
+            Text(
+                text = label,
+                fontSize = labelSize,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                style = tightStyle,
+            )
+        }
+    }
+}
+
+/** "↻ 03.11 в 05:10": the traffic reset in a pill, icon as tall as the text. */
+@Composable
+private fun TrafficResetPill(
+    text: String,
+    textSize: androidx.compose.ui.unit.TextUnit,
+    tightStyle: TextStyle,
+) {
+    val iconSize = with(LocalDensity.current) { textSize.toDp() }
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Refresh,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(iconSize),
+        )
         Text(
-            text = label,
-            fontSize = labelSize,
+            text = text,
+            fontSize = textSize,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
             style = tightStyle,
         )
     }

@@ -2,12 +2,14 @@ package com.tobevpn.tv.presentation.subscription
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.remote.dto.PurchasePlansDto
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.data.repository.CurrencyRepository
 import com.tobevpn.tv.data.repository.PurchaseRepository
 import com.tobevpn.tv.domain.model.AuthState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +17,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class CurrentPlanLimits(
     val trafficLimitBytes: Long,
@@ -28,7 +29,12 @@ class SubscriptionViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val currencyRepository: CurrencyRepository,
     private val purchaseRepository: PurchaseRepository,
+    prefsDataStore: PrefsDataStore,
 ) : ViewModel() {
+
+    /** Next traffic limit reset, shown next to the plan's traffic limit. */
+    val trafficResetAt: StateFlow<Long?> = prefsDataStore.trafficResetAt
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val authState: StateFlow<AuthState> = authRepository.observeAuthState()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AuthState.Unauthenticated)
