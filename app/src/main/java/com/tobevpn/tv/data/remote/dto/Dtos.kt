@@ -29,6 +29,7 @@ data class SessionTokensDto(
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("telegram_id") val telegramId: Long? = null,
     @SerializedName("panel_user_uuid") val panelUserUuid: String? = null,
+    @SerializedName("panel_user_id") val panelUserId: Long? = null,
     @SerializedName("short_uuid") val shortUuid: String? = null,
     @SerializedName("is_linked") val isLinked: Boolean = false,
 )
@@ -37,6 +38,7 @@ data class SessionTokensDto(
 data class AuthRequestDto(
     @SerializedName("device_id") val deviceId: String? = null,
     @SerializedName("panel_user_uuid") val panelUserUuid: String? = null,
+    @SerializedName("panel_user_id") val panelUserId: Long? = null,
 )
 
 data class AuthRequestResponseDto(
@@ -48,6 +50,7 @@ data class AuthStatusDto(
     @SerializedName("telegram_id") val telegramId: Long? = null,
     @SerializedName("short_uuid") val shortUuid: String? = null,
     @SerializedName("panel_user_uuid") val panelUserUuid: String? = null,
+    @SerializedName("panel_user_id") val panelUserId: Long? = null,
 )
 
 data class TvPairCreateRequestDto(
@@ -64,6 +67,7 @@ data class TvPairStatusDto(
     @SerializedName("telegram_id") val telegramId: Long? = null,
     @SerializedName("short_uuid") val shortUuid: String? = null,
     @SerializedName("panel_user_uuid") val panelUserUuid: String? = null,
+    @SerializedName("panel_user_id") val panelUserId: Long? = null,
 )
 
 data class CurrentPlanDto(

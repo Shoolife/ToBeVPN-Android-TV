@@ -561,6 +561,10 @@
     <string name="whats_new_server_check_v1033_desc">Server checks are faster and no longer hang, and servers with several addresses are no longer marked unavailable by mistake.</string>
     <string name="whats_new_splash_v1033_title">New splash and loading</string>
     <string name="whats_new_splash_v1033_desc">A launch animation with the app icon, a new loading indicator on Promo codes and Referrals, and smooth fading at list edges.</string>
+    <string name="whats_new_clear_discounts_v1034_title">Clear discounts</string>
+    <string name="whats_new_clear_discounts_v1034_desc">The subscription screen strikes through the full price of a term, and the percentage shows the real saving, for longer terms and with a promo code.</string>
+    <string name="whats_new_xray_core_v1034_title">Xray core 26.10.10</string>
+    <string name="whats_new_xray_core_v1034_desc">The connection core is updated with fixes and stability improvements from the new Xray release.</string>
     <string name="server_probe_progress">Checked %1$d of %2$d</string>
     <string name="server_ping_timeout_title">Server check timeout</string>
     <string name="server_ping_timeout_description">How long to wait for a complete profile check. Increase it for slow or restricted networks.</string>

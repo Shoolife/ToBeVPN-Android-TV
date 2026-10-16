@@ -25,8 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.EventRepeat
-import androidx.compose.material.icons.filled.NetworkCheck
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -84,19 +84,14 @@ private data class WhatsNewHighlight(
 
 private val currentHighlights = listOf(
     WhatsNewHighlight(
-        icon = Icons.Filled.EventRepeat,
-        titleRes = R.string.whats_new_traffic_reset_v1033_title,
-        descriptionRes = R.string.whats_new_traffic_reset_v1033_desc,
+        icon = Icons.Filled.Percent,
+        titleRes = R.string.whats_new_clear_discounts_v1034_title,
+        descriptionRes = R.string.whats_new_clear_discounts_v1034_desc,
     ),
     WhatsNewHighlight(
-        icon = Icons.Filled.NetworkCheck,
-        titleRes = R.string.whats_new_server_check_v1033_title,
-        descriptionRes = R.string.whats_new_server_check_v1033_desc,
-    ),
-    WhatsNewHighlight(
-        icon = Icons.Filled.AutoAwesome,
-        titleRes = R.string.whats_new_splash_v1033_title,
-        descriptionRes = R.string.whats_new_splash_v1033_desc,
+        icon = Icons.Filled.Memory,
+        titleRes = R.string.whats_new_xray_core_v1034_title,
+        descriptionRes = R.string.whats_new_xray_core_v1034_desc,
     ),
 )
 

@@ -254,7 +254,12 @@ fun SubscriptionScreen(
                     .sortedBy { it.orderIndex }
                     .forEach { d ->
                         val durationTitle = planTitle(d.days)
-                        val price = formatDurationPrice(d, isRussian, rubToUsdRate)
+                        val price = formatDurationPrice(
+                            d,
+                            sourcePlan.durations.orEmpty(),
+                            isRussian,
+                            rubToUsdRate,
+                        )
                         add(PurchasePlan(
                             key = "${sourcePlan.id}:${planKey(d.days)}",
                             title = durationTitle,
@@ -1549,6 +1554,7 @@ private data class DurationPriceDisplay(
 
 private fun formatDurationPrice(
     duration: com.tobevpn.tv.data.remote.dto.PurchaseDurationDto,
+    planDurations: List<com.tobevpn.tv.data.remote.dto.PurchaseDurationDto>,
     isRussian: Boolean,
     rubToUsdRate: Double?,
 ): DurationPriceDisplay {
@@ -1590,7 +1596,7 @@ private fun formatDurationPrice(
     } else {
         listOf("USD", "RUB", "XTR")
     }
-    val resolved = resolvePurchasePrice(duration, preferredCurrencies)
+    val resolved = resolvePurchasePrice(duration, preferredCurrencies, planDurations)
         ?: return DurationPriceDisplay(finalPrice = "XXX")
     return DurationPriceDisplay(
         finalPrice = formatAmount(resolved.currency, resolved.finalAmount),

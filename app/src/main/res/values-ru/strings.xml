@@ -569,6 +569,10 @@
     <string name="whats_new_server_check_v1033_desc">Проверка серверов стала быстрее и больше не зависает, а серверы с несколькими адресами больше не помечаются недоступными по ошибке.</string>
     <string name="whats_new_splash_v1033_title">Новая заставка и загрузка</string>
     <string name="whats_new_splash_v1033_desc">Анимация запуска с иконкой приложения, новый индикатор загрузки на экранах «Промокоды» и «Рефералы» и плавное затухание краёв списков.</string>
+    <string name="whats_new_clear_discounts_v1034_title">Понятные скидки</string>
+    <string name="whats_new_clear_discounts_v1034_desc">На экране подписки зачёркнута полная цена срока, а процент показывает реальную экономию — и за длинный срок, и с промокодом.</string>
+    <string name="whats_new_xray_core_v1034_title">Ядро Xray 26.10.10</string>
+    <string name="whats_new_xray_core_v1034_desc">Обновлено ядро подключения: исправления и улучшения стабильности из нового выпуска Xray.</string>
     <string name="server_probe_progress">Проверено %1$d из %2$d</string>
     <string name="server_ping_timeout_title">Таймаут проверки серверов</string>
     <string name="server_ping_timeout_description">Сколько ждать полной проверки профиля. Увеличьте значение для медленной или ограниченной сети.</string>

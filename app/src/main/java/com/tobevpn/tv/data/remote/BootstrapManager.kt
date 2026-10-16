@@ -7,6 +7,7 @@ import com.tobevpn.tv.data.local.entity.SessionEntity
 import com.tobevpn.tv.data.remote.dto.BootstrapRequestDto
 import com.tobevpn.tv.data.remote.dto.RefreshRequestDto
 import com.tobevpn.tv.data.remote.dto.SessionTokensDto
+import com.tobevpn.tv.data.remote.dto.mergePanelUserUuid
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicReference
@@ -177,7 +178,10 @@ class BootstrapManager @Inject constructor(
                     else -> null
                 },
                 panelUserUuid = when {
-                    isLinked -> stored.panelUserUuid ?: session.panelUserUuid
+                    isLinked -> mergePanelUserUuid(
+                        session.panelUserUuid, session.shortUuid,
+                        stored.panelUserUuid, stored.shortUuid,
+                    )
                     keepExistingIdentity -> session.panelUserUuid
                     else -> null
                 },

@@ -18,6 +18,7 @@ import com.tobevpn.tv.data.remote.dto.CurrentPlanDto
 import com.tobevpn.tv.data.remote.dto.DeviceRegisterRequestDto
 import com.tobevpn.tv.data.remote.dto.DeviceUnlinkRequestDto
 import com.tobevpn.tv.data.remote.dto.DeviceUnlinkResponseDto
+import com.tobevpn.tv.data.remote.dto.mergePanelUserUuid
 import com.tobevpn.tv.data.remote.dto.TvPairCreateRequestDto
 import com.tobevpn.tv.data.remote.dto.TvPairCreateResponseDto
 import com.tobevpn.tv.domain.model.AuthState
@@ -871,7 +872,9 @@ class AuthRepository @Inject constructor(
                 authState = "AUTHENTICATED",
                 telegramId = telegramId,
                 shortUuid = shortUuid ?: session.shortUuid,
-                panelUserUuid = panelUserUuid ?: session.panelUserUuid,
+                panelUserUuid = mergePanelUserUuid(
+                    session.panelUserUuid, session.shortUuid, panelUserUuid, shortUuid,
+                ),
                 isLinked = true,
             )
         }
