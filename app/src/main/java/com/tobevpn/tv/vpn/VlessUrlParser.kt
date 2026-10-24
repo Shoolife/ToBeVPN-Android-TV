@@ -62,7 +62,11 @@ object VlessUrlParser {
                     ?.lowercase(Locale.ROOT)
                     ?: "",
                 serviceName = params["serviceName"] ?: "",
-                extra = params["extra"] ?: "",
+                // Panels write extra=null when there are no options; a JSON
+                // null is not an object and would get the server rejected.
+                extra = params["extra"]
+                    ?.takeUnless { it.trim() == "null" }
+                    .orEmpty(),
                 mode = params["mode"]
                     ?.trim()
                     ?.lowercase(Locale.ROOT)
@@ -75,7 +79,7 @@ object VlessUrlParser {
         }
     }
 
-    private fun parseHostPort(hostPort: String): Pair<String, Int>? {
+    internal fun parseHostPort(hostPort: String): Pair<String, Int>? {
         if (hostPort.isBlank()) return null
         if (hostPort.startsWith("[")) {
             val end = hostPort.indexOf(']')
@@ -107,7 +111,7 @@ object VlessUrlParser {
         }
 
     /** Percent-decode without form semantics: a literal '+' must stay '+'. */
-    private fun percentDecode(value: String): String {
+    internal fun percentDecode(value: String): String {
         return try {
             URLDecoder.decode(value.replace("+", "%2B"), "UTF-8")
         } catch (_: Exception) {
@@ -115,7 +119,7 @@ object VlessUrlParser {
         }
     }
 
-    private fun parseQueryParams(query: String): Map<String, String> {
+    internal fun parseQueryParams(query: String): Map<String, String> {
         if (query.isBlank()) return emptyMap()
         return query.split("&").mapNotNull { param ->
             val parts = param.split("=", limit = 2)

@@ -25,8 +25,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Percent
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -84,14 +86,24 @@ private data class WhatsNewHighlight(
 
 private val currentHighlights = listOf(
     WhatsNewHighlight(
-        icon = Icons.Filled.Percent,
-        titleRes = R.string.whats_new_clear_discounts_v1034_title,
-        descriptionRes = R.string.whats_new_clear_discounts_v1034_desc,
+        icon = Icons.Filled.CardGiftcard,
+        titleRes = R.string.whats_new_referral_rewards_v1035_title,
+        descriptionRes = R.string.whats_new_referral_rewards_v1035_desc,
+    ),
+    WhatsNewHighlight(
+        icon = Icons.Filled.Route,
+        titleRes = R.string.whats_new_hysteria2_v1035_title,
+        descriptionRes = R.string.whats_new_hysteria2_v1035_desc,
+    ),
+    WhatsNewHighlight(
+        icon = Icons.Filled.GridView,
+        titleRes = R.string.whats_new_server_grid_v1035_title,
+        descriptionRes = R.string.whats_new_server_grid_v1035_desc,
     ),
     WhatsNewHighlight(
         icon = Icons.Filled.Memory,
-        titleRes = R.string.whats_new_xray_core_v1034_title,
-        descriptionRes = R.string.whats_new_xray_core_v1034_desc,
+        titleRes = R.string.whats_new_xray_core_v1035_title,
+        descriptionRes = R.string.whats_new_xray_core_v1035_desc,
     ),
 )
 

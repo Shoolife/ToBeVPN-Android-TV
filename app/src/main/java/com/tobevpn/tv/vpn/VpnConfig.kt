@@ -2,6 +2,7 @@ package com.tobevpn.tv.vpn
 
 import com.tobevpn.tv.domain.model.RealityFingerprintPolicy
 import com.tobevpn.tv.domain.model.Server
+import com.tobevpn.tv.domain.model.ServerProtocol
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
@@ -112,7 +113,9 @@ object VpnConfig {
         realityFingerprintOverride: String?,
     ): JSONArray {
         return JSONArray().apply {
-            put(JSONObject().apply {
+            if (server.protocol == ServerProtocol.HYSTERIA2) {
+                put(buildHysteria2Outbound(server))
+            } else put(JSONObject().apply {
                 put("tag", "proxy")
                 put("protocol", "vless")
                 put("settings", JSONObject().apply {
@@ -239,6 +242,61 @@ object VpnConfig {
                 })
             }
         }
+    }
+
+    /**
+     * Hysteria2 through Xray's "hysteria" outbound (QUIC over UDP). The format
+     * was checked end to end against an Xray 26.10 Hysteria2 server:
+     * - auth goes in hysteriaSettings, the server address in settings;
+     * - TLS is mandatory with ALPN h3; a self-signed server is accepted only by
+     *   its pinned certificate hash, since this Xray removed allowInsecure;
+     * - salamander obfuscation and port hopping are UDP masks in finalmask.
+     */
+    private fun buildHysteria2Outbound(server: Server): JSONObject = JSONObject().apply {
+        put("tag", "proxy")
+        put("protocol", "hysteria")
+        put("settings", JSONObject().apply {
+            put("version", 2)
+            put("address", server.address)
+            put("port", server.port)
+        })
+        put("streamSettings", JSONObject().apply {
+            put("network", "hysteria")
+            put("security", "tls")
+            put("tlsSettings", JSONObject().apply {
+                put("serverName", server.sni.ifBlank { server.address })
+                put("alpn", serverAlpn(server) ?: JSONArray().put("h3"))
+                if (server.pinSha256.isNotBlank()) {
+                    put("pinnedPeerCertSha256", server.pinSha256)
+                }
+                if (server.echConfigList.isNotBlank()) {
+                    put("echConfigList", server.echConfigList)
+                }
+            })
+            put("hysteriaSettings", JSONObject().apply {
+                put("version", 2)
+                put("auth", server.uuid)
+            })
+            val masks = JSONArray()
+            if (server.portHopping.isNotBlank()) {
+                masks.put(JSONObject().apply {
+                    put("type", "udphop")
+                    put("settings", JSONObject().apply {
+                        put("mode", "intervalRemote")
+                        put("remotePorts", server.portHopping)
+                    })
+                })
+            }
+            if (server.obfsPassword.isNotBlank()) {
+                masks.put(JSONObject().apply {
+                    put("type", "salamander")
+                    put("settings", JSONObject().put("password", server.obfsPassword))
+                })
+            }
+            if (masks.length() > 0) {
+                put("finalmask", JSONObject().put("udp", masks))
+            }
+        })
     }
 
     private fun serverAlpn(server: Server): JSONArray? {

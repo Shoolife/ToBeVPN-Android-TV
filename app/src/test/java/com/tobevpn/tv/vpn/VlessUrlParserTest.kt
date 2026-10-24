@@ -20,6 +20,17 @@ class VlessUrlParserTest {
     }
 
     @Test
+    fun treatsJsonNullExtraAsAbsentOptions() {
+        listOf("null", "%6E%75%6C%6C", "%20null%20").forEach { extra ->
+            val server = VlessUrlParser.parse(
+                "vless://user@node.example:443?type=xhttp&extra=$extra#Node",
+            )
+
+            assertEquals("", server?.extra)
+        }
+    }
+
+    @Test
     fun parsesBracketedIpv6Endpoint() {
         val server = VlessUrlParser.parse(
             "vless://test-uuid@[2001:db8::10]:443?security=reality#IPv6"

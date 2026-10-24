@@ -5,6 +5,15 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -30,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
@@ -232,11 +242,14 @@ fun MainScreen(
                     is ConnectionState.Connected -> stringResource(R.string.state_connected) to VpnGreen
                     is ConnectionState.Error -> (connectionState as ConnectionState.Error).message to VpnRed
                 }
+                // Long error messages wrap; keep every line centred under the
+                // button.
                 Text(
                     text = statusText,
                     fontSize = headlineSize,
                     fontWeight = FontWeight.SemiBold,
                     color = statusColor,
+                    textAlign = TextAlign.Center,
                     style = tightStyle,
                 )
 
@@ -425,12 +438,102 @@ fun MainScreen(
             )
         }
     }
+
+        StoppedBySystemPopup(
+            visible = (connectionState as? ConnectionState.Error)?.stoppedBySystem == true,
+            scale = scale,
+            labelSize = bodySize,
+            titleSize = titleSize,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = (24 * scale).dp),
+        )
     }
 
     if (showBlockedDialog) {
         BlockedDialog(onDismiss = { showBlockedDialog = false })
     }
 }
+
+/**
+ * Pops in at the top of the screen when the TV closed the VPN in the
+ * background: what to allow so it stops happening (TCL Safety Guard, energy
+ * optimization). Not focusable, so the remote keeps working, and it slides
+ * away by itself; the red status under the button stays.
+ */
+@Composable
+private fun StoppedBySystemPopup(
+    visible: Boolean,
+    scale: Float,
+    labelSize: androidx.compose.ui.unit.TextUnit,
+    titleSize: androidx.compose.ui.unit.TextUnit,
+    modifier: Modifier = Modifier,
+) {
+    // The 15 s run only while the screen is in front: a VPN killed while
+    // the user watches another app must still be explained when they come
+    // back. Leaving early restarts the count on return.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycleState by lifecycle.currentStateFlow.collectAsState()
+    val resumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    var seen by remember(visible) { mutableStateOf(false) }
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(visible, resumed, seen) {
+        shown = visible && resumed && !seen
+        if (shown) {
+            delay(STOPPED_BY_SYSTEM_POPUP_MS)
+            seen = true
+        }
+    }
+    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    AnimatedVisibility(
+        visible = shown,
+        modifier = modifier,
+        enter = slideInVertically(tween(320)) { -it } + fadeIn(tween(320)),
+        exit = slideOutVertically(tween(260)) { -it } + fadeOut(tween(260)),
+    ) {
+        Card(
+            modifier = Modifier.widthIn(max = (720 * scale).dp),
+            shape = RoundedCornerShape((18 * scale).dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (darkTheme) Color(0xFF2A1A1A) else Color(0xFFFFEBEE),
+            ),
+            border = BorderStroke((1 * scale).dp, VpnRed.copy(alpha = 0.45f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = (12 * scale).dp),
+        ) {
+            Row(
+                modifier = Modifier.padding(
+                    horizontal = (20 * scale).dp,
+                    vertical = (16 * scale).dp,
+                ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = VpnRed,
+                    modifier = Modifier.size((28 * scale).dp),
+                )
+                Spacer(modifier = Modifier.width((14 * scale).dp))
+                Column {
+                    Text(
+                        text = stringResource(R.string.error_vpn_stopped_by_system),
+                        fontSize = titleSize,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(modifier = Modifier.height((4 * scale).dp))
+                    Text(
+                        text = stringResource(R.string.vpn_stopped_by_system_hint),
+                        fontSize = labelSize,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private const val STOPPED_BY_SYSTEM_POPUP_MS = 15_000L
 
 @Composable
 private fun SubscriptionReminderBanner(

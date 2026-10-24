@@ -1,12 +1,16 @@
 package com.tobevpn.tv.presentation.servers
 
 import com.tobevpn.tv.domain.model.Server
+import com.tobevpn.tv.domain.model.ServerProtocol
 import com.tobevpn.tv.presentation.serverDisplayName
 import java.util.Locale
 
 /** Technical endpoint ID used by the existing server cache. */
+// Same as the cached row id: Hysteria2 (UDP) gets a prefix so a saved choice
+// cannot match a VLESS server on the same host:port; VLESS ids are unchanged.
 fun stableServerId(server: Server): String =
-    "${server.address}:${server.port}:${server.sni}"
+    (if (server.protocol == ServerProtocol.HYSTERIA2) "hy2:" else "") +
+        "${server.address}:${server.port}:${server.sni}"
 
 /**
  * Durable identity of a panel entry. Some special profiles rotate their
@@ -91,4 +95,5 @@ internal fun serverListItemKey(server: Server): String = listOf(
     server.sni,
     server.publicKey,
     server.shortId,
+    server.protocol.name,
 ).joinToString("|")

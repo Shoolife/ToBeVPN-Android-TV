@@ -1,6 +1,7 @@
 package com.tobevpn.tv.data.repository
 
 import com.tobevpn.tv.domain.model.Server
+import com.tobevpn.tv.domain.model.ServerProtocol
 
 /** Candidate ordering for standard TV servers; recent failures are soft penalties. */
 internal object ServerRecoveryCandidatePolicy {
@@ -49,8 +50,13 @@ internal object ServerRecoveryCandidatePolicy {
     }
 }
 
-/** Standard panel aliases on one endpoint are interchangeable. */
+/**
+ * Standard panel aliases on one endpoint are interchangeable. Hysteria2 is
+ * QUIC over UDP: it says nothing about a TCP server on the same host:port, so
+ * the two must not share a key (a failure or a ping result).
+ */
 internal fun serverConnectionIdentityKey(server: Server): String =
-    "${server.address}:${server.port}:${server.sni}"
+    (if (server.protocol == ServerProtocol.HYSTERIA2) "hy2:" else "") +
+        "${server.address}:${server.port}:${server.sni}"
 
 internal fun serverPingEndpointKey(server: Server): String = serverConnectionIdentityKey(server)

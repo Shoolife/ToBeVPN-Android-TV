@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tobevpn.tv.data.repository.AuthRepository
 import com.tobevpn.tv.domain.model.AuthState
+import com.tobevpn.tv.util.SafeDiagnostics
 import com.tobevpn.tv.vpn.VpnConnectionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
@@ -26,7 +27,9 @@ class AppSessionViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
+        private const val TAG = "AppSessionViewModel"
         private const val DEVICE_LINK_POLL_INTERVAL_MS = 5L * 60L * 1000L
+        private const val DEVICE_LINK_CONFIRM_DELAY_MS = 15_000L
     }
 
     val authState: StateFlow<AuthState?> = authRepository.observeAuthState()
@@ -43,7 +46,17 @@ class AppSessionViewModel @Inject constructor(
 
                 while (isActive) {
                     delay(DEVICE_LINK_POLL_INTERVAL_MS)
-                    val stillLinked = authRepository.syncDeviceSessionState().getOrNull()
+                    var stillLinked = authRepository.syncDeviceSessionState().getOrNull()
+                    if (stillLinked == false) {
+                        // Check once more before signing out, so a single
+                        // bad answer cannot wipe the session.
+                        delay(DEVICE_LINK_CONFIRM_DELAY_MS)
+                        stillLinked = authRepository.syncDeviceSessionState().getOrNull()
+                        SafeDiagnostics.warn(
+                            TAG,
+                            "Device unlink recheck: ${if (stillLinked == false) "CONFIRMED" else "NOT_CONFIRMED"}",
+                        )
+                    }
                     if (stillLinked == false) {
                         connectionManager.stopVpn()
                         withContext(NonCancellable) {

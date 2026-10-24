@@ -115,7 +115,16 @@ fun SupportScreen(
         val bodySize = (15 * scale).sp
         val headerColor = MaterialTheme.colorScheme.onBackground
 
-        Column(Modifier.fillMaxSize().padding(screenPad)) {
+        // Less space under the contact button, so it sits lower than the
+        // screen margin would put it.
+        Column(
+            Modifier.fillMaxSize().padding(
+                start = screenPad,
+                top = screenPad,
+                end = screenPad,
+                bottom = (20 * scale).dp,
+            ),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TvHeaderIconButton(
                     onClick = onBack,

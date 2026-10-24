@@ -130,13 +130,16 @@ class AuthRepository @Inject constructor(
             prefsDataStore.isSubscriptionUsageBlocked(shortUuid)
         }.getOrDefault(false)
         return try {
-            val cachedUrl = prefsDataStore.getCachedSubscriptionUrl(shortUuid)
-            val currentPlanUrl = if (session.authState == "AUTHENTICATED") {
-                getCurrentSubscriptionPlan()?.subscriptionUrl
-            } else {
-                null
-            }
-            val url = cachedUrl ?: currentPlanUrl
+            // This runs before every connect. Asking the bot for the plan
+            // each time tied connecting to the bot: with it down, the button
+            // sat on "Connecting" through the primary and fallback timeouts.
+            // The bot is only needed when no subscription URL is cached yet.
+            val url = prefsDataStore.getCachedSubscriptionUrl(shortUuid)
+                ?: if (session.authState == "AUTHENTICATED") {
+                    getCurrentSubscriptionPlan()?.subscriptionUrl
+                } else {
+                    null
+                }
             prefsDataStore.setCachedSubscriptionUrl(shortUuid, url)
             val result = subscriptionPinger.ping(
                 subscriptionUrl = url,

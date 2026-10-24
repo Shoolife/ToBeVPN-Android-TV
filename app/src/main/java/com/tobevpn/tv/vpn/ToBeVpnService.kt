@@ -66,6 +66,16 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
     @Volatile
     private var activeConnectionGeneration = -1
 
+    // Newest start request handed to onStartCommand. Cleanup stops the
+    // service with it, so a start queued after it keeps the service alive.
+    @Volatile
+    private var latestStartId = 0
+
+    // What the foreground notification shows now; re-entering foreground on
+    // a stale start reuses it instead of overwriting a live session's text.
+    @Volatile
+    private var currentNotification: Notification? = null
+
     override fun onCreate() {
         super.onCreate()
         SafeDiagnostics.info(TAG, "VPN service created")
@@ -75,6 +85,7 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
         when (intent?.action) {
             ACTION_START -> {
                 val config = intent.getStringExtra(EXTRA_SERVER_CONFIG)
@@ -82,13 +93,19 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
                 if (config == null || !connectionManager.mayServiceStart(generation)) {
                     // startForegroundService() needs a matching foreground call
                     // even if this request became stale before it was delivered.
+                    // A live tunnel from a previous start keeps its foreground
+                    // and its notification, re-posted unchanged so this start
+                    // request is answered too.
                     val hasActiveSession = vpnInterface != null || XRayCore.isRunning || waitingForNetworkResume
-                    if (!hasActiveSession) {
-                        startForeground(
-                            NOTIFICATION_ID,
-                            createNotification(getString(R.string.state_disconnected)),
+                    if (hasActiveSession) {
+                        enterForeground(
+                            currentNotification
+                                ?: createNotification(getString(R.string.state_disconnected)),
                         )
+                    } else {
+                        enterForeground(createNotification(getString(R.string.state_disconnected)))
                         stopForeground(STOP_FOREGROUND_REMOVE)
+                        currentNotification = null
                         stopSelf(startId)
                     }
                     return START_NOT_STICKY
@@ -120,7 +137,7 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
     }
 
     private fun startVpn(configJson: String, generation: Int) {
-        startForeground(NOTIFICATION_ID, createNotification(getString(R.string.state_connecting)))
+        enterForeground(createNotification(getString(R.string.state_connecting)))
         serviceScope.launch {
             try {
                 val fd = setupTunInterface() ?: run {
@@ -245,11 +262,18 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (_: Exception) {
         }
+        currentNotification = null
         try {
             getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
         } catch (_: Exception) {
         }
-        stopSelf()
+        // Not a bare stopSelf(): that also drops a start request still
+        // waiting in the queue (a reconnect, or a cleanup posted ahead of it),
+        // and a startForegroundService() call whose service is destroyed
+        // before startForeground() crashes the app with
+        // ForegroundServiceDidNotStartInTimeException. With the newest
+        // delivered id the system keeps the service for that request.
+        stopSelf(latestStartId)
         SafeDiagnostics.info(TAG, "VPN service cleanup completed")
     }
 
@@ -575,8 +599,15 @@ class ToBeVpnService : VpnService(), CoreCallbackHandler {
     }
 
     private fun updateNotification(status: String) {
+        val notification = createNotification(status)
+        currentNotification = notification
         getSystemService(NotificationManager::class.java)
-            ?.notify(NOTIFICATION_ID, createNotification(status))
+            ?.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun enterForeground(notification: Notification) {
+        currentNotification = notification
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     private fun createNotificationChannel() {

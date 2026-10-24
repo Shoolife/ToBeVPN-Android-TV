@@ -7,8 +7,10 @@ import com.tobevpn.tv.data.local.entity.ServerEntity
 import com.tobevpn.tv.data.remote.BotApi
 import com.tobevpn.tv.data.remote.SubscriptionPinger
 import com.tobevpn.tv.domain.model.Server
+import com.tobevpn.tv.domain.model.ServerProtocol
 import com.tobevpn.tv.presentation.serverCountryCodeForUi
 import com.tobevpn.tv.util.SafeDiagnostics
+import com.tobevpn.tv.vpn.Hysteria2UrlParser
 import com.tobevpn.tv.vpn.VlessUrlParser
 import java.net.InetAddress
 import java.util.Locale
@@ -98,7 +100,9 @@ class VpnRepository @Inject constructor(
             return Result.failure(Exception("No servers available"))
         }
 
-        val parsedServers = links.mapNotNull { link -> VlessUrlParser.parse(link) }
+        val parsedServers = links.mapNotNull { link ->
+            VlessUrlParser.parse(link) ?: Hysteria2UrlParser.parse(link)
+        }
         val servers = parsedServers.filterNot { it.isSentinel }
         if (servers.isEmpty()) {
             if (parsedServers.none { it.isSentinel }) {
@@ -291,7 +295,12 @@ class VpnRepository @Inject constructor(
         clearServerCache()
     }
 
-    private fun serverId(server: Server) = "${server.address}:${server.port}:${server.sni}"
+    // Hysteria2 often shares host:port with a VLESS inbound (UDP vs TCP 443);
+    // the prefix keeps the two apart, and VLESS ids stay as they were so a
+    // saved selection survives the update.
+    private fun serverId(server: Server) =
+        (if (server.protocol == ServerProtocol.HYSTERIA2) "hy2:" else "") +
+            "${server.address}:${server.port}:${server.sni}"
 
     private fun normalizedServerName(name: String): String = name
         .trim()
@@ -323,6 +332,11 @@ class VpnRepository @Inject constructor(
         extra = extra,
         mode = mode,
         spx = spx,
+        protocol = protocol.name,
+        obfsPassword = obfsPassword,
+        pinSha256 = pinSha256,
+        portHopping = portHopping,
+        echConfigList = echConfigList,
         country = country,
         isOnline = isOnline,
         sortOrder = sortOrder,
@@ -349,6 +363,11 @@ class VpnRepository @Inject constructor(
         extra = extra,
         mode = mode,
         spx = spx,
+        protocol = ServerProtocol.entries.firstOrNull { it.name == protocol } ?: ServerProtocol.VLESS,
+        obfsPassword = obfsPassword,
+        pinSha256 = pinSha256,
+        portHopping = portHopping,
+        echConfigList = echConfigList,
         country = country,
         isOnline = isOnline,
     )

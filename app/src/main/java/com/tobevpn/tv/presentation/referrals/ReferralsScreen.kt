@@ -25,6 +25,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,7 +50,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
@@ -72,6 +75,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -325,6 +329,7 @@ fun ReferralsScreen(
                         data = data,
                         error = uiState.error,
                         referrerAssignmentError = uiState.referrerAssignmentError,
+                        referrerLimitedUntil = uiState.referrerLimitedUntil,
                         isRefreshing = uiState.isRefreshing,
                         isAssigningReferrer = uiState.isAssigningReferrer,
                         referrerIdInput = referrerIdInput,
@@ -672,6 +677,7 @@ private fun ReferralDashboard(
     data: ReferralsDto,
     error: ReferralLoadError?,
     referrerAssignmentError: ReferrerAssignmentError?,
+    referrerLimitedUntil: Long?,
     isRefreshing: Boolean,
     isAssigningReferrer: Boolean,
     referrerIdInput: String,
@@ -758,6 +764,7 @@ private fun ReferralDashboard(
                 ReferrerInputCard(
                     value = referrerIdInput,
                     error = referrerAssignmentError,
+                    limitedUntil = referrerLimitedUntil,
                     isSubmitting = isAssigningReferrer,
                     onValueChange = onReferrerIdChange,
                     onRequestSubmit = onRequestAssign,
@@ -987,6 +994,39 @@ private fun ReferralRewardsDialog(
                         .fillMaxWidth()
                         .padding((23 * scale).dp),
                 ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size((54 * scale).dp)
+                                .shadow(
+                                    elevation = (14 * scale).dp,
+                                    shape = RoundedCornerShape((17 * scale).dp),
+                                    spotColor = RewardSparkleColor,
+                                    ambientColor = RewardSparkleColor,
+                                )
+                                .clip(RoundedCornerShape((17 * scale).dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(
+                                            RewardSparkleColor,
+                                            lerp(RewardSparkleColor, Color.White, 0.28f),
+                                        ),
+                                    ),
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size((26 * scale).dp),
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height((8 * scale).dp))
                     Text(
                         text = stringResource(R.string.referrals_rewards_dialog_title),
                         modifier = Modifier.fillMaxWidth(),
@@ -1045,127 +1085,87 @@ private fun ReferralRewardsDialog(
     }
 }
 
+/** Same layout as the phone: the new rule highlighted, then one card per reward. */
 @Composable
 private fun ReferralRewardsPanel(
     scale: Float,
     tightStyle: TextStyle,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape((12 * scale).dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
-    ) {
-        Column(
-            modifier = Modifier.padding(
-                horizontal = (14 * scale).dp,
-                vertical = (12 * scale).dp,
-            ),
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // The new rule first: an invite alone now earns days.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = (4 * scale).dp,
+                        bottomStart = (4 * scale).dp,
+                        topEnd = (10 * scale).dp,
+                        bottomEnd = (10 * scale).dp,
+                    ),
+                )
+                .background(VpnGreen.copy(alpha = 0.10f)),
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = (11 * scale).dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size((27 * scale).dp)
-                        .clip(RoundedCornerShape((8 * scale).dp))
-                        .background(RewardSparkleColor.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.AutoAwesome,
-                        contentDescription = null,
-                        tint = RewardSparkleColor,
-                        modifier = Modifier.size((16 * scale).dp),
-                    )
-                }
-                Spacer(modifier = Modifier.width((8 * scale).dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.referrals_rewards_how_title),
-                        fontSize = (11.5f * scale).sp,
-                        fontWeight = FontWeight.SemiBold,
-                        style = tightStyle,
-                    )
-                    Text(
-                        text = stringResource(R.string.referrals_rewards_description),
-                        fontSize = (10.5f * scale).sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        style = tightStyle,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height((6 * scale).dp))
-            Row(
-                modifier = Modifier.padding(horizontal = (11 * scale).dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size((27 * scale).dp)
-                        .clip(CircleShape)
-                        .background(VpnBlue.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Diamond,
-                        contentDescription = null,
-                        tint = VpnBlue,
-                        modifier = Modifier.size((16 * scale).dp),
-                    )
-                }
-                Spacer(modifier = Modifier.width((8 * scale).dp))
-                Text(
-                    text = stringResource(R.string.referrals_rewards_what_title),
-                    fontSize = (11.5f * scale).sp,
-                    fontWeight = FontWeight.SemiBold,
-                    style = tightStyle,
-                )
-            }
-            Spacer(modifier = Modifier.height((6 * scale).dp))
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy((7 * scale).dp),
-            ) {
-                ReferralRewardMetric(
-                    icon = Icons.Filled.Groups,
-                    iconColor = VpnBlue,
-                    label = stringResource(R.string.referrals_rewards_direct),
-                    value = stringResource(R.string.referrals_rewards_direct_value),
-                    scale = scale,
-                    tightStyle = tightStyle,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ReferralRewardMetric(
-                    icon = Icons.Filled.GroupAdd,
-                    iconColor = RewardSecondLevelColor,
-                    label = stringResource(R.string.referrals_rewards_indirect),
-                    value = stringResource(R.string.referrals_rewards_indirect_value),
-                    scale = scale,
-                    tightStyle = tightStyle,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            Spacer(modifier = Modifier.height((8 * scale).dp))
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = (11 * scale).dp),
-            ) {
-                Spacer(modifier = Modifier.width((35 * scale).dp))
-                Text(
-                    text = stringResource(R.string.referrals_rewards_note),
-                    modifier = Modifier.weight(1f),
-                    fontSize = (11 * scale).sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = tightStyle,
-                )
-            }
+                    .width((3 * scale).dp)
+                    .fillMaxHeight()
+                    .background(VpnGreen),
+            )
+            Text(
+                text = stringResource(R.string.referrals_rewards_description),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = (12 * scale).dp, vertical = (10 * scale).dp),
+                fontSize = (13 * scale).sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = tightStyle,
+            )
         }
+        Spacer(modifier = Modifier.height((14 * scale).dp))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy((8 * scale).dp),
+        ) {
+            ReferralRewardMetric(
+                icon = Icons.Filled.PersonAdd,
+                iconColor = VpnGreen,
+                label = stringResource(R.string.referrals_rewards_signup),
+                value = stringResource(R.string.referrals_rewards_signup_value),
+                scale = scale,
+                tightStyle = tightStyle,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            ReferralRewardMetric(
+                icon = Icons.Filled.Groups,
+                iconColor = VpnBlue,
+                label = stringResource(R.string.referrals_rewards_direct),
+                value = stringResource(R.string.referrals_rewards_direct_value),
+                scale = scale,
+                tightStyle = tightStyle,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            ReferralRewardMetric(
+                icon = Icons.Filled.GroupAdd,
+                iconColor = RewardSecondLevelColor,
+                label = stringResource(R.string.referrals_rewards_indirect),
+                value = stringResource(R.string.referrals_rewards_indirect_value),
+                scale = scale,
+                tightStyle = tightStyle,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(modifier = Modifier.height((12 * scale).dp))
+        Text(
+            text = stringResource(R.string.referrals_rewards_note),
+            modifier = Modifier.fillMaxWidth(),
+            fontSize = (11.5f * scale).sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            style = tightStyle,
+        )
     }
 }
 
@@ -1181,8 +1181,8 @@ private fun ReferralRewardMetric(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape((10 * scale).dp),
-        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape((12 * scale).dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
     ) {
         Row(
             modifier = Modifier.padding(
@@ -1369,6 +1369,7 @@ private fun ReferralInfoButton(
 private fun ReferrerInputCard(
     value: String,
     error: ReferrerAssignmentError?,
+    limitedUntil: Long?,
     isSubmitting: Boolean,
     onValueChange: (String) -> Unit,
     onRequestSubmit: (Long) -> Unit,
@@ -1382,6 +1383,22 @@ private fun ReferrerInputCard(
 ) {
     val referrerId = value.toLongOrNull()?.takeIf { it > 0 }
     val hasLocalError = value.isNotEmpty() && referrerId == null
+    // Seconds left in the server's error-limit window, ticking down so the
+    // form unlocks by itself when the window ends.
+    val limitSecondsLeft by produceState(
+        initialValue = remainingLimitSeconds(limitedUntil),
+        key1 = limitedUntil,
+    ) {
+        // this.value: the card's own `value` parameter is the typed ID.
+        while (true) {
+            this.value = remainingLimitSeconds(limitedUntil)
+            if (this.value <= 0L) break
+            delay(1_000L)
+        }
+    }
+    val isLimited = limitSecondsLeft > 0L
+    // A LIMITED error outliving its window is no longer true.
+    val shownError = error.takeUnless { it == ReferrerAssignmentError.LIMITED && !isLimited }
     val fieldShape = RoundedCornerShape((12 * scale).dp)
 
     Card(
@@ -1434,7 +1451,7 @@ private fun ReferrerInputCard(
                         ),
                     enabled = !isSubmitting,
                     singleLine = true,
-                    isError = hasLocalError || error != null,
+                    isError = hasLocalError || shownError != null || isLimited,
                     label = {
                         Text(
                             text = stringResource(R.string.referrals_referrer_id_label),
@@ -1463,7 +1480,7 @@ private fun ReferrerInputCard(
                         stringResource(R.string.referrals_referrer_assign)
                     },
                     onClick = { referrerId?.let(onRequestSubmit) },
-                    enabled = referrerId != null && !isSubmitting,
+                    enabled = referrerId != null && !isSubmitting && !isLimited,
                     focusRequester = assignFocusRequester,
                     upFocusRequester = invitedFocusRequester,
                     downFocusRequester = downFocusRequester,
@@ -1477,7 +1494,11 @@ private fun ReferrerInputCard(
 
             val errorText = when {
                 hasLocalError -> stringResource(R.string.referrals_referrer_id_invalid)
-                error != null -> referrerAssignmentErrorText(error)
+                isLimited -> stringResource(
+                    R.string.referrals_referrer_error_limited,
+                    formatLimitWait(limitSecondsLeft),
+                )
+                shownError != null -> referrerAssignmentErrorText(shownError)
                 else -> null
             }
             if (errorText != null) {
@@ -2294,8 +2315,28 @@ private fun referrerAssignmentErrorText(error: ReferrerAssignmentError): String 
     ReferrerAssignmentError.UNAVAILABLE ->
         stringResource(R.string.referrals_referrer_error_unavailable)
 
+    ReferrerAssignmentError.LIMITED ->
+        stringResource(R.string.referrals_referrer_error_limited_short)
+
     ReferrerAssignmentError.UNKNOWN ->
         stringResource(R.string.referrals_referrer_error_unknown)
+}
+
+private fun remainingLimitSeconds(limitedUntil: Long?): Long =
+    limitedUntil?.let { ((it - System.currentTimeMillis()) + 999L) / 1_000L }?.coerceAtLeast(0L) ?: 0L
+
+// "1 ч 05 мин", "12 мин", "минуту" - rounded up, so the form never claims
+// the wait is over before the server would accept the request.
+@Composable
+private fun formatLimitWait(seconds: Long): String {
+    val minutes = (seconds + 59L) / 60L
+    val hours = minutes / 60L
+    val rest = minutes % 60L
+    return when {
+        seconds < 60L -> stringResource(R.string.referrals_referrer_wait_under_minute)
+        hours > 0L -> stringResource(R.string.referrals_referrer_wait_hours, hours, rest)
+        else -> stringResource(R.string.referrals_referrer_wait_minutes, minutes)
+    }
 }
 
 private fun formatReferralDate(raw: String?): String? {

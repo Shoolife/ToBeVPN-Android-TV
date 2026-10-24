@@ -153,6 +153,32 @@ class AppDatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun migration13To14AddsHysteria2ColumnsAndKeepsServersVless() {
+        helper.createDatabase(TEST_DATABASE, 13).use(::insertVersion10Server)
+        // Validates the migrated schema against 14.json: columns, types,
+        // NOT NULL and defaults must match the entity exactly.
+        helper.runMigrationsAndValidate(
+            TEST_DATABASE,
+            14,
+            true,
+            DatabaseModule.MIGRATION_13_14,
+        ).use { database ->
+            database.query(
+                "SELECT id, protocol, obfsPassword, pinSha256, portHopping, echConfigList " +
+                    "FROM servers",
+            ).use { cursor ->
+                assertEquals(1, cursor.count)
+                cursor.moveToFirst()
+                assertEquals("server-id", cursor.getString(cursor.getColumnIndexOrThrow("id")))
+                assertEquals("VLESS", cursor.getString(cursor.getColumnIndexOrThrow("protocol")))
+                listOf("obfsPassword", "pinSha256", "portHopping", "echConfigList").forEach { column ->
+                    assertEquals("", cursor.getString(cursor.getColumnIndexOrThrow(column)))
+                }
+            }
+        }
+    }
+
     private fun insertVersion12Session(
         database: SupportSQLiteDatabase,
         deviceId: String,

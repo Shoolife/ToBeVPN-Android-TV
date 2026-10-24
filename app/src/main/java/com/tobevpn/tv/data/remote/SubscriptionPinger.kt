@@ -496,7 +496,8 @@ class SubscriptionPinger @Inject constructor(
         const val FAST_PRIMARY_TIMEOUT_MS = 1_200L
         const val PRIMARY_FAILURE_COOLDOWN_MS = 2L * 60L * 1000L
         const val MAX_GATEWAY_BODY_BYTES = 1_024L
-        val VLESS_REGEX = Regex("""vless://[^\s<>"']+""")
+        // VLESS and Hysteria2 ("hysteria2://" or the short "hy2://") links.
+        val VLESS_REGEX = Regex("""(?:vless|hysteria2|hy2)://[^\s<>"']+""")
     }
 
     private data class SubscriptionUserInfo(

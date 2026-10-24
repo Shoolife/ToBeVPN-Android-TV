@@ -71,6 +71,15 @@ class PrefsDataStore @Inject constructor(
         val SUBSCRIPTION_URL_OWNER = stringPreferencesKey("subscription_url_owner")
         val SUBSCRIPTION_URL_VALUE = stringPreferencesKey("subscription_url_value")
         val BLOCKED_SUBSCRIPTION_OWNER = stringPreferencesKey("blocked_subscription_owner")
+        // POST /api/device/referrer answered 429: the server's error limit for
+        // this Telegram ID is exhausted until this moment (wall clock, ms).
+        // Owner is the hashed Telegram ID - the limit belongs to the account.
+        val REFERRER_LIMIT_UNTIL = longPreferencesKey("referrer_limit_until")
+        // Set while a tunnel is up: "<boot count>|<version code>". Still set
+        // on the next start (same boot, same build) means the TV killed the
+        // app with the VPN on.
+        val ACTIVE_TUNNEL_MARKER = stringPreferencesKey("active_tunnel_marker")
+        val REFERRER_LIMIT_OWNER = stringPreferencesKey("referrer_limit_owner")
         val APP_FILTER_MODE = stringPreferencesKey("app_filter_mode")
         val APP_FILTER_PACKAGES = stringPreferencesKey("app_filter_packages")
         val THEME_MODE = stringPreferencesKey("theme_mode")
@@ -425,6 +434,30 @@ class PrefsDataStore @Inject constructor(
         context.dataStore.edit {
             it[Keys.APP_FILTER_PACKAGES] = encodeAppFilterPackages(packageNames)
         }
+    }
+
+    suspend fun setActiveTunnelMarker(marker: String?) {
+        context.dataStore.edit {
+            if (marker == null) it.remove(Keys.ACTIVE_TUNNEL_MARKER) else it[Keys.ACTIVE_TUNNEL_MARKER] = marker
+        }
+    }
+
+    suspend fun getActiveTunnelMarker(): String? =
+        context.dataStore.data.first()[Keys.ACTIVE_TUNNEL_MARKER]
+
+    suspend fun setReferrerLimitUntil(telegramId: Long, untilMillis: Long) {
+        val owner = cacheOwnerHash(telegramId.toString())
+        context.dataStore.edit {
+            it[Keys.REFERRER_LIMIT_UNTIL] = untilMillis
+            it[Keys.REFERRER_LIMIT_OWNER] = owner
+        }
+    }
+
+    /** End of the referrer error-limit window for this account, or null. */
+    suspend fun getReferrerLimitUntil(telegramId: Long): Long? {
+        val prefs = context.dataStore.data.first()
+        if (prefs[Keys.REFERRER_LIMIT_OWNER] != cacheOwnerHash(telegramId.toString())) return null
+        return prefs[Keys.REFERRER_LIMIT_UNTIL]?.takeIf { it > System.currentTimeMillis() }
     }
 
     private fun cacheOwnerHash(value: String): String {

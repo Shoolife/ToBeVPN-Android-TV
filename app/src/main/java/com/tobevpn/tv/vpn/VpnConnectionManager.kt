@@ -8,6 +8,8 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
+import com.tobevpn.tv.BuildConfig
 import com.tobevpn.tv.R
 import com.tobevpn.tv.data.local.PrefsDataStore
 import com.tobevpn.tv.data.local.dao.SessionDao
@@ -163,6 +165,7 @@ class VpnConnectionManager @Inject constructor(
                 SafeDiagnostics.warn(TAG, "Usage init failed: ${SafeDiagnostics.failureCategory(error)}")
             }
         }
+        scope.launch { reportTunnelKilledWithApp() }
         scope.launch {
             try {
                 observeAppFilterAndReconnect()
@@ -170,6 +173,41 @@ class VpnConnectionManager @Inject constructor(
                 SafeDiagnostics.warn(TAG, "App filter observer failed: ${SafeDiagnostics.failureCategory(error)}")
             }
         }
+    }
+
+    /**
+     * The app process died while the tunnel was up (the TV killed the whole
+     * app, so the service could not report it). Shown once, on the next start
+     * in the same boot and build: a reboot or an update ends the VPN too and
+     * is not the TV's background killer.
+     */
+    private suspend fun reportTunnelKilledWithApp() {
+        val marker = runCatching { prefsDataStore.getActiveTunnelMarker() }.getOrNull() ?: return
+        runCatching { prefsDataStore.setActiveTunnelMarker(null) }
+        if (marker != activeTunnelMarker()) return
+        mutex.withLock {
+            if (_connectionState.value is ConnectionState.Disconnected) {
+                SafeDiagnostics.warn(TAG, "VPN ended with the app process: STOPPED_BY_SYSTEM")
+                _connectionState.value = stoppedBySystemError()
+            }
+        }
+    }
+
+    private fun activeTunnelMarker(): String {
+        val bootCount = runCatching {
+            Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT)
+        }.getOrDefault(-1)
+        return "$bootCount|${BuildConfig.VERSION_CODE}"
+    }
+
+    private fun stoppedBySystemError() = ConnectionState.Error(
+        message = context.getString(R.string.error_vpn_stopped_by_system),
+        stoppedBySystem = true,
+    )
+
+    private fun rememberTunnelActive(active: Boolean) {
+        val marker = if (active) activeTunnelMarker() else null
+        scope.launch { runCatching { prefsDataStore.setActiveTunnelMarker(marker) } }
     }
 
     /** Privacy-safe state captured with crashes and diagnostic boundaries. */
@@ -1092,7 +1130,10 @@ class VpnConnectionManager @Inject constructor(
                 stopUsageTracking()
                 flushPendingUsage()
                 saveSessionLog()
-                _connectionState.value = ConnectionState.Disconnected
+                // Nobody asked to stop: the system destroyed the service. Say
+                // so instead of a silent "Disconnected".
+                _connectionState.value = stoppedBySystemError()
+                rememberTunnelActive(false)
                 _sessionTimeSeconds.value = 0L
             }
             failedServer?.let {
@@ -1136,6 +1177,7 @@ class VpnConnectionManager @Inject constructor(
 
             stopBeforeGeneration = advanceGeneration()
             permittedServiceStartGeneration.set(-1)
+            rememberTunnelActive(false)
             _connectionState.value = if (errorMessage != null) {
                 ConnectionState.Error(errorMessage)
             } else {
@@ -1517,6 +1559,7 @@ class VpnConnectionManager @Inject constructor(
         val accepted = mutex.withLock {
             if (!isExpectedTunnelState(generation, duringStartup = true)) return@withLock false
             _connectionState.value = ConnectionState.Connected
+            rememberTunnelActive(true)
             connectionStartTime = System.currentTimeMillis()
             sessionBytesAccumulated = 0L
             _sessionBytes.value = 0L

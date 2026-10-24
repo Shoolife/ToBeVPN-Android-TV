@@ -17,6 +17,7 @@
     <!-- Servers -->
     <string name="server_select">Выберите сервер</string>
     <string name="server_auto">Автоматически</string>
+    <string name="server_auto_select">Автоматический выбор сервера</string>
     <string name="server_auto_description">Самый быстрый доступный сервер</string>
     <string name="server_auto_selected">Выбран автоматически</string>
     <string name="servers_load_error">Ошибка загрузки</string>
@@ -250,6 +251,11 @@
     <string name="referrals_referrer_error_conflict">Этот ID нельзя привязать. Возможно, пригласивший уже указан, введён ваш собственный ID или реферальная программа недоступна.</string>
     <string name="referrals_referrer_error_unavailable">Привяжите телевизор к аккаунту заново и повторите попытку.</string>
     <string name="referrals_referrer_error_unknown">Не удалось привязать пригласившего. Попробуйте ещё раз.</string>
+    <string name="referrals_referrer_error_limited">Слишком много неудачных попыток. Повторить можно через %1$s.</string>
+    <string name="referrals_referrer_error_limited_short">Слишком много неудачных попыток. Попробуйте позже.</string>
+    <string name="referrals_referrer_wait_hours">%1$d ч %2$02d мин</string>
+    <string name="referrals_referrer_wait_minutes">%1$d мин</string>
+    <string name="referrals_referrer_wait_under_minute">минуту</string>
     <string name="referrals_invited_title">Приглашённые друзья</string>
     <string name="referrals_open_list">Посмотреть друзей</string>
     <string name="referrals_unknown_user">Пользователь ToBeVPN</string>
@@ -278,14 +284,16 @@
         <item quantity="other">приглашённых друзей</item>
     </plurals>
     <string name="referrals_rewards_how_title">Как получить награду</string>
-    <string name="referrals_rewards_description">Дополнительные дни начисляются после каждой покупки или продления подписки приглашённым пользователем.</string>
+    <string name="referrals_rewards_description">Теперь бесплатные дни дают даже за приглашение нового друга.</string>
     <string name="referrals_rewards_what_title">Что вы получаете</string>
     <string name="referrals_rewards_info_button">Подробнее о вознаграждении</string>
     <string name="referrals_rewards_dialog_title">Подробнее о вознаграждении</string>
     <string name="referrals_rewards_close">Закрыть</string>
-    <string name="referrals_rewards_direct">Ваши друзья</string>
+    <string name="referrals_rewards_signup">За приглашение нового друга</string>
+    <string name="referrals_rewards_signup_value">+3 дня</string>
+    <string name="referrals_rewards_direct">За каждую оплату подписки вашим другом</string>
     <string name="referrals_rewards_direct_value">+5 дней</string>
-    <string name="referrals_rewards_indirect">Друзья ваших друзей</string>
+    <string name="referrals_rewards_indirect">За каждую оплату подписки тем, кого пригласил ваш друг</string>
     <string name="referrals_rewards_indirect_value">+1 день</string>
     <string name="referrals_rewards_note">Все дополнительные дни добавляются к вашей текущей подписке.</string>
 
@@ -470,6 +478,8 @@
     <!-- Блокировка подписки / принудительное обновление -->
     <string name="error_subscription_expired">Подписка истекла. Продлите, чтобы подключиться.</string>
     <string name="error_tunnel_unhealthy">VPN подключился, но трафик через сервер не проходит. Попробуйте другой сервер.</string>
+    <string name="error_vpn_stopped_by_system">VPN остановлен телевизором</string>
+    <string name="vpn_stopped_by_system_hint">Телевизор закрыл VPN в фоне. Разрешите ToBeVPN автозапуск и работу в фоне: на TCL — приложение Safety Guard → Permission Shield, на других моделях — Настройки → Приложения → Специальный доступ → Оптимизация энергопотребления.</string>
     <string name="error_underlying_network_unavailable">Нет рабочего подключения к интернету. VPN остановлен, чтобы не блокировать сеть.</string>
     <string name="vpn_waiting_for_network_resume">Ожидание сети — VPN восстановится автоматически</string>
     <string name="error_usage_blocked">Доступ заблокирован из-за нарушения правил использования</string>
@@ -573,6 +583,14 @@
     <string name="whats_new_clear_discounts_v1034_desc">На экране подписки зачёркнута полная цена срока, а процент показывает реальную экономию — и за длинный срок, и с промокодом.</string>
     <string name="whats_new_xray_core_v1034_title">Ядро Xray 26.10.10</string>
     <string name="whats_new_xray_core_v1034_desc">Обновлено ядро подключения: исправления и улучшения стабильности из нового выпуска Xray.</string>
+    <string name="whats_new_referral_rewards_v1035_title">Дни за приглашения</string>
+    <string name="whats_new_referral_rewards_v1035_desc">Теперь +3 дня дают за каждого приглашённого друга, а не только за его оплаты. Все награды расписаны в окне «Подробнее о вознаграждении».</string>
+    <string name="whats_new_hysteria2_v1035_title">Серверы Hysteria2</string>
+    <string name="whats_new_hysteria2_v1035_desc">Телевизор подключается к серверам Hysteria2. Под названием каждого сервера показан его протокол.</string>
+    <string name="whats_new_server_grid_v1035_title">Серверы в две колонки</string>
+    <string name="whats_new_server_grid_v1035_desc">На экране выбора помещается вдвое больше серверов, а автоматический выбор переехал в шапку.</string>
+    <string name="whats_new_xray_core_v1035_title">Ядро Xray 26.10.21</string>
+    <string name="whats_new_xray_core_v1035_desc">Обновлено ядро подключения: исправления и улучшения стабильности из нового выпуска Xray.</string>
     <string name="server_probe_progress">Проверено %1$d из %2$d</string>
     <string name="server_ping_timeout_title">Таймаут проверки серверов</string>
     <string name="server_ping_timeout_description">Сколько ждать полной проверки профиля. Увеличьте значение для медленной или ограниченной сети.</string>

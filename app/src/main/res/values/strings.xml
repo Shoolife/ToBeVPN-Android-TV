@@ -17,6 +17,7 @@
     <!-- Servers -->
     <string name="server_select">Select a server</string>
     <string name="server_auto">Automatic</string>
+    <string name="server_auto_select">Automatic server selection</string>
     <string name="server_auto_description">Fastest available server</string>
     <string name="server_auto_selected">Selected automatically</string>
     <string name="servers_load_error">Failed to load</string>
@@ -248,6 +249,11 @@
     <string name="referrals_referrer_error_conflict">This ID cannot be assigned. An inviter may already be set, this may be your own ID, or referrals may be unavailable.</string>
     <string name="referrals_referrer_error_unavailable">Link this TV to your account again and retry.</string>
     <string name="referrals_referrer_error_unknown">Couldn\'t assign the inviter. Try again.</string>
+    <string name="referrals_referrer_error_limited">Too many failed attempts. You can try again in %1$s.</string>
+    <string name="referrals_referrer_error_limited_short">Too many failed attempts. Please try again later.</string>
+    <string name="referrals_referrer_wait_hours">%1$d h %2$02d min</string>
+    <string name="referrals_referrer_wait_minutes">%1$d min</string>
+    <string name="referrals_referrer_wait_under_minute">a minute</string>
     <string name="referrals_invited_title">Invited friends</string>
     <string name="referrals_open_list">View friends</string>
     <string name="referrals_unknown_user">ToBeVPN user</string>
@@ -271,14 +277,16 @@
         <item quantity="other">invited friends</item>
     </plurals>
     <string name="referrals_rewards_how_title">How to earn rewards</string>
-    <string name="referrals_rewards_description">Extra days are added after every subscription purchase or renewal by an invited user.</string>
+    <string name="referrals_rewards_description">You now get free days just for inviting a new friend.</string>
     <string name="referrals_rewards_what_title">What you receive</string>
     <string name="referrals_rewards_info_button">Reward details</string>
     <string name="referrals_rewards_dialog_title">Reward details</string>
     <string name="referrals_rewards_close">Close</string>
-    <string name="referrals_rewards_direct">Your friends</string>
+    <string name="referrals_rewards_signup">For inviting a new friend</string>
+    <string name="referrals_rewards_signup_value">+3 days</string>
+    <string name="referrals_rewards_direct">For each subscription payment by your friend</string>
     <string name="referrals_rewards_direct_value">+5 days</string>
-    <string name="referrals_rewards_indirect">Friends they invite</string>
+    <string name="referrals_rewards_indirect">For each payment by someone your friend invited</string>
     <string name="referrals_rewards_indirect_value">+1 day</string>
     <string name="referrals_rewards_note">All extra days are added to your current subscription.</string>
 
@@ -462,6 +470,8 @@
     <!-- Subscription block / forced update -->
     <string name="error_subscription_expired">Subscription expired. Renew it to connect.</string>
     <string name="error_tunnel_unhealthy">VPN connected, but traffic is not passing through the server. Try another server.</string>
+    <string name="error_vpn_stopped_by_system">VPN stopped by the TV</string>
+    <string name="vpn_stopped_by_system_hint">The TV closed the VPN in the background. Allow ToBeVPN to auto-start and run in the background: on TCL in the Safety Guard app → Permission Shield, on other models in Settings → Apps → Special app access → Energy optimization.</string>
     <string name="error_underlying_network_unavailable">No working internet connection. VPN was stopped so it does not block the network.</string>
     <string name="vpn_waiting_for_network_resume">Waiting for network — VPN will reconnect automatically</string>
     <string name="error_usage_blocked">Access blocked due to a violation of the usage rules</string>
@@ -565,6 +575,14 @@
     <string name="whats_new_clear_discounts_v1034_desc">The subscription screen strikes through the full price of a term, and the percentage shows the real saving, for longer terms and with a promo code.</string>
     <string name="whats_new_xray_core_v1034_title">Xray core 26.10.10</string>
     <string name="whats_new_xray_core_v1034_desc">The connection core is updated with fixes and stability improvements from the new Xray release.</string>
+    <string name="whats_new_referral_rewards_v1035_title">Days for invites</string>
+    <string name="whats_new_referral_rewards_v1035_desc">You now get +3 days for every friend you invite, not only for their payments. All rewards are listed under “Reward details”.</string>
+    <string name="whats_new_hysteria2_v1035_title">Hysteria2 servers</string>
+    <string name="whats_new_hysteria2_v1035_desc">The TV connects to Hysteria2 servers. Each server shows its protocol under the name.</string>
+    <string name="whats_new_server_grid_v1035_title">Servers in two columns</string>
+    <string name="whats_new_server_grid_v1035_desc">The server screen fits twice as many servers, and automatic selection moved to the header.</string>
+    <string name="whats_new_xray_core_v1035_title">Xray core 26.10.21</string>
+    <string name="whats_new_xray_core_v1035_desc">The connection core is updated with fixes and stability improvements from the new Xray release.</string>
     <string name="server_probe_progress">Checked %1$d of %2$d</string>
     <string name="server_ping_timeout_title">Server check timeout</string>
     <string name="server_ping_timeout_description">How long to wait for a complete profile check. Increase it for slow or restricted networks.</string>

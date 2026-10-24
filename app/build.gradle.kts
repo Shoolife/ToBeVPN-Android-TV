@@ -48,8 +48,8 @@ android {
         applicationId = "com.tobevpn.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1034
-        versionName = "1.0.34-tv"
+        versionCode = 1035
+        versionName = "1.0.35-tv"
 
         // Direct APK releases retain the GitHub updater. The Google Play
         // variant overrides both flags and delegates updates to Play.
@@ -264,6 +264,8 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    // Real org.json for JVM tests of the Xray config builder (Android ships a stub).
+    testImplementation("org.json:json:20250517")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }

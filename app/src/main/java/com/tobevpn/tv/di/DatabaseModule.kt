@@ -45,6 +45,7 @@ object DatabaseModule {
                 MIGRATION_10_11,
                 MIGRATION_11_12,
                 MIGRATION_12_13,
+                MIGRATION_13_14,
             )
             .fallbackToDestructiveMigration(dropAllTables = false)
             // Usage is updated while the tunnel is active. Keep committed
@@ -118,6 +119,18 @@ object DatabaseModule {
                     "COALESCE(refreshExpiresAt, 0) DESC, " +
                     "COALESCE(accessExpiresAt, 0) DESC, rowid DESC LIMIT 1)",
             )
+        }
+    }
+
+    // v13 -> v14: Hysteria2 profiles in the server cache; existing rows are
+    // VLESS.
+    internal val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE servers ADD COLUMN protocol TEXT NOT NULL DEFAULT 'VLESS'")
+            db.execSQL("ALTER TABLE servers ADD COLUMN obfsPassword TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE servers ADD COLUMN pinSha256 TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE servers ADD COLUMN portHopping TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE servers ADD COLUMN echConfigList TEXT NOT NULL DEFAULT ''")
         }
     }
 

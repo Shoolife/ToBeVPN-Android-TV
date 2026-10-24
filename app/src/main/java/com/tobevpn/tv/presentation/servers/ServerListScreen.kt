@@ -16,11 +16,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -89,18 +92,19 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tobevpn.tv.domain.model.Server
+import com.tobevpn.tv.domain.model.ServerProtocol
 import com.tobevpn.tv.presentation.countryFlagForUi
 import com.tobevpn.tv.presentation.rememberTvScreenScale
 import com.tobevpn.tv.presentation.components.TvHeaderIconButton
 import com.tobevpn.tv.presentation.components.VerticalScrollCues
 import com.tobevpn.tv.presentation.components.rememberVerticalScrollCueState
 import com.tobevpn.tv.presentation.components.verticalFadingEdges
-import com.tobevpn.tv.presentation.serverCountryNameForUi
 import com.tobevpn.tv.presentation.serverDisplayName
 import com.tobevpn.tv.presentation.theme.VpnGreen
 import com.tobevpn.tv.presentation.theme.VpnOrange
 import com.tobevpn.tv.presentation.theme.VpnRed
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 private data class ServerListMetrics(
     val cardVerticalPadding: Dp,
@@ -115,11 +119,14 @@ private data class ServerListMetrics(
     val statusGap: Dp,
     val pingWidth: Dp,
     val adminPingWidth: Dp,
-    val autoIconSize: Dp,
-    val autoRowPadding: Dp,
     val pingChipHeight: Dp,
     val portChipHeight: Dp,
+    val columnGap: Dp,
+    val subtitleGap: Dp,
 )
+
+/** Servers per grid row: a TV screen is wide enough for two cards. */
+private const val SERVER_GRID_COLUMNS = 2
 
 private fun serverListMetrics(scale: Float): ServerListMetrics = ServerListMetrics(
     cardVerticalPadding = (7 * scale).dp,
@@ -134,10 +141,10 @@ private fun serverListMetrics(scale: Float): ServerListMetrics = ServerListMetri
     statusGap = (18 * scale).dp,
     pingWidth = (54 * scale).dp,
     adminPingWidth = (58 * scale).dp,
-    autoIconSize = (36 * scale).dp,
-    autoRowPadding = (20 * scale).dp,
     pingChipHeight = (38 * scale).dp,
     portChipHeight = (24 * scale).dp,
+    columnGap = (14 * scale).dp,
+    subtitleGap = (5 * scale).dp,
 )
 
 @Composable
@@ -234,6 +241,24 @@ fun ServerListScreen(
                     modifier = Modifier.weight(1f),
                     style = tightStyle,
                 )
+                AutomaticServerChip(
+                    selected = serverSelection.automatic,
+                    enabled = displayedServers.any { it.isSelectable },
+                    onClick = {
+                        scope.launch {
+                            if (viewModel.selectAutomaticServer()) {
+                                onBack()
+                            }
+                        }
+                    },
+                    height = headerButtonSize,
+                    iconSize = headerIconSize,
+                    titleSize = titleSize,
+                    borderWidth = borderWidth,
+                    scale = scale,
+                    tightStyle = tightStyle,
+                )
+                Spacer(modifier = Modifier.width((44 * scale).dp))
                 TvHeaderIconButton(
                     onClick = { viewModel.refreshServers() },
                     modifier = Modifier.size(headerButtonSize),
@@ -366,9 +391,12 @@ fun ServerListScreen(
                                 }
                             }
                             val trailingWidth = with(density) { trailingWidthPx.toDp() }
+                            // Each card gets one column of the grid.
+                            val cardWidth = (maxWidth - metrics.columnGap * (SERVER_GRID_COLUMNS - 1)) /
+                                SERVER_GRID_COLUMNS
                             val nameWidthPx = with(density) {
                                 (
-                                    maxWidth -
+                                    cardWidth -
                                         metrics.rowHorizontalPadding * 2 -
                                         metrics.flagColumnWidth -
                                         metrics.flagTextGap -
@@ -416,46 +444,49 @@ fun ServerListScreen(
                                         fadeHeight = (38 * scale).dp,
                                     ),
                             ) {
-                                item(key = "automatic") {
-                                    AutomaticServerItem(
-                                        selected = serverSelection.automatic,
-                                        enabled = displayedServers.any { it.isSelectable },
-                                        onClick = {
-                                            scope.launch {
-                                                if (viewModel.selectAutomaticServer()) {
-                                                    onBack()
-                                                }
-                                            }
-                                        },
-                                        metrics = metrics,
-                                        titleSize = titleSize,
-                                        bodySize = bodySize,
-                                        borderWidth = borderWidth,
-                                        tightStyle = tightStyle,
-                                    )
-                                }
-                                items(displayedServers, key = { serverListItemKey(it) }) { server ->
-                                    val selectable = server.isSelectable
-                                    ServerItem(
-                                        server = server,
-                                        selected = selectable && server.id == selectedManualServer?.id,
-                                        enabled = selectable,
-                                        onClick = {
-                                            scope.launch {
-                                                if (viewModel.selectServer(server)) {
-                                                    onBack()
-                                                }
-                                            }
-                                        },
-                                        showEndpoint = isAdminProfile,
-                                        serverNameFontSize = serverNameFontSize,
-                                        metrics = metrics,
-                                        titleSize = titleSize,
-                                        bodySize = bodySize,
-                                        labelSize = labelSize,
-                                        borderWidth = borderWidth,
-                                        tightStyle = tightStyle,
-                                    )
+                                // Row by row in ping order: the best server is top left,
+                                // the next one to its right.
+                                items(
+                                    items = displayedServers.chunked(SERVER_GRID_COLUMNS),
+                                    key = { row -> row.joinToString("|") { serverListItemKey(it) } },
+                                ) { row ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(IntrinsicSize.Min),
+                                        horizontalArrangement = Arrangement.spacedBy(metrics.columnGap),
+                                    ) {
+                                        row.forEach { server ->
+                                            val selectable = server.isSelectable
+                                            ServerItem(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .fillMaxHeight(),
+                                                server = server,
+                                                selected = selectable && server.id == selectedManualServer?.id,
+                                                enabled = selectable,
+                                                onClick = {
+                                                    scope.launch {
+                                                        if (viewModel.selectServer(server)) {
+                                                            onBack()
+                                                        }
+                                                    }
+                                                },
+                                                showEndpoint = isAdminProfile,
+                                                serverNameFontSize = serverNameFontSize,
+                                                metrics = metrics,
+                                                titleSize = titleSize,
+                                                bodySize = bodySize,
+                                                labelSize = labelSize,
+                                                borderWidth = borderWidth,
+                                                tightStyle = tightStyle,
+                                            )
+                                        }
+                                        // An odd last server keeps its column width.
+                                        repeat(SERVER_GRID_COLUMNS - row.size) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
                                 }
                             }
                             VerticalScrollCues(state = cues, scale = scale)
@@ -489,8 +520,9 @@ private fun ServerProbeProgressBar(
             .fillMaxWidth()
             .padding(vertical = metrics.cardVerticalPadding),
         shape = RoundedCornerShape(metrics.cardCornerRadius),
+        // Same surface as the server cards below it.
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
         ),
     ) {
         Column(
@@ -537,15 +569,20 @@ private fun ServerProbeProgressBar(
     }
 }
 
+/**
+ * Automatic selection, kept in the header next to refresh so the grid holds
+ * only servers. Green when it is the current choice, like a selected card.
+ */
 @Composable
-private fun AutomaticServerItem(
+private fun AutomaticServerChip(
     selected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
-    metrics: ServerListMetrics,
+    height: Dp,
+    iconSize: Dp,
     titleSize: TextUnit,
-    bodySize: TextUnit,
     borderWidth: Dp,
+    scale: Float,
     tightStyle: TextStyle,
 ) {
     val isDark = isDarkAppTheme()
@@ -563,8 +600,7 @@ private fun AutomaticServerItem(
 
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = metrics.cardVerticalPadding)
+            .height(height)
             .onFocusChanged { focused = it.isFocused }
             .focusable(enabled = enabled)
             .onKeyEvent { event ->
@@ -576,7 +612,7 @@ private fun AutomaticServerItem(
                     true
                 } else false
             },
-        shape = RoundedCornerShape(metrics.cardCornerRadius),
+        shape = RoundedCornerShape(percent = 50),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
                 selectedContainerColor
@@ -595,31 +631,25 @@ private fun AutomaticServerItem(
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(metrics.autoRowPadding),
+                .fillMaxHeight()
+                .padding(start = (14 * scale).dp, end = (20 * scale).dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = Icons.Default.Bolt,
                 contentDescription = null,
                 tint = VpnGreen,
-                modifier = Modifier.size(metrics.autoIconSize),
+                modifier = Modifier.size(iconSize),
             )
-            Spacer(modifier = Modifier.width(metrics.flagTextGap))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.server_auto),
-                    fontSize = titleSize,
-                    fontWeight = FontWeight.Medium,
-                    style = tightStyle,
-                )
-                Text(
-                    text = stringResource(R.string.server_auto_description),
-                    fontSize = bodySize,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = tightStyle,
-                )
-            }
+            Spacer(modifier = Modifier.width((8 * scale).dp))
+            Text(
+                text = stringResource(R.string.server_auto_select),
+                fontSize = titleSize,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                softWrap = false,
+                style = tightStyle,
+            )
         }
     }
 }
@@ -638,6 +668,7 @@ private fun ServerItem(
     labelSize: TextUnit,
     borderWidth: Dp,
     tightStyle: TextStyle,
+    modifier: Modifier = Modifier,
 ) {
     val isDark = isDarkAppTheme()
     var focused by remember { mutableStateOf(false) }
@@ -656,10 +687,19 @@ private fun ServerItem(
     } else {
         Color(0xFF1A1C1E).copy(alpha = 0.18f)
     }
-    val showCountryLine = showEndpoint || !server.isSelectable
+    // Line under the name, as on the phone: the protocol for users, the
+    // full formula for admins (the "Technical" view); "unavailable" always
+    // wins.
+    val subtitleText = when {
+        !server.isSelectable -> stringResource(R.string.server_unavailable)
+        showEndpoint -> listOf(server.protocol.displayName, protocolFormula(server))
+            .filter(String::isNotEmpty)
+            .joinToString(" · ")
+        else -> server.protocol.displayName
+    }
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = metrics.cardVerticalPadding)
             .onFocusChanged { focused = it.isFocused }
@@ -690,7 +730,12 @@ private fun ServerItem(
             showIdleBorder = !isDark,
         ),
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        // A taller neighbour in the row stretches the card; keep the content
+        // centred in it.
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -727,25 +772,20 @@ private fun ServerItem(
                         overflow = TextOverflow.Ellipsis,
                         style = tightStyle,
                     )
-                    if (showCountryLine) {
-                        Text(
-                            text = if (!server.isSelectable) {
-                                stringResource(R.string.server_unavailable)
-                            } else {
-                                serverCountryNameForUi(server.country, server.name)
-                            },
-                            fontSize = bodySize,
-                            color = if (!server.isSelectable) {
-                                VpnRed
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis,
-                            style = tightStyle,
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(metrics.subtitleGap))
+                    Text(
+                        text = subtitleText,
+                        fontSize = bodySize,
+                        color = if (!server.isSelectable) {
+                            VpnRed
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        style = tightStyle,
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(metrics.statusGap))
@@ -1052,6 +1092,32 @@ private fun serverCardBorder(
 @Composable
 private fun isDarkAppTheme(): Boolean =
     MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+// "REALITY · XHTTP · Vision" for VLESS, "QUIC · Salamander · ECH" for
+// Hysteria2: the parts an admin checks first when a server misbehaves; same
+// formula as the phone.
+private fun protocolFormula(server: Server): String = when (server.protocol) {
+    ServerProtocol.HYSTERIA2 -> listOfNotNull(
+        "QUIC",
+        "Salamander".takeIf { server.obfsPassword.isNotBlank() },
+        "ECH".takeIf { server.echConfigList.isNotBlank() },
+        "Port hopping".takeIf { server.portHopping.isNotBlank() },
+    )
+    ServerProtocol.VLESS -> listOfNotNull(
+        server.security.takeIf { it.isNotBlank() && it != "none" }?.uppercase(Locale.ROOT),
+        server.network.takeIf { it.isNotBlank() }?.let(::transportLabel),
+        "Vision".takeIf { server.flow.contains("vision", ignoreCase = true) },
+    )
+}.joinToString(" · ")
+
+private fun transportLabel(network: String): String = when (network.lowercase(Locale.ROOT)) {
+    "tcp" -> "RAW"
+    "ws" -> "WS"
+    "grpc" -> "gRPC"
+    "xhttp" -> "XHTTP"
+    "httpupgrade" -> "HTTPUpgrade"
+    else -> network.uppercase(Locale.ROOT)
+}
 
 private fun pingColor(ping: Long) = when {
     ping < 100 -> VpnGreen
